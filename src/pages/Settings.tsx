@@ -4,12 +4,14 @@ import { cached, must, saveError } from '../lib/offline'
 import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
 import AdminOnly from '../components/AdminOnly'
+import { Insurances } from './Sections'
 
 export default function Settings() {
   return (
     <AdminOnly>
       <h1>Settings</h1>
       <CompanyDetails />
+      <Insurances />
       <Users />
       <ExportAll />
     </AdminOnly>

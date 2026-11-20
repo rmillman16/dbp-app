@@ -32,6 +32,7 @@ interface Props {
   match?: [string, string] // only rows where column = value, e.g. ['category', 'Quotations']
   emptyText?: string
   extraActions?: ReactNode
+  readOnly?: boolean // non-admins: can open and read, not change
 }
 
 export default function RecordList(p: Props) {
@@ -102,7 +103,20 @@ export default function RecordList(p: Props) {
     load()
   }
 
-  const editor = (
+  const viewer = (
+    <div className="record-editor record-view">
+      {p.fields
+        .filter((f) => f.type !== 'checkbox' && draft?.[f.key] != null && String(draft[f.key]).trim() !== '')
+        .map((f) => (
+          <div key={f.key}>
+            <div className="muted small">{f.label}</div>
+            <div className="view-text">{String(draft?.[f.key])}</div>
+          </div>
+        ))}
+    </div>
+  )
+
+  const editor = p.readOnly ? viewer : (
     <div className="record-editor">
       <div className="form-grid">
         {p.fields.map((f) => (
@@ -163,12 +177,13 @@ export default function RecordList(p: Props) {
   return (
     <div>
       <div className="button-row record-actions">
-        {p.newRow && (
+        {p.readOnly && <span className="muted small">View only: ask an admin to change these.</span>}
+        {p.newRow && !p.readOnly && (
           <button className="primary" onClick={add} disabled={openId === 'new'}>
             + {p.addLabel ?? 'Add'}
           </button>
         )}
-        {p.extraActions}
+        {!p.readOnly && p.extraActions}
       </div>
       {openId === 'new' && (
         <div className="record open">

@@ -251,6 +251,8 @@ form > section.card { margin-bottom: 16px; }
 .record-title { font-weight: 600; color: var(--navy); }
 .record-editor { padding: 4px 14px 14px; border-top: 1px solid var(--line); }
 .record-editor .form-grid { margin-top: 12px; }
+.record-view { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.view-text { white-space: pre-line; line-height: 1.5; }
 label.check span { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 label.check input { width: 20px; height: 20px; }
 button.danger { color: var(--red); border-color: #e9b4b4; margin-left: auto; }
