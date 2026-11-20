@@ -10,6 +10,56 @@ import { QUOTE_STATUS_LABELS, type Clause, type Enquiry, type Job, type Quotatio
 import GroupsEditor from '../components/GroupsEditor'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
+import { parseSow } from '../lib/sowImport'
+
+// Pricing schedule from a priced SoW in Excel (our SoW template, client / office SoW, or an
+// application workbook): every priced line, or one line per section with its total.
+function PricingImport({ hasLines, onLines }: { hasLines: boolean; onLines: (l: QuotationLine[], replace: boolean) => void }) {
+  const [mode, setMode] = useState<'lines' | 'sections'>('lines')
+  const [msg, setMsg] = useState<string | null>(null)
+
+  async function read(f: File) {
+    setMsg(null)
+    if (/\.pdf$/i.test(f.name)) return setMsg('Reading PDFs isn\'t set up yet: use the Excel version for now.')
+    try {
+      const p = await parseSow(await f.arrayBuffer())
+      const items = p.lines.filter((l) => l.kind === 'item' && !l.below_line && l.total != null)
+      let out: QuotationLine[]
+      if (mode === 'lines') {
+        out = items.map((l, i) => ({ item: null, heading: null, description: l.description, qty: l.qty ?? 1, unit: l.unit, rate: l.rate ?? l.total, total: l.total, sort: i }))
+      } else {
+        const sections = p.lines.filter((l) => l.kind === 'section' && !l.below_line)
+        out = sections
+          .map((sec, i) => {
+            const total = Math.round(items.filter((l) => l.section === sec.section).reduce((t, l) => t + (l.total ?? 0), 0) * 100) / 100
+            return { item: null, heading: sec.description, description: '', qty: 1, unit: 'Item', rate: total, total, sort: i }
+          })
+          .filter((l) => l.total)
+      }
+      if (!out.length) return setMsg('No priced lines found in that file.')
+      const replace = hasLines ? confirm(`Replace the current pricing lines with these ${out.length}?\n\nOK = replace, Cancel = add them to the end.`) : true
+      onLines(out, replace)
+      const sum = out.reduce((t, l) => t + (l.total ?? 0), 0)
+      setMsg(`Imported ${out.length} ${mode === 'lines' ? 'lines' : 'sections'} from ${p.sheet} (${p.revision}), ${money(sum)}. Check them, then Save.`)
+    } catch (e) {
+      setMsg((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="pricing-import">
+      <label className="file-button">
+        <input type="file" accept=".xlsx,.xlsm,.pdf" onChange={(e) => (e.target.files?.[0] && read(e.target.files[0]), (e.target.value = ''))} />
+        <span className="button">Import from Excel…</span>
+      </label>
+      <select value={mode} onChange={(e) => setMode(e.target.value as 'lines' | 'sections')}>
+        <option value="lines">every priced line</option>
+        <option value="sections">one line per section</option>
+      </select>
+      {msg && <span className="small">{msg}</span>}
+    </div>
+  )
+}
 
 const DEFAULT_ACCEPTANCE = 'To accept, please sign below and return a copy to du Boulay Projects or respond via email.'
 
@@ -275,6 +325,14 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
           <span className="sec-no">02</span> Pricing schedule
         </h2>
         <p className="muted small">Client rates: OHP and prelims are built in (or prelims shown as their own line).</p>
+        <PricingImport
+          hasLines={lines.length > 0}
+          onLines={(imported, replace) => {
+            setSaved(false)
+            const drafts = imported.map((l) => ({ key: nextKey++, heading: l.heading ?? '', description: l.description, qty: s(l.qty), unit: s(l.unit), rate: s(l.rate) }))
+            setLines((ls) => (replace ? drafts : [...ls, ...drafts]))
+          }}
+        />
         <table className="table buildup quote-lines">
           <thead>
             <tr>
