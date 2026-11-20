@@ -309,7 +309,7 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 **Splits and prelims management (Richard, 20 Nov, script 017):**
 - **A supplier's cost is split by % or by £.** A % split follows the cost each month.
 - **A £ split stays fixed.** If the supplier's total changes in a later report, the difference shows as not allocated (or too much), with a warning, until the split is updated. Switching between % and £ converts what's typed.
-- **Prelims in the dropdown come in two parts:** Preliminaries – Management (PM, site manager, commercial management, design coordination…), then Preliminaries – Site & general.
+- **Management is an item under Preliminaries, like Site Manager, not a heading of its own** (Richard corrected this, 20 Nov). DuB Management and DuB Design are grouped under Preliminaries and can be chosen in the dropdown, marked "(omitted)". Cost allocated to them still counts, so it reduces the margin.
 
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).

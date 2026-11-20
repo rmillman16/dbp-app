@@ -9,32 +9,22 @@ import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type CvrResult, ty
 
 type PkgOption = { id: string; name: string; group: Group }
 
-// prelims are shown in two parts: management (people running the job) first, then site & general
-const isManagement = (name: string) => /manag|supervis|coordinat|design|commercial|\bqs\b|quantity surveyor|document controller/i.test(name)
-
 // the package list, in groups and alphabetical within each
 function PackageOptions({ packages }: { packages: PkgOption[] }) {
-  const sections = GROUP_ORDER.flatMap((g) => {
-    const mine = packages.filter((p) => p.group === g)
-    if (g !== 'prelims') return [{ key: g, label: GROUP_LABELS[g], items: mine }]
-    return [
-      { key: 'prelims-management', label: `${GROUP_LABELS.prelims} – Management`, items: mine.filter((p) => isManagement(p.name)) },
-      { key: 'prelims-site', label: `${GROUP_LABELS.prelims} – Site & general`, items: mine.filter((p) => !isManagement(p.name)) },
-    ]
-  })
   return (
     <>
-      {sections.map((s) =>
-        s.items.length ? (
-          <optgroup key={s.key} label={s.label}>
-            {s.items.map((p) => (
+      {GROUP_ORDER.map((g) => {
+        const mine = packages.filter((p) => p.group === g)
+        return mine.length ? (
+          <optgroup key={g} label={GROUP_LABELS[g]}>
+            {mine.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </optgroup>
-        ) : null,
-      )}
+        ) : null
+      })}
     </>
   )
 }
@@ -153,11 +143,12 @@ export default function CvrEditor() {
     if (ordered.length) return ordered.join(', ')
     return note && !/^(tbc|n\/a|0|dub|multiple|see\b.*)$/i.test(note.trim()) ? note.trim() : ''
   }
+  // OH&P isn't somewhere a cost can go; omitted prelims items (DuB management, design) are
   const pkgOptions: PkgOption[] = ctx.packages
-    .filter((p) => p.kind !== 'omit')
+    .filter((p) => p.kind !== 'omit' || groupOf(p) === 'prelims')
     .map((p) => {
       const who = subbieOf(p.id, p.supplier_note)
-      return { id: p.id, name: who ? `${p.name} – ${who}` : p.name, group: groupOf(p) }
+      return { id: p.id, name: `${p.name}${who ? ` – ${who}` : ''}${p.kind === 'omit' ? ' (omitted)' : ''}`, group: groupOf(p) }
     })
     .sort(byGroupThenName)
   // a bespoke package added from the dropdown; returns its id so the cost can go straight to it

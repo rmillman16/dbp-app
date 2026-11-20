@@ -30,6 +30,8 @@ export const GROUP_ORDER: Group[] = ['labour_materials', 'subcontract', 'prelims
 export function groupOf(p: { kind: Kind; name: string; cvr_group?: Group | null }): Group {
   if (p.cvr_group) return p.cvr_group
   const n = p.name.toLowerCase()
+  // DuB management and design are prelims items, even though they're shown and omitted
+  if (p.kind === 'omit' && /management|design/.test(n)) return 'prelims'
   if (p.kind !== 'cost' || /provision|prov sum|contingency/.test(n)) return 'other'
   if (/^subbie/.test(n)) return 'subcontract'
   if (/^(dub )?(labour|materials)$|builderswork/.test(n)) return 'labour_materials'
@@ -249,7 +251,7 @@ export function computeCvr(i: CalcInput): CvrResult {
       source = 'omitted'
       base = 0
       sourceNote = 'Shown and omitted'
-      if (cost) warnings.push(`${gbp(cost)} of cost is allocated to ${p.name}, which is omitted: it's counted, but check the allocation.`)
+      if (cost) warnings.push(`${gbp(cost)} is allocated to ${p.name}, which is omitted from the budget (it's in the margin): the cost still counts, so it reduces the margin.`)
     } else if (p.target != null) {
       source = 'typed'
       base = Number(p.target)
