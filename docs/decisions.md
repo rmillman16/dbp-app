@@ -61,6 +61,30 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 - **Client copy shows certified and paid only** (Client assessment and paid). DBP's applied figure appears on the internal copy only.
 - Saved to `2611 INTERNAL/5. Cashflow/`.
 
+## Cashflow: built (20 Nov, script 019), step 1 of 2
+**Programme import (Job › Cashflow, shared later with procurement and progress reports):**
+- Timeline saves the programme as a P6 **.xer** (Richard, 20 Nov), and the app reads it:
+  - **Sections** = WBS headings.
+  - **Activities** = their ID (A1010…), name, trade (the "Trade" activity code) and dates (actual where started, else scheduled).
+- Timeline's own .json can also be read.
+- Re-import on each revision. Links are kept by activity ID, and the import lists any linked activity that's gone.
+- Tested on `reference/test-cases/Corsham Street - L9 - B4 - Summary.xer`: 41 activities, 6 sections, 07/09/2026–19/09/2027.
+
+**Weighting (Richard, 20 Nov): "a section where weighting can be configured — deposit, progress, delivery, installation as a guide, with the ability to rename and add sections".**
+- **Payment stages per job:** Deposit · Progress · Delivery · Installation · Completion to start with. They can be renamed, added, removed or reordered.
+- **Each SoW section** (from the current priced SoW, below the line left out), **agreed VO** and **issued VO (at risk, shown separately)** is linked to programme activities. The app suggests them from shared words in the names and trades, with M&E read as mechanical / electrical.
+- **Each stage gets a %** (adding up to 100%) and a **when**: at the start of, spread across (by working day, Mon–Fri), or at the end of its activities (all linked, or a chosen few), or on a typed date. "Start on site to PC" is an activity of its own, using the job's dates.
+- **Starting weighting until set:**
+  - a linked section: 100% Progress spread across its activities;
+  - prelims (Richard chose "weighted to set-up and finish"): 10% at start on site, 80% spread to PC, 10% at PC.
+- **Nothing is lost:** a section not yet linked, or with stages short of 100%, is listed as "not placed" with the reason. Each section's months add back to its value to the penny.
+- **Forecast:**
+  - calendar months (valuations at month end), excl. VAT;
+  - this month, cumulative, cumulative %, retention held (job %, halved from the PC month) and payment after retention;
+  - issued VOs in their own at-risk column;
+  - the S-curve on screen: monthly bars and the cumulative % line.
+- **Step 2 (next):** Excel export (internal copy with DBP's applied figures, client copy with certified and paid only), the actuals overlay from Applications for past months, and the S-curve in the Excel.
+
 ## Timeline and Minutes merge — parked (19 Nov)
 - Parked until the developer (who holds the Minutes Firebase project) and the IT manager (Supabase hosting) are available. Fresh copies of both apps to be taken from the live sites when work starts.
 

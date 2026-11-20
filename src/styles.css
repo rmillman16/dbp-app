@@ -368,6 +368,35 @@ select.unallocated { border-color: var(--red); }
   .two-col { grid-template-columns: 1fr; }
   .forecast-cell { justify-content: flex-start; }
 }
+
+/* ---------- cashflow ---------- */
+.stage-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; max-width: 520px; }
+.stage-list li, .stage-add { display: flex; gap: 6px; align-items: center; }
+.stage-list input, .stage-add input { flex: 1; min-width: 0; }
+.stage-add { max-width: 520px; }
+.table tr.selected td { background: #eef3fa; }
+.table tr.editor-row td { background: #fafbfd; padding: 14px; }
+.cf-editor { display: flex; flex-direction: column; gap: 10px; }
+.cf-editor h3 { margin: 4px 0 0; }
+.task-pick { max-height: 340px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; display: flex; flex-direction: column; gap: 4px; }
+.task-pick fieldset { border: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.task-pick legend { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--navy); padding: 0; margin-bottom: 2px; }
+.task-pick label { display: flex; gap: 8px; align-items: flex-start; padding: 3px 4px; border-radius: 4px; }
+.task-pick label.suggested { background: #fff8e1; }
+.task-pick input, .own-picks input { margin-top: 3px; flex: none; }
+.cf-weights input.pct { width: 80px; text-align: right; }
+.cf-weights select { max-width: 100%; }
+.cf-weights input[type='date'] { margin-top: 6px; display: block; }
+.own-picks { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; font-size: 13px; }
+.own-picks label { display: flex; gap: 6px; align-items: flex-start; }
+.cf-preview { background: var(--bg); border-radius: 8px; padding: 10px 12px; line-height: 1.6; }
+.cf-chart { width: 100%; height: auto; display: block; margin: 6px 0 14px; }
+.cf-chart .grid { stroke: var(--line); stroke-width: 1; }
+.cf-chart .axis { font-size: 11px; fill: var(--muted); }
+.cf-chart .bar { fill: var(--navy); opacity: 0.85; }
+.cf-chart .bar.risk { fill: #e0a100; }
+.cf-chart .curve { fill: none; stroke: var(--blue); stroke-width: 2.5; }
+.cf-months tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 .app-editor { display: flex; flex-direction: column; gap: 16px; }
 .app-editor .sub-bar { margin-bottom: 0; }
 .app-top { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
