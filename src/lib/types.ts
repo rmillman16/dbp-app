@@ -32,6 +32,36 @@ export interface Job {
   eot_clause: string | null
   le_clause: string | null
   client_contact_id: string | null // who letters go "Fao:"
+  cvr_ep_pct: number | null // EP / contingency, % of contract sum (script 015)
+  cvr_budget_file: string | null
+  cvr_budget_total: number | null
+  cvr_budget_imported_at: string | null
+}
+
+// ---------- CVR ----------
+export interface CvrPackage {
+  id: string
+  job_id: string
+  name: string
+  kind: 'cost' | 'omit' | 'ep'
+  sow_column: string | null
+  budget: number | null
+  target: number | null // typed cost target
+  target_note: string | null
+  supplier_note: string | null
+  sort: number
+}
+
+export interface Cvr {
+  id: string
+  job_id: string
+  period_end: string // cost as at
+  cost_import_id: string | null
+  prepared_date: string | null
+  status: 'draft' | 'final'
+  possible_reduction: number
+  notes: string | null
+  summary: import('./cvrCalc').CvrResult | null // the figures as finalised
 }
 
 // ---------- EOT ----------
@@ -109,6 +139,7 @@ export interface Variation {
   date_issued: string | null
   date_agreed: string | null
   notes: string | null
+  cvr_package_id: string | null // CVR package its cost goes to (agreed VOs)
 }
 
 export type VoSection = 'omit' | 'add'
@@ -218,6 +249,7 @@ export interface Order {
   id: string
   job_id: string
   company_id: string
+  package_id: string | null // CVR package the order is against
   folder_no: number | null // 3. Orders / NN - Trade - Subcontractor
   trade: string | null
   order_no: string | null // 2611/FISL/02
