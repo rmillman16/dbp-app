@@ -235,6 +235,11 @@ form > section.card { margin-bottom: 16px; }
 .pct input { width: 80px; text-align: right; }
 
 /* ---------- templates / record lists ---------- */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.pill { padding: 6px 14px; border-radius: 16px; border: 1px solid var(--line); text-decoration: none; color: var(--muted); font-weight: 600; font-size: 14px; }
+.pill:hover { color: var(--navy); border-color: #c9c9d3; }
+.pill.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.sub-head:first-of-type { margin-top: 4px; }
 .intro { margin: 0 0 14px; max-width: 760px; }
 .record-actions { margin-bottom: 12px; }
 .record-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 8px; }

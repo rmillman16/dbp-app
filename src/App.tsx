@@ -11,7 +11,7 @@ import JobLayout from './pages/JobLayout'
 import JobOverview from './pages/JobOverview'
 import VariationsRegister from './pages/VariationsRegister'
 import VariationEditor from './pages/VariationEditor'
-import Templates, { ClauseLibrary, Insurances, OmDocuments, WordingTemplates } from './pages/Templates'
+import Templates, { CommercialTemplates, ContractTemplates, Insurances, OmDocuments, PmTemplates } from './pages/Templates'
 import Settings from './pages/Settings'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor from './pages/QuotationEditor'
@@ -72,10 +72,13 @@ export default function App() {
           <Route path="quotations/:quoteId" element={<QuotationEditor />} />
         </Route>
         <Route path="/templates" element={<Templates />}>
-          <Route index element={<WordingTemplates />} />
-          <Route path="clauses" element={<ClauseLibrary />} />
-          <Route path="insurances" element={<Insurances />} />
+          <Route index element={<Navigate to="commercial/quotations" replace />} />
+          <Route path="commercial" element={<Navigate to="quotations" replace />} />
+          <Route path="commercial/:doc" element={<CommercialTemplates />} />
+          <Route path="contracts" element={<ContractTemplates />} />
           <Route path="om" element={<OmDocuments />} />
+          <Route path="pm" element={<PmTemplates />} />
+          <Route path="company" element={<Insurances />} />
         </Route>
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />

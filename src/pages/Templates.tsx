@@ -1,17 +1,20 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import AdminOnly from '../components/AdminOnly'
 import RecordList from '../components/RecordList'
 
-// Templates (admins only): things every export and letter draws on.
+// Templates (admins only), one section per kind of document (agreed 20 Nov):
+// Commercial (quotations, variations, valuations, payment notices), Contracts (EOT),
+// O&M, Project management (in development), Company (insurances).
 const SECTIONS = [
-  { to: '', label: 'Wording' },
-  { to: 'clauses', label: 'Clause library' },
-  { to: 'insurances', label: 'Insurances' },
-  { to: 'om', label: 'O&M documents' },
+  { to: 'commercial', label: 'Commercial' },
+  { to: 'contracts', label: 'Contracts' },
+  { to: 'om', label: 'O&M' },
+  { to: 'pm', label: 'Project management' },
+  { to: 'company', label: 'Company' },
 ]
 
 export default function Templates() {
@@ -20,7 +23,7 @@ export default function Templates() {
       <h1>Templates</h1>
       <nav className="tabs">
         {SECTIONS.map((s) => (
-          <NavLink key={s.label} to={s.to} end={s.to === ''} className="tab">
+          <NavLink key={s.label} to={s.to} className="tab">
             {s.label}
           </NavLink>
         ))}
@@ -32,24 +35,86 @@ export default function Templates() {
   )
 }
 
-export function WordingTemplates() {
+// Standard wording for one kind of document (text_templates.category).
+function Wording({ category, empty }: { category: string; empty: string }) {
+  return (
+    <RecordList
+      table="text_templates"
+      idKey="key"
+      match={['category', category]}
+      orderBy={['sort']}
+      title={(r) => String(r.title)}
+      subtitle={(r) => (String(r.body ?? '').trim() ? `Last changed ${ukDate(String(r.updated_at))}` : 'Not written yet')}
+      emptyText={empty}
+      fields={[
+        { key: 'title', label: 'Name', required: true, wide: true },
+        { key: 'body', label: 'Wording', type: 'textarea', rows: 14 },
+        { key: 'notes', label: 'Notes for admins', type: 'textarea', rows: 3 },
+      ]}
+    />
+  )
+}
+
+const COMMERCIAL = [
+  { doc: 'quotations', label: 'Quotations' },
+  { doc: 'variations', label: 'Variations' },
+  { doc: 'valuations', label: 'Valuations' },
+  { doc: 'payment-notices', label: 'Payment notices' },
+]
+
+export function CommercialTemplates() {
+  const { doc = 'quotations' } = useParams()
+  const later = (what: string) => (
+    <>
+      <p className="muted small intro">Standard wording for {what} will appear here as that part of the app is built.</p>
+      <Wording category={COMMERCIAL.find((c) => c.doc === doc)!.label} empty="Nothing here yet." />
+    </>
+  )
   return (
     <>
-      <p className="muted small intro">Standard wording the app puts into quotations and letters. Changes apply to everything produced after you save.</p>
-      <RecordList
-        table="text_templates"
-        idKey="key"
-        orderBy={['sort']}
-        groupBy="category"
-        title={(r) => String(r.title)}
-        subtitle={(r) => (String(r.body ?? '').trim() ? `Last changed ${ukDate(String(r.updated_at))}` : 'Not written yet')}
-        fields={[
-          { key: 'title', label: 'Name', required: true, wide: true },
-          { key: 'body', label: 'Wording', type: 'textarea', rows: 14 },
-          { key: 'notes', label: 'Notes for admins', type: 'textarea', rows: 3 },
-        ]}
-      />
+      <nav className="pills">
+        {COMMERCIAL.map((c) => (
+          <NavLink key={c.doc} to={`/templates/commercial/${c.doc}`} className="pill">
+            {c.label}
+          </NavLink>
+        ))}
+      </nav>
+      {doc === 'quotations' && (
+        <>
+          <h3 className="sub-head">Wording</h3>
+          <p className="muted small intro">Standard wording on every quotation. Changes apply to quotations exported after you save.</p>
+          <Wording category="Quotations" empty="No quotation wording yet." />
+          <h3 className="sub-head">Clause library</h3>
+          <ClauseLibrary />
+        </>
+      )}
+      {doc === 'variations' && (
+        <p className="muted small intro">
+          VO sheets use the job's OHP and prelims (defaults for new jobs are in Settings). Nothing else to set here yet.
+        </p>
+      )}
+      {doc === 'valuations' && later('client applications (valuations)')}
+      {doc === 'payment-notices' && later('subcontract payment notices')}
     </>
+  )
+}
+
+export function ContractTemplates() {
+  return (
+    <>
+      <h3 className="sub-head">EOT</h3>
+      <p className="muted small intro">Letters for delay events and extension of time claims. Wording must follow each job's contract (e.g. JCT D&B 2024).</p>
+      <Wording category="EOT" empty="No EOT wording yet." />
+    </>
+  )
+}
+
+export function PmTemplates() {
+  return (
+    <p className="muted intro">
+      <strong>In development.</strong> Templates for project management (progress reports, meeting minutes, programme)
+      will live here once those parts of the app are built.
+    </p>
   )
 }
 

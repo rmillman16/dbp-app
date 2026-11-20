@@ -29,6 +29,7 @@ interface Props {
   addLabel?: string
   canDelete?: boolean
   onlyEmpty?: string // only rows where this column is empty, e.g. company-wide items have no job_id
+  match?: [string, string] // only rows where column = value, e.g. ['category', 'Quotations']
   emptyText?: string
   extraActions?: ReactNode
 }
@@ -42,13 +43,14 @@ export default function RecordList(p: Props) {
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(() => {
-    cached(`tpl:${p.table}`, () => {
+    cached(`tpl:${p.table}:${p.match?.join('=') ?? ''}`, () => {
       let q = supabase.from(p.table).select('*')
       if (p.onlyEmpty) q = q.is(p.onlyEmpty, null)
+      if (p.match) q = q.eq(p.match[0], p.match[1])
       for (const o of p.orderBy) q = q.order(o)
       return must<Row[]>(q)
     }).then(setRows, (e: Error) => setError(e.message))
-  }, [p.table, p.onlyEmpty, p.orderBy.join()]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [p.table, p.onlyEmpty, p.match?.join(), p.orderBy.join()]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(load, [load])
 
