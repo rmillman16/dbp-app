@@ -242,6 +242,10 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **Offline:** the app is installable (home-screen icon) and opens from the device's cache with no signal. Every screen keeps a copy of the last data it loaded and shows it offline, with an "Offline" marker in the top bar. Someone already signed in can open the app offline. Sign-out wipes the device copy.
 - **Offline use (agreed 20 Nov):** **meeting minutes** can be written offline (saved to an outbox on the device, synced when the signal returns) and the **latest programme** is kept on the device so it can be viewed offline (both come with the Timeline / Minutes merge). **Everything else is view-only offline**, so offline edits to money figures can't clash.
 
+## Monthly valuation reminders (20 Nov)
+- **Every live job** gets a "valuation due" reminder each month it runs (start, or today, to PC; 12 months ahead if no PC date): **one week before month end**, moved back to the Friday at weekends. Shown on the bell / home page, linking to the job's Applications tab; rebuilt automatically when status, start or PC date change (script 010).
+- **Outlook:** until IT approves the Microsoft 365 link, each job's Overview has **"Add valuation dates to my calendar"**: an .ics file with a 09:00 appointment (15-minute alert) on each date, which Outlook / iPhone adds when opened. Stable IDs, so re-opening an updated file changes appointments rather than duplicating them. Once Microsoft Graph is approved, the app can put these in users' calendars directly.
+
 ## Layout and templates area (20 Nov)
 - **Sidebar layout** (chosen to scale with the modules to come): sidebar for company-wide areas (Home, Jobs, Contractors, Templates, Settings); inside a job, **each module is a tab** (Overview, Variations, Quotations, Applications, Payment notices…). Bell in the top bar on every page with a drop-down.
 - **Home = "Needs attention"** (red / amber, clickable, Done / Snooze, upcoming on request) **then a searchable jobs table** with Live / Tender / Complete / All filters, contract sum, PC date and VO count.

@@ -13,6 +13,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `007_estimating_quotations.sql` | Quotations without a job (Estimating: small works, new enquiries), with their own project name and EST numbering | ✅ Run 20 Nov 2026 |
 | `008_enquiries.sql` | Estimating enquiries (E001…) with client details, dates and status; quotations belong to an enquiry and are numbered per enquiry; won enquiries become jobs | ✅ Run 20 Nov 2026 |
 | `009_applications.sql` | Client applications: priced SoW import (sections, FOC / Excl text, below-the-line items), psum adjustment, practical completion, VAT, Client Assessment comments | ✅ Run 20 Nov 2026 |
+| `010_valuation_reminders.sql` | Monthly "valuation due" reminders on every live job, one week before month end, start to PC (rebuilt when dates change) | ⬜ Not yet run |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.

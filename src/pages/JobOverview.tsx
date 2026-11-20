@@ -4,12 +4,14 @@ import { money, ukDate } from '../lib/format'
 import { useNotifications } from '../lib/notifications'
 import { loadJobVariations, projectedValue, type VoWithLines } from '../lib/variations'
 import NotificationList from '../components/NotificationList'
+import { downloadValuationCalendar, valuationDates } from '../lib/calendar'
 import { useJob } from './JobLayout'
 
 export default function JobOverview() {
   const { job } = useJob()
-  const { items } = useNotifications()
+  const { attention } = useNotifications()
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
+  const [calMsg, setCalMsg] = useState<string | null>(null)
 
   useEffect(() => {
     loadJobVariations(job).then(setVos, () => setVos([]))
@@ -18,7 +20,8 @@ export default function JobOverview() {
   const live = vos?.filter((v) => v.vo.status !== 'rejected') ?? []
   const projected = live.reduce((s, v) => s + projectedValue(v.vo, v.build), 0)
   const agreed = live.filter((v) => v.vo.status === 'agreed').reduce((s, v) => s + projectedValue(v.vo, v.build), 0)
-  const jobNotes = items.filter((n) => n.job_id === job.id)
+  // what needs attention now (future valuation reminders etc. stay under the bell's "upcoming")
+  const jobNotes = attention.filter((n) => n.job_id === job.id)
 
   return (
     <div className="overview-grid">
@@ -40,6 +43,33 @@ export default function JobOverview() {
             {job.ohp_pct}% / {job.prelims_pct}% / {job.retention_pct}%
           </dd>
         </dl>
+      </section>
+
+      <section className="card">
+        <h2>Valuation dates</h2>
+        {job.status !== 'live' ? (
+          <p className="muted small">Monthly valuation reminders run while the job is Live.</p>
+        ) : (
+          <>
+            <p className="muted small">
+              One week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. They appear on the bell
+              when due.
+            </p>
+            <ul className="date-list">
+              {valuationDates(job)
+                .slice(0, 3)
+                .map((d) => (
+                  <li key={d.due}>
+                    <strong>{ukDate(d.due)}</strong> <span className="muted">· {d.month}</span>
+                  </li>
+                ))}
+            </ul>
+            <button onClick={() => setCalMsg(`${downloadValuationCalendar(job)} appointments downloaded: open the file to add them to Outlook.`)}>
+              Add valuation dates to my calendar
+            </button>
+            {calMsg && <p className="small">{calMsg}</p>}
+          </>
+        )}
       </section>
 
       <section className="card">

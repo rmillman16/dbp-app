@@ -305,6 +305,7 @@ td.late { color: var(--red); font-weight: 600; }
 .quote-list li { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .quote-list li a { font-weight: 600; }
 
+.date-list { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
 .pricing-import { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .file-button input { display: none; }
 .file-button .button { cursor: pointer; }
