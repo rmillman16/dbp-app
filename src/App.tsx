@@ -11,7 +11,8 @@ import JobLayout from './pages/JobLayout'
 import JobOverview from './pages/JobOverview'
 import VariationsRegister from './pages/VariationsRegister'
 import VariationEditor from './pages/VariationEditor'
-import { Contracts, Estimating } from './pages/Sections'
+import { Contracts } from './pages/Sections'
+import Estimating, { EnquiryForm, EnquiryPage } from './pages/Estimating'
 import Settings from './pages/Settings'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
@@ -72,6 +73,9 @@ export default function App() {
           <Route path="quotations/:quoteId" element={<QuotationEditor />} />
         </Route>
         <Route path="/estimating" element={<Estimating />} />
+        <Route path="/estimating/new" element={<EnquiryForm />} />
+        <Route path="/estimating/e/:enquiryId" element={<EnquiryPage />} />
+        <Route path="/estimating/e/:enquiryId/edit" element={<EnquiryForm />} />
         <Route path="/estimating/q/:quoteId" element={<EstimatingQuotationEditor />} />
         <Route path="/estimating/:tab" element={<Estimating />} />
         <Route path="/contracts" element={<Contracts />} />

@@ -67,6 +67,34 @@ export interface VariationLine {
   sort: number
 }
 
+// ---------- estimating ----------
+export type EnquiryStatus = 'enquiry' | 'pricing' | 'submitted' | 'won' | 'lost'
+
+export const ENQUIRY_STATUS_LABELS: Record<EnquiryStatus, string> = {
+  enquiry: 'New enquiry',
+  pricing: 'Pricing',
+  submitted: 'Submitted',
+  won: 'Won',
+  lost: 'Lost',
+}
+
+export interface Enquiry {
+  id: string
+  enquiry_no: number
+  name: string
+  site_address: string | null
+  client_name: string | null
+  client_contact: string | null
+  client_email: string | null
+  client_phone: string | null
+  received_date: string | null
+  due_date: string | null
+  status: EnquiryStatus
+  estimator: string | null
+  notes: string | null
+  job_id: string | null
+}
+
 // ---------- quotations ----------
 export type QuoteStatus = 'draft' | 'issued' | 'accepted' | 'rejected' | 'withdrawn'
 
@@ -86,7 +114,8 @@ export interface TextGroup {
 
 export interface Quotation {
   id: string
-  job_id: string | null // null = Estimating (small works, new enquiry)
+  job_id: string | null // null = Estimating (belongs to an enquiry)
+  enquiry_id: string | null
   project_name: string | null // used when there's no job
   variation_id: string | null
   quote_no: number

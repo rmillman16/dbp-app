@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate } from '../lib/format'
 import { cached, must, saveError } from '../lib/offline'
 import { lineTotal } from '../lib/variations'
 import { acceptQuotation, fullRef, loadQuotation, saveQuotation } from '../lib/quotations'
 import { exportQuotationWord } from '../lib/exportQuotation'
-import { QUOTE_STATUS_LABELS, type Clause, type Job, type Quotation, type QuotationClause, type QuotationLine, type QuoteStatus, type TextTemplate } from '../lib/types'
+import { QUOTE_STATUS_LABELS, type Clause, type Enquiry, type Job, type Quotation, type QuotationClause, type QuotationLine, type QuoteStatus, type TextTemplate } from '../lib/types'
 import GroupsEditor from '../components/GroupsEditor'
 import { useJob } from './JobLayout'
+import { loadEnquiry } from './Estimating'
 
 const DEFAULT_ACCEPTANCE = 'To accept, please sign below and return a copy to du Boulay Projects or respond via email.'
 
@@ -37,13 +38,15 @@ export default function JobQuotationEditor() {
   return <QuotationEditor job={job} backTo={`/jobs/${job.id}/quotations`} />
 }
 
-// …or an Estimating one with no job (small works, new enquiry).
+// …or an Estimating one, belonging to an enquiry.
 export function EstimatingQuotationEditor() {
-  return <QuotationEditor job={null} backTo="/estimating" />
+  return <QuotationEditor job={null} />
 }
 
-function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
+function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) {
   const { quoteId } = useParams()
+  const navigate = useNavigate()
+  const [enquiry, setEnquiry] = useState<Enquiry | null>(null)
   const [q, setQ] = useState<Quotation | null>(null)
   const [lines, setLines] = useState<LineDraft[]>([])
   const [clauses, setClauses] = useState<QuotationClause[]>([])
@@ -57,6 +60,9 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
   useEffect(() => {
     loadQuotation(quoteId!).then(
       (d) => {
+        // an enquiry's quotation that has since moved into a job opens in the job
+        if (!job && d.q.job_id) return navigate(`/jobs/${d.q.job_id}/quotations/${d.q.id}`, { replace: true })
+        if (!job && d.q.enquiry_id) loadEnquiry(d.q.enquiry_id).then(setEnquiry, () => {})
         setQ(d.q)
         setLines(d.lines.map((l) => ({ key: nextKey++, heading: s(l.heading), description: l.description, qty: s(l.qty), unit: s(l.unit), rate: s(l.rate) })))
         setClauses(d.clauses)
@@ -68,7 +74,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
       (ts) => setWording(Object.fromEntries(ts.map((t) => [t.key, t]))),
       () => {},
     )
-  }, [quoteId])
+  }, [quoteId, job, navigate])
 
   const priced = useMemo(() => lines.map((l, i) => toLine(l, i)), [lines])
   const total = priced.reduce((sum, l) => sum + lineTotal(l), 0)
@@ -137,7 +143,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
   async function exportWord() {
     if (!q) return
     try {
-      await exportQuotationWord({ job, q, lines: priced, clauses, acceptanceWording: acceptance, terms })
+      await exportQuotationWord({ job, owner: job ?? enquiry, q, lines: priced, clauses, acceptanceWording: acceptance, terms })
     } catch (e) {
       setError((e as Error).message)
     }
@@ -160,10 +166,10 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
     <div className="quote-editor">
       <div className="sub-bar">
         <div>
-          <Link to={backTo} className="link-button small">
+          <Link to={backTo ?? (enquiry ? `/estimating/e/${enquiry.id}` : '/estimating')} className="link-button small">
             ← All quotations
           </Link>
-          <h2>{fullRef(job, q)}</h2>
+          <h2>{fullRef(job ?? enquiry, q)}</h2>
           <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span>
           {q.status === 'accepted' && (
             <span className="muted small">
@@ -230,7 +236,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
           <label className="span-2">
             Subject
             <input value={q.subject} placeholder="e.g. Waterproofing & Builder's Works" onChange={(e) => set('subject', e.target.value)} />
-            <span className="hint">Shown under QUOTATION and in the reference: {fullRef(job, q)}</span>
+            <span className="hint">Shown under QUOTATION and in the reference: {fullRef(job ?? enquiry, q)}</span>
           </label>
           <label className="span-2">
             Opening line

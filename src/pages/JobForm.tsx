@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { cached, must, saveError } from '../lib/offline'
-import { JOB_STATUS_LABELS, type Job, type JobStatus } from '../lib/types'
+import { JOB_STATUS_LABELS, type Enquiry, type Job, type JobStatus } from '../lib/types'
+import { enquiryRef, moveEnquiryToJob } from '../lib/quotations'
+import { loadEnquiry } from './Estimating'
 
 // Every input is held as text while editing and converted on save.
 interface FormState {
@@ -61,6 +63,10 @@ export default function JobForm() {
   const { id } = useParams()
   const isNew = !id
   const navigate = useNavigate()
+  // set up from a won Estimating enquiry: details filled in, its quotations move into the job
+  const [params] = useSearchParams()
+  const enquiryId = isNew ? params.get('enquiry') : null
+  const [enquiry, setEnquiry] = useState<Enquiry | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [carLimit, setCarLimit] = useState<number | null>(null)
   const [loading, setLoading] = useState(!isNew)
@@ -93,6 +99,11 @@ export default function JobForm() {
           })),
         () => {},
       )
+      if (enquiryId)
+        loadEnquiry(enquiryId).then((e) => {
+          setEnquiry(e)
+          setForm((f) => ({ ...f, name: e.name, site_address: e.site_address ?? '' }))
+        }, () => {})
     } else {
       cached(`job:${id}`, () => must<Job>(supabase.from('jobs').select('*').eq('id', id).single())).then(
         (data) => {
@@ -105,7 +116,7 @@ export default function JobForm() {
         },
       )
     }
-  }, [id, isNew])
+  }, [id, isNew, enquiryId])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -157,6 +168,14 @@ export default function JobForm() {
       )
       return
     }
+    if (enquiry) {
+      try {
+        await moveEnquiryToJob(enquiry.id, result.data.id)
+      } catch (e) {
+        // the job exists; say what didn't move rather than losing it
+        return setError(`Job created, but the enquiry's quotations couldn't be moved: ${saveError(e)}`)
+      }
+    }
     navigate(`/jobs/${result.data.id}`)
   }
 
@@ -165,7 +184,7 @@ export default function JobForm() {
   return (
     <form className="card form" onSubmit={save}>
       <div className="pane-head">
-        <h2>{isNew ? 'Add job' : `${form.job_no} ${form.code}`}</h2>
+        <h2>{isNew ? (enquiry ? `Set up ${enquiryRef(enquiry)} as a job` : 'Add job') : `${form.job_no} ${form.code}`}</h2>
         <Link to={isNew ? '/' : `/jobs/${id}`} className="link-button">
           {isNew ? 'Back to jobs' : 'Back to job'}
         </Link>

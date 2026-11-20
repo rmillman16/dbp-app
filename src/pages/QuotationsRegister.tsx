@@ -20,7 +20,7 @@ export default function QuotationsRegister() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    loadQuotations(job.id).then(setQuotes, (e: Error) => setError(e.message))
+    loadQuotations({ jobId: job.id }).then(setQuotes, (e: Error) => setError(e.message))
     loadJobVariations(job).then(setVos, () => {})
   }, [job])
 
@@ -31,7 +31,7 @@ export default function QuotationsRegister() {
     if (!standalone && !vo) return setError('Pick the VO to quote.')
     setBusy(true)
     try {
-      const id = await createQuotation(job, standalone ? undefined : { vo: vo!, prelimsOwnLine })
+      const id = await createQuotation({ job }, standalone ? undefined : { vo: vo!, prelimsOwnLine })
       navigate(id)
     } catch (e) {
       setError(saveError(e))

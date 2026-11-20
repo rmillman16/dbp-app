@@ -24,6 +24,7 @@ const longDate = (iso: string | null) =>
 
 export interface QuoteDoc {
   job: Job | null // null for Estimating quotations
+  owner: Parameters<typeof fullRef>[0] // job or enquiry, for the reference (2611 FISL / E001)
   q: Quotation
   lines: QuotationLine[]
   clauses: QuotationClause[]
@@ -144,7 +145,7 @@ export async function exportQuotationWord(d: QuoteDoc) {
     ['Site address', siteOneLine],
     ['Prepared by', q.prepared_by ?? 'du Boulay Projects'],
     ['Quotation date', longDate(q.issued_date)],
-    ['Quotation ref', fullRef(job, q)],
+    ['Quotation ref', fullRef(d.owner, q)],
     ['Valid until', longDate(q.valid_until)],
   ]
   const rowBorder = { style: BorderStyle.SINGLE, size: 4, color: RULE }
@@ -284,7 +285,7 @@ export async function exportQuotationWord(d: QuoteDoc) {
 
   const doc = new Document({
     creator: 'du Boulay Projects',
-    title: fullRef(job, q),
+    title: fullRef(d.owner, q),
     styles: { default: { document: { run: { font: FONT, size: 20 } } } },
     numbering: {
       config: [
@@ -312,7 +313,7 @@ export async function exportQuotationWord(d: QuoteDoc) {
   const blob = await Packer.toBlob(doc)
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = `dbp Quotation - ${fullRef(job, q).replace(/[\\/:*?"<>|]/g, '')}.docx`
+  a.download = `dbp Quotation - ${fullRef(d.owner, q).replace(/[\\/:*?"<>|]/g, '')}.docx`
   a.click()
   URL.revokeObjectURL(a.href)
 }

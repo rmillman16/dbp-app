@@ -7,7 +7,7 @@ import { todayIso, ukDate } from './format'
 // Every table in public, in the order of supabase/001 (+ later scripts). Add new tables here.
 export const ALL_TABLES = [
   'profiles', 'company_settings', 'company_insurances', 'text_templates', 'companies', 'contacts',
-  'jobs', 'job_team', 'job_directory', 'sow_revisions', 'packages', 'sow_lines',
+  'enquiries', 'jobs', 'job_team', 'job_directory', 'sow_revisions', 'packages', 'sow_lines',
   'variations', 'variation_lines', 'tc_clauses', 'quotations', 'quotation_lines', 'quotation_clauses',
   'applications', 'application_lines', 'orders', 'sub_variations', 'sub_applications', 'sub_application_lines',
   'payment_notices', 'payment_notice_adjustments', 'cashflow_issues', 'cost_imports', 'cost_lines',

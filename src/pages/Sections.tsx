@@ -1,19 +1,17 @@
-import { useEffect, useState } from 'react'
-import { NavLink, useNavigate, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useIsAdmin } from '../lib/admin'
-import { createQuotation, fullRef, loadQuotations } from '../lib/quotations'
-import { QUOTE_STATUS_LABELS, type Quotation } from '../lib/types'
 import RecordList from '../components/RecordList'
 
-// Company-wide areas in the left-hand menu (agreed 20 Nov): Estimating, Contracts, O&M,
-// Project management (coming soon). Standard wording and lists are readable by everyone;
-// only admins can change them (the database enforces it too).
+// Standard wording and lists for the company-wide areas (agreed 20 Nov): Estimating's
+// quotation wording and clause library, Contracts (EOT), and Settings (insurances, O&M
+// standard documents). Readable by everyone; only admins can change them (the database
+// enforces it too).
 
 // Standard wording for one kind of document (text_templates.category).
-function Wording({ category, empty, readOnly }: { category: string; empty: string; readOnly: boolean }) {
+export function Wording({ category, empty, readOnly }: { category: string; empty: string; readOnly: boolean }) {
   return (
     <RecordList
       table="text_templates"
@@ -33,108 +31,7 @@ function Wording({ category, empty, readOnly }: { category: string; empty: strin
   )
 }
 
-// ---------- Estimating ----------
-// Quotations not linked to a job (small works, new enquiries), plus the standard
-// quotation wording and clause library that every quotation (job or not) uses.
-export function Estimating() {
-  const { tab } = useParams()
-  const readOnly = !useIsAdmin()
-  const navigate = useNavigate()
-  const [quotes, setQuotes] = useState<{ q: Quotation; total: number }[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    if (!tab) loadQuotations(null).then(setQuotes, (e: Error) => setError(e.message))
-  }, [tab])
-
-  async function create() {
-    setError(null)
-    if (!navigator.onLine) return setError(saveError(new Error('offline')))
-    setBusy(true)
-    try {
-      navigate(`/estimating/q/${await createQuotation(null)}`)
-    } catch (e) {
-      setError(saveError(e))
-      setBusy(false)
-    }
-  }
-
-  return (
-    <>
-      <h1>Estimating</h1>
-      <nav className="pills">
-        <NavLink to="/estimating" end className="pill">
-          Quotations
-        </NavLink>
-        <NavLink to="/estimating/wording" className="pill">
-          Standard wording & clauses
-        </NavLink>
-      </nav>
-      {!tab && (
-        <section className="card">
-          <div className="pane-head">
-            <h2>Quotations without a job</h2>
-            <button className="primary" onClick={create} disabled={busy}>
-              + New quotation
-            </button>
-          </div>
-          <p className="muted small intro">Small works and new enquiries. Quotations for live jobs are in each job's Quotations tab.</p>
-          {error && <p className="error">{error}</p>}
-          {quotes === null && !error && <p className="muted">Loading…</p>}
-          {quotes?.length === 0 && <p className="muted">No quotations yet.</p>}
-          {quotes && quotes.length > 0 && (
-            <table className="table stack">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Project</th>
-                  <th>Client</th>
-                  <th>Status</th>
-                  <th className="num">Total excl. VAT</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quotes.map(({ q, total }) => (
-                  <tr key={q.id} className="clickable" onClick={() => navigate(`/estimating/q/${q.id}`)}>
-                    <td className="stack-title">
-                      <strong>{fullRef(null, q)}</strong>
-                    </td>
-                    <td className="stack-sub">{q.project_name}</td>
-                    <td className={q.client_name ? '' : 'stack-hide'} data-label="Client">
-                      {q.client_name}
-                    </td>
-                    <td data-label="Status">
-                      <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span>
-                    </td>
-                    <td className="num" data-label="Total excl. VAT">
-                      {money(total)}
-                    </td>
-                    <td className="nowrap" data-label="Date">
-                      {ukDate(q.issued_date)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      )}
-      {tab === 'wording' && (
-        <section className="card">
-          <h3 className="sub-head">Quotation wording</h3>
-          <p className="muted small intro">Standard wording on every quotation (jobs and estimating). Changes apply to quotations exported after saving.</p>
-          <Wording category="Quotations" empty="No quotation wording yet." readOnly={readOnly} />
-          <h3 className="sub-head">Clause library</h3>
-          <ClauseLibrary readOnly={readOnly} />
-        </section>
-      )}
-    </>
-  )
-}
-
-function ClauseLibrary({ readOnly }: { readOnly: boolean }) {
+export function ClauseLibrary({ readOnly }: { readOnly: boolean }) {
   return (
     <>
       <p className="muted small intro">
@@ -211,33 +108,31 @@ export function OmStandardDocuments() {
   }
 
   return (
-    <>
-      <section className="card">
-        <h2>O&M standard documents</h2>
-        <p className="muted small intro">
-          The O&M documents asked of each trade; each job's O&M tab starts from this list. Project-specific items (Reg 38
-          pack, BREEAM evidence, client requirements) are added in the job.
-        </p>
-        <RecordList
-          key={reload}
-          table="om_doc_types"
-          onlyEmpty="job_id"
-          orderBy={['trade', 'name']}
-          groupBy="trade"
-          title={(r) => String(r.name)}
-          newRow={{ trade: '', name: '', standard: true }}
-          addLabel="Add document"
-          canDelete
-          emptyText="No standard documents yet."
-          extraActions={<button onClick={addStarter}>Add starter list (electrical, mechanical, joinery)</button>}
-          fields={[
-            { key: 'trade', label: 'Trade', required: true, hint: 'e.g. Electrical' },
-            { key: 'name', label: 'Document', required: true },
-          ]}
-        />
-        {msg && <p className="error">{msg}</p>}
-      </section>
-    </>
+    <section className="card">
+      <h2>O&M standard documents</h2>
+      <p className="muted small intro">
+        The O&M documents asked of each trade; each job's O&M tab starts from this list. Project-specific items (Reg 38
+        pack, BREEAM evidence, client requirements) are added in the job.
+      </p>
+      <RecordList
+        key={reload}
+        table="om_doc_types"
+        onlyEmpty="job_id"
+        orderBy={['trade', 'name']}
+        groupBy="trade"
+        title={(r) => String(r.name)}
+        newRow={{ trade: '', name: '', standard: true }}
+        addLabel="Add document"
+        canDelete
+        emptyText="No standard documents yet."
+        extraActions={<button onClick={addStarter}>Add starter list (electrical, mechanical, joinery)</button>}
+        fields={[
+          { key: 'trade', label: 'Trade', required: true, hint: 'e.g. Electrical' },
+          { key: 'name', label: 'Document', required: true },
+        ]}
+      />
+      {msg && <p className="error">{msg}</p>}
+    </section>
   )
 }
 
