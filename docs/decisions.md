@@ -298,6 +298,14 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - Both SoWs import and reconcile.
 - Rebuilding the KOSH June CVR (same targets, allocations and JC costs) gives targets of £757,521.24 (= K1436), JC £89,474.38, tender OH&P 12.03% and 4.57 weeks delay, all as the sheet. Total cost is £762,851.10 and the margin £184,829.06 (19.50%). That is the sheet's figures corrected for the two errors above: −£4,870 + £5,329.86.
 
+**Groups and preliminaries (Richard, 20 Nov, script 016):**
+- **Allocation dropdown:** each option shows the package – subbie, from a linked order, else the note on the package. "+ Add a package…" adds a bespoke one, with its group.
+- **Packages are grouped and alphabetical within each group:** Labour & materials, Subcontractors, Preliminaries, Other (EP, provisional sums, contingency, the omitted lines). This applies to the dropdown, the CVR table, Budgets and the Excel export. The group is worked out from the name and can be changed in Budgets.
+- **Prelims sections:** the office SoW lists its prelims headings unpriced under one prelims price (Micro: 10 headings, £104,500 cost). Each heading becomes a package under Preliminaries.
+  - The sections draw down the lump, shown as "Preliminaries – not yet split" (its target = the prelims budget less what the sections forecast).
+  - Typing a section's target makes it its own budget.
+  - An overspend shows when the prelims group passes the whole prelims budget.
+
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).
 - **A letter won't generate until the clauses it needs are filled in.** The app says what's missing instead. The notice also needs the event's days claimed and the job's PC date.
