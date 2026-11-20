@@ -67,6 +67,7 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
   - **Sections** = WBS headings.
   - **Activities** = their ID (A1010…), name, trade (the "Trade" activity code) and dates (actual where started, else scheduled).
 - Timeline's own .json can also be read.
+- **MS Project:** saved as XML (File › Save As › XML Format), the summary tasks become the sections. Tasks are kept by their unique ID, since task numbers change when rows are inserted. A .mpp can't be read in the browser, so the app explains how to save it as XML (Richard asked, 20 Nov).
 - Re-import on each revision. Links are kept by activity ID, and the import lists any linked activity that's gone.
 - Tested on `reference/test-cases/Corsham Street - L9 - B4 - Summary.xer`: 41 activities, 6 sections, 07/09/2026–19/09/2027.
 
