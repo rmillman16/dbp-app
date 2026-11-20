@@ -117,6 +117,26 @@ a { color: var(--blue); }
 .tab.active { color: var(--navy); border-bottom-color: var(--blue); }
 .tab.disabled { opacity: 0.4; cursor: default; }
 .tab.disabled:hover { color: var(--muted); }
+/* phones: the tabs become one ☰ bar with the job's sections in a dropdown, like the main menu */
+.job-menu { display: none; position: relative; margin-top: -8px; }
+.job-menu-button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; color: var(--navy); font-weight: 700; font-size: 16px; text-align: left;
+}
+.job-menu-button span:first-of-type { flex: 1; }
+.job-menu-caret { color: var(--muted); }
+.job-menu-scrim { position: fixed; inset: 0; z-index: 15; background: rgba(31, 18, 70, 0.3); }
+.job-menu-list {
+  position: absolute; z-index: 16; left: 0; right: 0; top: calc(100% + 4px); display: flex; flex-direction: column; gap: 2px;
+  background: var(--navy); padding: 8px; border-radius: 8px; box-shadow: 0 10px 30px rgba(31, 18, 70, 0.3);
+}
+.job-menu-item { display: flex; align-items: center; gap: 8px; padding: 12px; border-radius: 6px; color: #fff; text-decoration: none; font-weight: 600; }
+.job-menu-item.active { background: rgba(255, 255, 255, 0.14); }
+.job-menu-item.disabled { opacity: 0.45; }
+@media (max-width: 800px) {
+  .tabs { display: none; }
+  .job-menu { display: block; }
+}
 .sub-bar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
 .sub-bar h2 { margin: 4px 0 0; }
 .overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
@@ -453,7 +473,6 @@ select.unallocated { border-color: var(--red); }
   input, select, textarea { font-size: 16px; }
   .page { padding: 12px; gap: 14px; }
   .toolbar .segmented { width: 100%; }
-  .tab { padding: 8px 9px; font-size: 14px; }
   .toolbar .segmented button { flex: 1; justify-content: center; padding: 7px 4px; }
   .stat { min-width: 0; flex: 1 1 40%; }
 

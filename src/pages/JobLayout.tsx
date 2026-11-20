@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useOutletContext, useParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { cached, must } from '../lib/offline'
@@ -30,6 +30,11 @@ export default function JobLayout() {
   const { id } = useParams()
   const [job, setJob] = useState<Job | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { pathname } = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // close the sections dropdown whenever you move to another section
+  useEffect(() => setMenuOpen(false), [pathname])
 
   useEffect(() => {
     cached(`job:${id}`, () => must<Job>(supabase.from('jobs').select('*').eq('id', id).single())).then(
@@ -40,6 +45,23 @@ export default function JobLayout() {
 
   if (error) return <p className="error">{error}</p>
   if (!job) return <p className="muted">Loading…</p>
+
+  // the section you're in: the first part of the address after /jobs/<id>/
+  const section = pathname.split('/')[3] ?? ''
+  const current = TABS.find((t) => t.to === section) ?? TABS[0]
+  const tabs = (cls: string) =>
+    TABS.map((t) =>
+      t.soon ? (
+        <span key={t.label} className={`${cls} disabled`} title="Coming soon">
+          {t.label}
+          {cls !== 'tab' && <span className="soon">soon</span>}
+        </span>
+      ) : (
+        <NavLink key={t.label} to={t.to} end={t.to === ''} className={cls}>
+          {t.label}
+        </NavLink>
+      ),
+    )
 
   return (
     <>
@@ -67,19 +89,26 @@ export default function JobLayout() {
         </Link>
       </div>
 
-      <nav className="tabs">
-        {TABS.map((t) =>
-          t.soon ? (
-            <span key={t.label} className="tab disabled" title="Coming soon">
-              {t.label}
-            </span>
-          ) : (
-            <NavLink key={t.label} to={t.to} end={t.to === ''} className="tab">
-              {t.label}
-            </NavLink>
-          ),
+      <nav className="tabs">{tabs('tab')}</nav>
+
+      {/* phones: one bar showing this section, with the job's sections in a ☰ dropdown */}
+      <div className="job-menu">
+        <button className="job-menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-expanded={menuOpen} aria-label="Job sections">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+            <path d={menuOpen ? 'M6 6l12 12M18 6 6 18' : 'M4 7h16M4 12h16M4 17h16'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          <span>{current.label}</span>
+          <span className="job-menu-caret" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {menuOpen && (
+          <>
+            <div className="job-menu-scrim" onClick={() => setMenuOpen(false)} />
+            <nav className="job-menu-list">{tabs('job-menu-item')}</nav>
+          </>
         )}
-      </nav>
+      </div>
 
       <Outlet context={{ job, setJob } satisfies JobContext} />
     </>
