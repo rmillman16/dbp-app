@@ -35,7 +35,8 @@ You are building **one web app for du Boulay Projects Ltd**, a London fit-out co
 - **Offline-ready:** the app installs to the home screen and opens from cache with no signal. Read data through `cached()` in `src/lib/offline.ts` so screens show the last-loaded data offline. **Meeting minutes** are editable offline (outbox on the device, synced when the connection returns) and the **latest programme** is kept on the device for offline viewing; **everything else is view-only offline** (agreed 20 Nov).
 
 ## House rules for every output
-- **Logo:** the current dbp logo (`reference/brand/dbp-logo.svg` / `.png`) top right of every printed A4 page, **60 × 15 mm, 10 mm from the top and right edges**, the same size on every tab or page whatever its print scale. In Excel use a picture on the sheet sized to cancel the tab's fixed print scale (see `docs/decisions.md`, "Logo on every export"); header-only logos aren't visible on screen.
+- **Word / PDF documents** (quotations, letters, reports) are built inside `reference/templates/dbp Letterhead - Template.docx`, keeping its headers and footers exactly (logo top left). The logo rule below is for **Excel** exports.
+- **Logo (Excel):** the current dbp logo (`reference/brand/dbp-logo.svg` / `.png`) top right of every printed A4 page, **60 × 15 mm, 10 mm from the top and right edges**, the same size on every tab or page whatever its print scale. In Excel use a picture on the sheet sized to cancel the tab's fixed print scale (see `docs/decisions.md`, "Logo on every export"); header-only logos aren't visible on screen.
 - **UK English**, £, dates as DD/MM/YYYY.
 - The client is called **"Client"** on exports, never the certifier's name.
 - **Emails are drafted only, never sent** automatically.

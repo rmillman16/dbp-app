@@ -67,6 +67,71 @@ export interface VariationLine {
   sort: number
 }
 
+// ---------- quotations ----------
+export type QuoteStatus = 'draft' | 'issued' | 'accepted' | 'rejected' | 'withdrawn'
+
+export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
+  draft: 'Draft',
+  issued: 'Issued',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+  withdrawn: 'Withdrawn',
+}
+
+export interface TextGroup {
+  heading: string
+  style?: 'numbered' | 'bullets'
+  items: string[]
+}
+
+export interface Quotation {
+  id: string
+  job_id: string
+  variation_id: string | null
+  quote_no: number
+  subject: string
+  ref: string // "QU001 – Waterproofing" (database works it out)
+  status: QuoteStatus
+  scope: string | null // intro paragraph
+  scope_groups: TextGroup[]
+  qualification_groups: TextGroup[]
+  summary: string | null
+  client_name: string | null
+  client_contact: string | null
+  client_address: string | null
+  prepared_by: string | null
+  site: string | null
+  issued_date: string | null
+  valid_until: string | null
+  validity_note: string | null
+  accepted_date: string | null
+  accepted_by: string | null
+  appendices: string | null
+  include_terms: boolean
+  notes: string | null
+}
+
+export interface QuotationLine {
+  id?: string
+  quotation_id?: string
+  item: string | null
+  heading: string | null
+  description: string
+  qty: number | null
+  unit: string | null
+  rate: number | null
+  total: number | null
+  sort: number
+}
+
+export interface QuotationClause {
+  quotation_id?: string
+  clause_id: string
+  title: string
+  body: string
+  sort: number
+}
+
 // ---------- company and templates (admin) ----------
 export interface CompanySettings {
   id: number

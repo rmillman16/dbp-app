@@ -190,6 +190,7 @@ Tested with two 2611 applications supplied by the user: **Lumen Fit-Out App 2** 
 - **Logo artwork = the current dbp logo from `dbp Letterhead - Template.docx`** (the 'dbp / du Boulay Projects' mark, SVG rendered to a high-resolution PNG), same size as on the letterhead's first page. Not the old logo that was in the Kong workbook header (corrected 20 Nov).
 - Excel: logo is a **picture on the sheet** (visible on screen and in print; a page-header logo only shows in print preview and was missed), top right of row 1 of every tab, aligned to the right edge of the print area. Each tab prints at a **fixed scale** worked out from its column widths (e.g. Payment Notice 86%, Summary / SOW / Variations 52%, App 67%) and the picture is sized to cancel that scale, so it prints 60 × 15 mm on every tab. A4 portrait, 10 mm margins. Checked by rendering both test notices to PDF: logo identical size on all five pages.
 - Word / PDF: same size and position in the page header (letterhead).
+- **Superseded for Word / PDF (20 Nov):** documents built on the letterhead keep it **exactly as designed**: logo top left (60 × 15 mm on page 1 with the address block top right and directors / accreditations at the foot; smaller logo on later pages with "Page x of y"). The top-right 60 × 15 mm rule applies to **Excel exports only**. The app builds Word documents inside the real letterhead file, so its headers and footers are never re-drawn.
 - Applied first to the two test payment notices (all five tabs).
 
 ## O&M and H&S file module — scope (agreed 20 Nov)

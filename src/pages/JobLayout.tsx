@@ -9,7 +9,7 @@ import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 const TABS: { to: string; label: string; soon?: boolean }[] = [
   { to: '', label: 'Overview' },
   { to: 'variations', label: 'Variations' },
-  { to: 'quotations', label: 'Quotations', soon: true },
+  { to: 'quotations', label: 'Quotations' },
   { to: 'applications', label: 'Applications', soon: true },
   { to: 'payment-notices', label: 'Payment notices', soon: true },
 ]

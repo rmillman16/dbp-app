@@ -1,0 +1,396 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { money, todayIso, ukDate } from '../lib/format'
+import { cached, must, saveError } from '../lib/offline'
+import { lineTotal } from '../lib/variations'
+import { acceptQuotation, fullRef, loadQuotation, saveQuotation } from '../lib/quotations'
+import { exportQuotationWord } from '../lib/exportQuotation'
+import { QUOTE_STATUS_LABELS, type Clause, type Quotation, type QuotationClause, type QuotationLine, type QuoteStatus, type TextTemplate } from '../lib/types'
+import GroupsEditor from '../components/GroupsEditor'
+import { useJob } from './JobLayout'
+
+const DEFAULT_ACCEPTANCE = 'To accept, please sign below and return a copy to du Boulay Projects or respond via email.'
+
+// pricing lines are held as text while editing
+interface LineDraft {
+  key: number
+  heading: string
+  description: string
+  qty: string
+  unit: string
+  rate: string
+}
+let nextKey = 1
+const s = (v: unknown) => (v == null ? '' : String(v))
+const numOrNull = (v: string) => (v.trim() === '' ? null : Number(v))
+
+function toLine(d: LineDraft, sort: number): QuotationLine {
+  const l = { item: null, heading: d.heading.trim() || null, description: d.description.trim(), qty: numOrNull(d.qty), unit: d.unit.trim() || null, rate: numOrNull(d.rate), total: 0, sort }
+  l.total = lineTotal(l)
+  return l
+}
+
+export default function QuotationEditor() {
+  const { quoteId } = useParams()
+  const { job } = useJob()
+  const [q, setQ] = useState<Quotation | null>(null)
+  const [lines, setLines] = useState<LineDraft[]>([])
+  const [clauses, setClauses] = useState<QuotationClause[]>([])
+  const [library, setLibrary] = useState<Clause[]>([])
+  const [wording, setWording] = useState<Record<string, TextTemplate>>({})
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [accepting, setAccepting] = useState<{ by: string; date: string } | null>(null)
+
+  useEffect(() => {
+    loadQuotation(quoteId!).then(
+      (d) => {
+        setQ(d.q)
+        setLines(d.lines.map((l) => ({ key: nextKey++, heading: s(l.heading), description: l.description, qty: s(l.qty), unit: s(l.unit), rate: s(l.rate) })))
+        setClauses(d.clauses)
+      },
+      (e: Error) => setError(e.message),
+    )
+    cached('clauses-approved', () => must<Clause[]>(supabase.from('tc_clauses').select('*').eq('approved', true).order('category').order('title'))).then(setLibrary, () => {})
+    cached('text-templates', () => must<TextTemplate[]>(supabase.from('text_templates').select('*'))).then(
+      (ts) => setWording(Object.fromEntries(ts.map((t) => [t.key, t]))),
+      () => {},
+    )
+  }, [quoteId])
+
+  const priced = useMemo(() => lines.map((l, i) => toLine(l, i)), [lines])
+  const total = priced.reduce((sum, l) => sum + lineTotal(l), 0)
+
+  if (error && !q) return <p className="error">{error}</p>
+  if (!q) return <p className="muted">Loading…</p>
+
+  const set = <K extends keyof Quotation>(k: K, v: Quotation[K]) => {
+    setSaved(false)
+    setQ({ ...q, [k]: v })
+  }
+  const setLine = (key: number, field: keyof LineDraft, v: string) => {
+    setSaved(false)
+    setLines((ls) => ls.map((l) => (l.key === key ? { ...l, [field]: v } : l)))
+  }
+  const acceptance = wording.quotation_acceptance?.body?.trim() || DEFAULT_ACCEPTANCE
+  const terms = wording.terms_main?.body ?? ''
+
+  async function save(): Promise<boolean> {
+    if (!q) return false
+    setError(null)
+    if (!navigator.onLine) {
+      setError(saveError(new Error('offline')))
+      return false
+    }
+    if (!q.subject.trim()) {
+      setError('The quotation needs a subject (what it relates to, e.g. Waterproofing).')
+      return false
+    }
+    setBusy(true)
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, job_id, quote_no, ref, ...editable } = q
+      const tidy = (gs: Quotation['scope_groups']) => gs.map((g) => ({ ...g, items: g.items.map((t) => t.trim()).filter(Boolean) })).filter((g) => g.heading.trim() || g.items.length)
+      await saveQuotation(q.id, { ...editable, scope_groups: tidy(q.scope_groups), qualification_groups: tidy(q.qualification_groups) }, priced, clauses)
+      setSaved(true)
+      return true
+    } catch (e) {
+      setError(saveError(e))
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function setStatus(status: QuoteStatus) {
+    if (!q || !(await save())) return
+    const { error } = await supabase.from('quotations').update({ status }).eq('id', q.id)
+    if (error) return setError(saveError(error))
+    setQ({ ...q, status })
+  }
+
+  async function recordAcceptance() {
+    if (!q || !accepting) return
+    if (!accepting.by.trim()) return setError('Who accepted it? (name, or "by email from …")')
+    if (!(await save())) return
+    try {
+      await acceptQuotation(q, accepting.by.trim(), accepting.date)
+      setQ({ ...q, status: 'accepted', accepted_by: accepting.by.trim(), accepted_date: accepting.date })
+      setAccepting(null)
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
+
+  async function exportWord() {
+    if (!q) return
+    try {
+      await exportQuotationWord({ job, q, lines: priced, clauses, acceptanceWording: acceptance, terms })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  const toggleClause = (c: Clause) => {
+    setSaved(false)
+    setClauses((cs) => (cs.some((x) => x.clause_id === c.id) ? cs.filter((x) => x.clause_id !== c.id) : [...cs, { clause_id: c.id, title: c.title, body: c.body, sort: cs.length }]))
+  }
+
+  const field = (k: keyof Quotation, label: string, o: { type?: string; wide?: boolean; hint?: string; placeholder?: string } = {}) => (
+    <label className={o.wide ? 'span-2' : ''}>
+      {label}
+      <input type={o.type ?? 'text'} value={s(q[k])} placeholder={o.placeholder} onChange={(e) => set(k, (e.target.value || null) as never)} />
+      {o.hint && <span className="hint">{o.hint}</span>}
+    </label>
+  )
+
+  return (
+    <div className="quote-editor">
+      <div className="sub-bar">
+        <div>
+          <Link to={`/jobs/${job.id}/quotations`} className="link-button small">
+            ← All quotations
+          </Link>
+          <h2>{fullRef(job, q)}</h2>
+          <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span>
+          {q.status === 'accepted' && (
+            <span className="muted small">
+              {' '}
+              by {q.accepted_by} on {ukDate(q.accepted_date)}
+            </span>
+          )}
+        </div>
+        <div className="button-row">
+          <button onClick={exportWord}>Export Word</button>
+          <button className="primary" onClick={save} disabled={busy}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {saved && <p className="saved">Saved.</p>}
+
+      {/* status actions */}
+      <section className="card status-card">
+        {q.status === 'draft' && (
+          <>
+            <span className="muted small">Draft. When it's been sent to the client:</span>
+            <button onClick={() => setStatus('issued')}>Mark as issued</button>
+          </>
+        )}
+        {q.status === 'issued' && !accepting && (
+          <>
+            <span className="muted small">Issued to the client.</span>
+            <button className="primary" onClick={() => setAccepting({ by: '', date: todayIso() })}>
+              Record acceptance
+            </button>
+            <button onClick={() => setStatus('rejected')}>Rejected</button>
+            <button onClick={() => setStatus('withdrawn')}>Withdrawn</button>
+          </>
+        )}
+        {accepting && (
+          <div className="accept-form">
+            <label>
+              Accepted by
+              <input value={accepting.by} placeholder='Name, or "email from …"' onChange={(e) => setAccepting({ ...accepting, by: e.target.value })} />
+            </label>
+            <label>
+              Date
+              <input type="date" value={accepting.date} onChange={(e) => setAccepting({ ...accepting, date: e.target.value })} />
+            </label>
+            <button className="primary" onClick={recordAcceptance}>
+              Save acceptance{q.variation_id ? ' and set the VO to Agreed' : ''}
+            </button>
+            <button onClick={() => setAccepting(null)}>Cancel</button>
+          </div>
+        )}
+        {(q.status === 'rejected' || q.status === 'withdrawn' || q.status === 'accepted') && (
+          <>
+            <span className="muted small">{QUOTE_STATUS_LABELS[q.status]}.</span>
+            {q.status !== 'accepted' && <button onClick={() => setStatus('draft')}>Reopen as draft</button>}
+          </>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>Details</h2>
+        <div className="form-grid">
+          <label className="span-2">
+            Subject
+            <input value={q.subject} placeholder="e.g. Waterproofing & Builder's Works" onChange={(e) => set('subject', e.target.value)} />
+            <span className="hint">Shown under QUOTATION and in the reference: {fullRef(job, q)}</span>
+          </label>
+          <label className="span-2">
+            Opening line
+            <span className="opening-line">
+              du Boulay Projects is pleased to submit our quotation of <strong>{money(total)} + VAT</strong> for{' '}
+              <input value={s(q.summary)} placeholder="the waterproofing and associated builder's works" onChange={(e) => set('summary', e.target.value || null)} /> set out below.
+            </span>
+          </label>
+          {field('client_name', 'Client')}
+          {field('client_contact', 'Client contact')}
+          {field('prepared_by', 'Prepared by')}
+          {field('site', 'Site address', { hint: 'From the job; change if this quote is for somewhere else' })}
+          {field('issued_date', 'Quotation date', { type: 'date' })}
+          {field('valid_until', 'Valid until', { type: 'date' })}
+          <label className="span-2">
+            Why that validity date (optional)
+            <input value={s(q.validity_note)} placeholder="e.g. That date is set by the validity of the specialist's price." onChange={(e) => set('validity_note', e.target.value || null)} />
+          </label>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>
+          <span className="sec-no">01</span> Scope of works
+        </h2>
+        <label>
+          Introduction
+          <textarea rows={4} value={s(q.scope)} onChange={(e) => set('scope', e.target.value || null)} />
+        </label>
+        <GroupsEditor groups={q.scope_groups ?? []} onChange={(g) => set('scope_groups', g)} withStyle addLabel="Add scope group" />
+      </section>
+
+      <section className="card">
+        <h2>
+          <span className="sec-no">02</span> Pricing schedule
+        </h2>
+        <p className="muted small">Client rates: OHP and prelims are built in (or prelims shown as their own line).</p>
+        <table className="table buildup quote-lines">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit</th>
+              <th>Rate £</th>
+              <th className="num">Total £</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l, i) => (
+              <tr key={l.key} className="line-row">
+                <td className="c-no">{i + 1}</td>
+                <td className="c-desc">
+                  <input value={l.heading} placeholder="Heading (bold), e.g. Waterproofing" onChange={(e) => setLine(l.key, 'heading', e.target.value)} />
+                  <textarea rows={2} value={l.description} placeholder="Description" onChange={(e) => setLine(l.key, 'description', e.target.value)} />
+                </td>
+                <td className="c-qty" data-label="Qty">
+                  <input type="number" step="any" inputMode="decimal" className="qty" value={l.qty} onChange={(e) => setLine(l.key, 'qty', e.target.value)} />
+                </td>
+                <td className="c-unit" data-label="Unit">
+                  <input className="unit" value={l.unit} onChange={(e) => setLine(l.key, 'unit', e.target.value)} />
+                </td>
+                <td className="c-rate" data-label="Rate £">
+                  <input type="number" step="0.01" inputMode="decimal" className="rate" value={l.rate} onChange={(e) => setLine(l.key, 'rate', e.target.value)} />
+                </td>
+                <td className="num c-total" data-label="Total">
+                  {money(lineTotal({ qty: numOrNull(l.qty), rate: numOrNull(l.rate) }))}
+                </td>
+                <td className="c-del">
+                  <button type="button" className="small-button" onClick={() => (setSaved(false), setLines((ls) => ls.filter((x) => x.key !== l.key)))} title="Remove line">
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+            <tr className="section-row">
+              <td colSpan={7}>
+                <button type="button" className="small-button" onClick={() => (setSaved(false), setLines((ls) => [...ls, { key: nextKey++, heading: '', description: '', qty: '1', unit: 'Item', rate: '' }]))}>
+                  + Add line
+                </button>
+              </td>
+            </tr>
+            <tr className="grand-row">
+              <td colSpan={5}>Total (excluding VAT)</td>
+              <td className="num">{money(total)}</td>
+              <td />
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section className="card">
+        <h2>
+          <span className="sec-no">03</span> Qualifications & exclusions
+        </h2>
+        <GroupsEditor groups={q.qualification_groups ?? []} onChange={(g) => set('qualification_groups', g)} addLabel="Add group (e.g. Assumptions)" />
+
+        <h3 className="sub-head">Additional conditions from the clause library</h3>
+        {library.length === 0 ? (
+          <p className="muted small">No legally reviewed clauses in the library yet (Templates › Clause library).</p>
+        ) : (
+          <div className="clause-picks">
+            {library.map((c) => {
+              const picked = clauses.find((x) => x.clause_id === c.id)
+              return (
+                <div key={c.id} className={`clause-pick ${picked ? 'on' : ''}`}>
+                  <label className="check">
+                    <span>
+                      <input type="checkbox" checked={!!picked} onChange={() => toggleClause(c)} /> {c.title}
+                      {c.category && <span className="muted small"> · {c.category}</span>}
+                    </span>
+                  </label>
+                  {picked && (
+                    <textarea
+                      rows={4}
+                      value={picked.body}
+                      onChange={(e) => (setSaved(false), setClauses((cs) => cs.map((x) => (x.clause_id === c.id ? { ...x, body: e.target.value } : x))))}
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
+        <h2>
+          <span className="sec-no">04</span> Validity & acceptance
+        </h2>
+        <p className="preview-text">
+          This quotation is valid until <strong>{q.valid_until ? ukDate(q.valid_until) : '…'}</strong>. {q.validity_note ? q.validity_note.replace(/\.?$/, '. ') : ''}After it, prices may need to be reconfirmed.
+          <br />
+          {acceptance}
+        </p>
+        <p className="muted small">Followed by the sign-off box (name, company, position, signature, date). The acceptance wording is set in Templates › Wording.</p>
+      </section>
+
+      <section className="card">
+        <h2>
+          <span className="sec-no">A</span> Appendices and T&Cs
+        </h2>
+        <label>
+          Appendices (optional)
+          <textarea rows={8} value={s(q.appendices)} onChange={(e) => set('appendices', e.target.value || null)} placeholder={'# Waterproofing specification\nIntro paragraph…\n## A.1 Design basis\n- First point\n- Second point'} />
+          <span className="hint">
+            Start each appendix with <code># Title</code> (becomes "Appendix A — Title"); <code>## </code> for a sub-heading, <code>- </code> for a bullet, <code>**bold**</code>. Drawings and photos: attach them separately for now.
+          </span>
+        </label>
+        <label className="check">
+          <span>
+            <input type="checkbox" checked={q.include_terms} onChange={(e) => set('include_terms', e.target.checked)} /> Attach the standard terms and conditions
+          </span>
+        </label>
+        {q.include_terms && !terms.trim() && <p className="warning">The standard T&Cs haven't been written yet (Templates › Wording), so nothing will be attached.</p>}
+        <label>
+          Internal notes (never on the quotation)
+          <textarea rows={3} value={s(q.notes)} onChange={(e) => set('notes', e.target.value || null)} />
+        </label>
+      </section>
+
+      {error && <p className="error">{error}</p>}
+      {saved && <p className="saved">Saved.</p>}
+      <div className="form-actions">
+        <button className="primary" onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+        <button onClick={exportWord}>Export Word</button>
+      </div>
+    </div>
+  )
+}

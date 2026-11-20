@@ -279,9 +279,14 @@ export default function VariationEditor() {
         </div>
         <div className="button-row">
           {!isNew && (
-            <button type="button" onClick={exportThis} title="Export the saved version of this VO sheet">
-              Export VO sheet
-            </button>
+            <>
+              <button type="button" onClick={exportThis} title="Export the saved version of this VO sheet">
+                Export VO sheet
+              </button>
+              <button type="button" onClick={() => navigate(`/jobs/${job.id}/quotations?vo=${voId}`)} title="Quote this VO to the client (save first)">
+                Create quotation
+              </button>
+            </>
           )}
           <button className="primary" disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
