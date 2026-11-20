@@ -18,6 +18,7 @@ const TABS: { to: string; label: string; soon?: boolean }[] = [
 
 export interface JobContext {
   job: Job
+  setJob: (j: Job) => void // after a tab saves job fields (e.g. EOT clauses)
 }
 
 export function useJob() {
@@ -79,7 +80,7 @@ export default function JobLayout() {
         )}
       </nav>
 
-      <Outlet context={{ job } satisfies JobContext} />
+      <Outlet context={{ job, setJob } satisfies JobContext} />
     </>
   )
 }

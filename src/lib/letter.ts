@@ -3,19 +3,26 @@
 // are kept exactly; only the body is replaced (agreed 20 Nov).
 import JSZip from 'jszip'
 
-export type Run = { text: string; bold?: boolean }
+export type Run = { text: string; bold?: boolean; underline?: boolean }
+// indent / hanging in twips (567 = 1 cm); a tab in the text jumps to the indent (for "1.<tab>Title", "-<tab>item")
+type ParaOpts = { before?: number; after?: number; align?: 'left' | 'right' | 'center'; indent?: number; hanging?: number; keepNext?: boolean }
 export type Block =
-  | { p: string | Run[]; bold?: boolean; before?: number; after?: number; align?: 'left' | 'right' | 'center' }
+  | ({ p: string | Run[]; bold?: boolean; underline?: boolean } & ParaOpts)
   | { table: { head: string[]; rows: string[][]; widths: number[]; right?: number[]; boldLast?: boolean } }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 function runXml(r: Run) {
-  return `<w:r>${r.bold ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${esc(r.text)}</w:t></w:r>`
+  const rpr = r.bold || r.underline ? `<w:rPr>${r.bold ? '<w:b/>' : ''}${r.underline ? '<w:u w:val="single"/>' : ''}</w:rPr>` : ''
+  return r.text
+    .split('\t')
+    .map((t, i) => `${i ? `<w:r>${rpr}<w:tab/></w:r>` : ''}<w:r>${rpr}<w:t xml:space="preserve">${esc(t)}</w:t></w:r>`)
+    .join('')
 }
 
-function paraXml(runs: Run[], o: { before?: number; after?: number; align?: string } = {}) {
-  const ppr = `<w:pPr><w:spacing w:before="${o.before ?? 0}" w:after="${o.after ?? 160}"/>${o.align ? `<w:jc w:val="${o.align}"/>` : ''}</w:pPr>`
+function paraXml(runs: Run[], o: ParaOpts = {}) {
+  const ind = o.indent ? `<w:ind w:left="${o.indent}"${o.hanging ? ` w:hanging="${o.hanging}"` : ''}/>` : ''
+  const ppr = `<w:pPr>${o.keepNext ? '<w:keepNext/>' : ''}<w:spacing w:before="${o.before ?? 0}" w:after="${o.after ?? 160}"/>${ind}${o.align ? `<w:jc w:val="${o.align}"/>` : ''}</w:pPr>`
   return `<w:p>${ppr}${runs.map(runXml).join('')}</w:p>`
 }
 
@@ -47,9 +54,11 @@ export async function letterDocx(blocks: Block[]): Promise<Blob> {
       // a line break in plain text starts a new paragraph with no gap between
       if (typeof b.p === 'string') {
         const lines = b.p.split('\n')
-        return lines.map((line, i) => paraXml([{ text: line, bold: b.bold }], { before: i === 0 ? b.before : 0, after: i === lines.length - 1 ? b.after : 0, align: b.align })).join('')
+        return lines
+          .map((line, i) => paraXml([{ text: line, bold: b.bold, underline: b.underline }], { ...b, before: i === 0 ? b.before : 0, after: i === lines.length - 1 ? b.after : 0 }))
+          .join('')
       }
-      return paraXml(b.p, { before: b.before, after: b.after, align: b.align })
+      return paraXml(b.p, b)
     })
     .join('')
   zip.file('word/document.xml', doc.slice(0, bodyStart) + body + doc.slice(sect))
@@ -71,3 +80,22 @@ export function fill(text: string, values: Record<string, string>) {
 
 export const longDate = (iso: string | null) =>
   iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
+
+// "13th August 2025", as DBP's letters
+export function ordinalDate(iso: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso + 'T00:00:00')
+  const n = d.getDate()
+  const suffix = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'
+  return `${n}${suffix} ${d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`
+}
+
+// "eight weeks", "10 days": whole weeks in words up to twenty, otherwise days
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty']
+export function periodText(days: number) {
+  if (days > 0 && days % 7 === 0) {
+    const w = days / 7
+    return `${WORDS[w] ?? w} week${w === 1 ? '' : 's'}`
+  }
+  return `${days} day${days === 1 ? '' : 's'}`
+}

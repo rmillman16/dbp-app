@@ -3,20 +3,23 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate, addDaysIso } from '../lib/format'
 import { cached, must, saveError } from '../lib/offline'
-import { claimLetter, eventRef, loadEot, noticeLetter, programme, prolongation } from '../lib/eot'
+import { claimLetter, claimMissing, eventRef, loadEot, noticeLetter, noticeMissing, programme, prolongation, type LetterPeople } from '../lib/eot'
 import { loadCompanies } from '../lib/subcontracts'
+import { loadMe } from '../lib/admin'
+import { loadContacts, type Contact } from '../components/ContactsEditor'
 import { latestRevisions, loadApplications } from '../lib/applications'
-import { DELAY_TYPE_LABELS, EOT_STATUS_LABELS, type Company, type DelayEvent, type DelayType, type EotClaim, type EotStatus, type TextTemplate } from '../lib/types'
+import { DELAY_TYPE_LABELS, EOT_STATUS_LABELS, type DelayEvent, type DelayType, type EotClaim, type EotStatus, type Job, type TextTemplate } from '../lib/types'
 import { useJob } from './JobLayout'
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
 
 export default function EotTab() {
-  const { job } = useJob()
+  const { job, setJob } = useJob()
   const [events, setEvents] = useState<DelayEvent[] | null>(null)
   const [claims, setClaims] = useState<EotClaim[]>([])
   const [links, setLinks] = useState<{ claim_id: string; event_id: string }[]>([])
-  const [client, setClient] = useState<Company | null>(null)
+  const [people, setPeople] = useState<LetterPeople>({ client: null, contact: null, signer: null })
+  const [contacts, setContacts] = useState<Contact[]>([])
   const [wording, setWording] = useState<Record<string, string>>({})
   const [open, setOpen] = useState<string | null>(null)
   const [openClaim, setOpenClaim] = useState<string | null>(null)
@@ -35,7 +38,12 @@ export default function EotTab() {
 
   useEffect(() => {
     reload()
-    loadCompanies().then((cs) => setClient(cs.find((c) => c.id === job.client_company_id) ?? null), () => {})
+    ;(async () => {
+      const client = (await loadCompanies()).find((c) => c.id === job.client_company_id) ?? null
+      const cs = client ? await loadContacts(client.id) : []
+      setContacts(cs)
+      setPeople({ client, contact: cs.find((c) => c.id === job.client_contact_id) ?? null, signer: await loadMe() })
+    })().catch(() => {})
     cached('text-templates', () => must<TextTemplate[]>(supabase.from('text_templates').select('*'))).then(
       (ts) => setWording(Object.fromEntries(ts.map((t) => [t.key, t.body]))),
       () => {},
@@ -47,6 +55,12 @@ export default function EotTab() {
 
   const prog = programme(job, events)
   const claimed = new Set(links.map((l) => l.event_id))
+  // a letter that can't be produced says what's missing instead of downloading
+  const letter = (missing: string[], make: () => Promise<void>) => {
+    setError(null)
+    if (missing.length) return setError(`The letter can't be produced until these are filled in: ${missing.join('; ')}.`)
+    make().catch((x: Error) => setError(x.message))
+  }
 
   async function saveEvent(e: DelayEvent) {
     setError(null)
@@ -84,6 +98,10 @@ export default function EotTab() {
       notice_due: job.eot_notice_days != null ? addDaysIso(today, job.eot_notice_days) : null,
       notice_sent: null,
       status: 'draft',
+      clause: null,
+      area: null,
+      mitigation: null,
+      timeline: null,
     }
     setEvents([...events!, e])
     setOpen(e.id)
@@ -129,10 +147,15 @@ export default function EotTab() {
         </div>
         <p className="muted small">
           Notice of delay due {job.eot_notice_days != null ? `${job.eot_notice_days} days after an event` : '(no notice period set)'} · weekly prelims for prolongation{' '}
-          {job.weekly_prelims != null ? money(job.weekly_prelims) : '(not set)'} · <Link to={`/jobs/${job.id}/edit`}>set these in the job details</Link>. Wording follows the
-          job's contract ({job.contract_form || 'not set'}); check it before sending. Letter wording: Contracts › EOT.
+          {job.weekly_prelims != null ? money(job.weekly_prelims) : '(not set)'} · <Link to={`/jobs/${job.id}/edit`}>set these in the job details</Link>. Letter wording:
+          Contracts › EOT.
         </p>
       </section>
+
+      <ClauseBox job={job} contacts={contacts} clientName={people.client?.name ?? null} onSaved={(j) => {
+        setJob(j)
+        setPeople({ ...people, contact: contacts.find((c) => c.id === j.client_contact_id) ?? null })
+      }} />
 
       <section className="card">
         <div className="pane-head">
@@ -153,7 +176,7 @@ export default function EotTab() {
                   {eventRef(e)} · {e.description || 'New delay event'}
                 </span>
                 <span className="muted small">
-                  {DELAY_TYPE_LABELS[e.type]} · {ukDate(e.event_date)} · {e.days_claimed ?? '?'} days claimed
+                  {DELAY_TYPE_LABELS[e.type]} {e.clause?.trim() ? `(cl. ${e.clause.trim()})` : <span className="late">(no clause)</span>} ·{ukDate(e.event_date)} · {e.days_claimed ?? '?'} days claimed
                   {e.days_granted != null && ` · ${e.days_granted} granted`} · <span className={`eot-${e.status}`}>{EOT_STATUS_LABELS[e.status]}</span>
                   {e.notice_due && !e.notice_sent && <span className={e.notice_due < todayIso() ? 'late' : ''}> · notice due {ukDate(e.notice_due)}</span>}
                   {e.notice_sent && ` · notice sent ${ukDate(e.notice_sent)}`}
@@ -166,7 +189,7 @@ export default function EotTab() {
                   onSave={saveEvent}
                   onDelete={e.id.startsWith('new') || e.variation_id ? null : () => deleteEvent(e)}
                   onCancel={() => (e.id.startsWith('new') ? setEvents(events.filter((x) => x.id !== e.id)) : null, setOpen(null))}
-                  onLetter={() => noticeLetter(job, client, e, wording.eot_notice_letter ?? null).catch((x: Error) => setError(x.message))}
+                  onLetter={() => letter(noticeMissing(job, e), () => noticeLetter(job, people, e, events, wording.eot_notice_letter ?? null))}
                   noticeDays={job.eot_notice_days}
                 />
               )}
@@ -201,7 +224,7 @@ export default function EotTab() {
                     inClaim={mine}
                     takenElsewhere={new Set(links.filter((l) => l.claim_id !== c.id).map((l) => l.event_id))}
                     onSaved={() => (setMsg('Claim saved.'), reload())}
-                    onLetter={() => claimLetter(job, client, c, mine, events, wording.eot_claim_letter ?? null).catch((x: Error) => setError(x.message))}
+                    onLetter={() => letter(claimMissing(job, mine), () => claimLetter(job, people, c, mine, events, wording.eot_claim_letter ?? null))}
                     setError={setError}
                   />
                 )}
@@ -211,6 +234,75 @@ export default function EotTab() {
         </ul>
       </section>
     </>
+  )
+}
+
+// This job's own clause numbers. No defaults: they differ job to job (agreed 20 Nov), and the
+// letters won't generate until they're filled in.
+function ClauseBox({ job, contacts, clientName, onSaved }: { job: Job; contacts: Contact[]; clientName: string | null; onSaved: (j: Job) => void }) {
+  const pick = (j: Job) => ({ contract_form: j.contract_form, notice_clause: j.notice_clause, eot_clause: j.eot_clause, le_clause: j.le_clause, client_contact_id: j.client_contact_id })
+  const [v, setV] = useState(pick(job))
+  const [msg, setMsg] = useState<string | null>(null)
+  const set = (k: keyof typeof v, x: string) => setV({ ...v, [k]: x.trim() ? x : null })
+  const changed = JSON.stringify(v) !== JSON.stringify(pick(job))
+  const blank = !v.contract_form?.trim() || !v.notice_clause?.trim() || !v.eot_clause?.trim() || !v.le_clause?.trim()
+
+  async function save() {
+    setMsg(null)
+    if (!navigator.onLine) return setMsg(saveError(new Error('offline')))
+    const r = await supabase.from('jobs').update(v).eq('id', job.id).select('*').single()
+    if (r.error) return setMsg(saveError(r.error))
+    onSaved(r.data as Job)
+    setMsg('Saved.')
+  }
+
+  return (
+    <section className="card">
+      <h2>Contract clauses</h2>
+      <p className="muted small">
+        Type these from this job's contract (with its amendments). Letters won't generate until they're filled in. Claude isn't giving legal advice: check every letter against the
+        contract before sending.
+      </p>
+      <div className="form-grid three">
+        <label className="span-3">
+          Form of contract *
+          <input value={v.contract_form ?? ''} onChange={(x) => set('contract_form', x.target.value)} />
+          <span className="hint">As named in the contract, e.g. its full title and edition</span>
+        </label>
+        <label>
+          Notice of delay clause *
+          <input value={v.notice_clause ?? ''} onChange={(x) => set('notice_clause', x.target.value)} />
+        </label>
+        <label>
+          Extension of time clause *
+          <input value={v.eot_clause ?? ''} onChange={(x) => set('eot_clause', x.target.value)} />
+          <span className="hint">Fixing a later Completion Date</span>
+        </label>
+        <label>
+          Loss and expense clause *
+          <input value={v.le_clause ?? ''} onChange={(x) => set('le_clause', x.target.value)} />
+        </label>
+        <label className="span-2">
+          Letters go Fao
+          <select value={v.client_contact_id ?? ''} onChange={(x) => set('client_contact_id', x.target.value)} disabled={!contacts.length}>
+            <option value="">{contacts.length ? '– choose –' : clientName ? `No contacts for ${clientName} (add them in Contractors)` : 'No client chosen (Edit job details)'}</option>
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.role ? ` (${c.role})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {blank && <p className="warning small">Clauses still to fill in. Each delay event also needs its own Relevant Event clause.</p>}
+      {msg && <p className={msg === 'Saved.' ? 'saved' : 'error'}>{msg}</p>}
+      <div className="form-actions">
+        <button className="primary" onClick={save} disabled={!changed}>
+          Save clauses
+        </button>
+      </div>
+    </section>
   )
 }
 
@@ -250,9 +342,27 @@ function EventEditor({
             ))}
           </select>
         </label>
+        <label>
+          Relevant Event clause *
+          <input value={e.clause ?? ''} onChange={(x) => set('clause', x.target.value || null)} />
+          <span className="hint">From this job's contract. Needed for the letters.</span>
+        </label>
+        <label className="span-2">
+          Works affected
+          <input value={e.area ?? ''} onChange={(x) => set('area', x.target.value || null)} placeholder="e.g. the ground floor" />
+          <span className="hint">Reads "the progress of our works on …"</span>
+        </label>
         <label className="span-3">
-          Details (in the letters)
-          <textarea rows={3} value={e.details ?? ''} onChange={(x) => set('details', x.target.value || null)} />
+          What happened (in the letters)
+          <textarea rows={4} value={e.details ?? ''} onChange={(x) => set('details', x.target.value || null)} />
+        </label>
+        <label className="span-3">
+          Mitigation
+          <textarea rows={2} value={e.mitigation ?? ''} onChange={(x) => set('mitigation', x.target.value || null)} placeholder="What we've done to reduce the delay" />
+        </label>
+        <label className="span-3">
+          Short recap of events (one per line)
+          <textarea rows={3} value={e.timeline ?? ''} onChange={(x) => set('timeline', x.target.value || null)} placeholder={'02/06/2025 – RFI 042 issued\n16/06/2025 – drawings still awaited'} />
         </label>
         <label>
           Event date

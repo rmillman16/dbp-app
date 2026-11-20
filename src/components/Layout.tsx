@@ -76,7 +76,9 @@ export default function Layout({ email, children }: { email: string; children: R
           <nav className="mobile-menu">
             {navItems}
             <div className="mobile-menu-foot">
-              <span className="muted small ellipsis">{email}</span>
+              <NavLink to="/me" className="muted small ellipsis" onClick={() => setMenuOpen(false)} title="My details">
+                {email}
+              </NavLink>
               <button className="link-button small" onClick={signOut}>
                 Sign out
               </button>
@@ -93,9 +95,9 @@ export default function Layout({ email, children }: { email: string; children: R
           </NavLink>
           <nav>{navItems}</nav>
           <div className="sidebar-foot">
-            <div className="muted small ellipsis" title={email}>
+            <NavLink to="/me" className="muted small ellipsis" title="My details (name and job title for letters)">
               {email}
-            </div>
+            </NavLink>
             <button className="link-button small" onClick={signOut}>
               Sign out
             </button>

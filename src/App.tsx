@@ -20,6 +20,7 @@ import Contractors from './pages/Contractors'
 import EotTab from './pages/EotTab'
 import Estimating, { EnquiryForm, EnquiryPage } from './pages/Estimating'
 import Settings from './pages/Settings'
+import MyDetails from './pages/MyDetails'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
 
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/contracts" element={<Contracts />} />
         <Route path="/contractors" element={<Contractors />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/me" element={<MyDetails />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

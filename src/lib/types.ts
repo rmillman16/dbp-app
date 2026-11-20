@@ -27,6 +27,11 @@ export interface Job {
   client_company_id: string | null
   weekly_prelims: number | null // EOT prolongation rate per week
   eot_notice_days: number | null // notice of delay due this many days after an event (per contract)
+  // EOT clauses of this job's contract: typed in on the EOT tab, no defaults (script 014)
+  notice_clause: string | null
+  eot_clause: string | null
+  le_clause: string | null
+  client_contact_id: string | null // who letters go "Fao:"
 }
 
 // ---------- EOT ----------
@@ -61,6 +66,10 @@ export interface DelayEvent {
   notice_due: string | null
   notice_sent: string | null
   status: EotStatus
+  clause: string | null // Relevant Event clause; letters need it
+  area: string | null // works affected, e.g. "the ground floor"
+  mitigation: string | null
+  timeline: string | null // "A short recap of events", one per line
 }
 
 export interface EotClaim {
@@ -444,6 +453,7 @@ export interface Profile {
   full_name: string | null
   email: string | null
   initials: string | null
+  job_title: string | null // signature, e.g. Quantity Surveyor
   is_admin: boolean
 }
 

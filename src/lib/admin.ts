@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { cached, must } from './offline'
+import type { Profile } from './types'
 
 // Is the signed-in person an admin? (profiles.is_admin, set in Supabase's SQL Editor.)
 // The database enforces it too: non-admins can read templates but not change them.
@@ -15,6 +16,14 @@ function loadIsAdmin(): Promise<boolean> {
     return row.is_admin
   })().catch(() => false)
   return pending
+}
+
+// the signed-in person's own profile (name, initials, job title for letters)
+export async function loadMe(): Promise<Profile | null> {
+  const { data } = await supabase.auth.getSession()
+  const id = data.session?.user.id
+  if (!id) return null
+  return cached('me-profile', () => must<Profile>(supabase.from('profiles').select('*').eq('id', id).single()))
 }
 
 export function useIsAdmin(): boolean | null {
