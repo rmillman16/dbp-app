@@ -44,5 +44,6 @@ You are building **one web app for du Boulay Projects Ltd**, a London fit-out co
 
 ## Working with Richard
 - Show him the screen (`npm run dev`) after each meaningful step and ask if it matches what he expects. He prefers previews before big changes.
-- Commit little and often once the GitHub repo exists, with clear messages.
+- **Backup (decided 20 Nov, no GitHub):** local Git in this folder. **Commit after every change**, with a plain-English message. A post-commit hook (`.git/hooks/post-commit`) then refreshes the off-site copy `OneDrive - du Boulay Projects\RM\Claude\dbp APP\dbp-app-backup.bundle` (one file, safe for OneDrive). Rebuild anywhere with `git clone dbp-app-backup.bundle dbp-app`, then copy in `.env.local` and run `npm install`. Git may need its PATH refreshed in a shell opened before it was installed.
+- Database data is **not** in that backup: Supabase free plan has no automatic backups. Raise with IT (Pro plan daily backups, or an app "export everything" button).
 - When you finish a module, update `docs/decisions.md` only if a decision changed, and tell Richard what's next.
