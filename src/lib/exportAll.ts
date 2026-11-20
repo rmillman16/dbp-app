@@ -11,7 +11,7 @@ export const ALL_TABLES = [
   'variations', 'variation_lines', 'tc_clauses', 'quotations', 'quotation_lines', 'quotation_clauses',
   'applications', 'application_lines', 'orders', 'sub_variations', 'sub_applications', 'sub_application_lines',
   'payment_notices', 'payment_notice_adjustments', 'cashflow_issues', 'cost_imports', 'cost_lines',
-  'cvrs', 'cvr_vo_allocations', 'delay_events', 'eot_claims', 'eot_claim_events', 'procurement_items',
+  'cvrs', 'cvr_vo_allocations', 'supplier_packages', 'cvr_package_forecasts', 'delay_events', 'eot_claims', 'eot_claim_events', 'procurement_items',
   'finish_schedules', 'samples', 'om_doc_types', 'om_requirements', 'progress_reports', 'notifications',
 ]
 
