@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseJobCosting } from '../lib/cvrCosts'
-import { computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
+import { addPackage, computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
 import type { CvrResult, Forecast } from '../lib/cvrCalc'
 import type { Cvr } from '../lib/types'
 import { useJob } from './JobLayout'
@@ -115,7 +115,25 @@ export default function CvrEditor() {
     navigate('..', { relative: 'path' })
   }
 
-  const pkgOptions = ctx.packages.filter((p) => p.kind !== 'omit')
+  // "Drylining – Logik Ceilings Ltd": the subbie from its linked orders, else the note on the package
+  const subbieOf = (id: string, note: string | null) => {
+    const ordered = ctx.orders.filter((o) => o.package_id === id).map((o) => o.label.replace(/\s*\(.*\)$/, ''))
+    if (ordered.length) return ordered.join(', ')
+    return note && !/^(tbc|n\/a|0|dub|multiple|see\b.*)$/i.test(note.trim()) ? note.trim() : ''
+  }
+  const pkgOptions = ctx.packages
+    .filter((p) => p.kind !== 'omit')
+    .map((p) => {
+      const who = subbieOf(p.id, p.supplier_note)
+      return { id: p.id, name: who ? `${p.name} – ${who}` : p.name }
+    })
+  // a bespoke package added from the dropdown; returns its id so the cost can go straight to it
+  const addBespoke = async (name: string) => {
+    if (!navigator.onLine) throw new Error(saveError(new Error('offline')))
+    const p = await addPackage(job, name, Math.max(0, ...ctx.packages.map((x) => x.sort)) + 1)
+    setCtx({ ...ctx, packages: [...ctx.packages, p], input: { ...ctx.input, packages: [...ctx.input.packages, { ...p, budget: 0, target: null }] } })
+    return p.id
+  }
   return (
     <>
       <div className="pane-head">
@@ -322,7 +340,7 @@ export default function CvrEditor() {
                   {final ? (
                     s.packages.map((p) => `${p.name}${p.share < 1 ? ` ${Math.round(p.share * 100)}%` : ''}`).join(', ') || <span className="late">not allocated</span>
                   ) : (
-                    <Allocate packages={pkgOptions} current={s.packages} onSave={(split) => allocate(s.code, s.name, split)} />
+                    <Allocate packages={pkgOptions} current={s.packages} onSave={(split) => allocate(s.code, s.name, split)} onAdd={addBespoke} />
                   )}
                 </td>
               </tr>
@@ -360,7 +378,7 @@ export default function CvrEditor() {
                   <td data-label="Package">
                     {v.status === 'agreed' && !final ? (
                       <select value={v.package_id ?? ''} onChange={(e) => run(() => linkVo(v.id, e.target.value || null))}>
-                        <option value="">– choose –</option>
+                        <option value="">Package</option>
                         {pkgOptions.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.name}
@@ -489,32 +507,74 @@ function ForecastInput({ value, note, auto, onSave }: { value: number | null; no
   )
 }
 
-// one package, or a split by %
+const ADD = '__add__'
+
+// one package, or a split by %; "+ Add a package…" makes a bespoke one
 function Allocate({
   packages,
   current,
   onSave,
+  onAdd,
 }: {
   packages: { id: string; name: string }[]
   current: { id: string; share: number }[]
   onSave: (split: { package_id: string; share: number }[]) => void
+  onAdd: (name: string) => Promise<string>
 }) {
   const [splitting, setSplitting] = useState(current.length > 1)
   const [rows, setRows] = useState(current.length ? current.map((c) => ({ id: c.id, pct: String(Math.round(c.share * 10000) / 100) })) : [{ id: '', pct: '100' }])
+  const [adding, setAdding] = useState<number | null>(null) // which row is adding (0 when not splitting)
+  const [newName, setNewName] = useState('')
+  const [addError, setAddError] = useState<string | null>(null)
+
+  async function add() {
+    if (!newName.trim()) return
+    setAddError(null)
+    try {
+      const id = await onAdd(newName.trim())
+      if (splitting) setRows(rows.map((x, j) => (j === adding ? { ...x, id } : x)))
+      else onSave([{ package_id: id, share: 1 }])
+      setAdding(null)
+      setNewName('')
+    } catch (e) {
+      setAddError((e as Error).message)
+    }
+  }
+  const options = (
+    <>
+      {packages.map((p) => (
+        <option key={p.id} value={p.id}>
+          {p.name}
+        </option>
+      ))}
+      <option value={ADD}>+ Add a package…</option>
+    </>
+  )
+  const addBox = (
+    <span className="target-cell">
+      <input autoFocus value={newName} placeholder="New package, e.g. Feature staircase" onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+      <button className="small-button" onClick={add} disabled={!newName.trim()}>
+        Add
+      </button>
+      <button className="link-button small" onClick={() => (setAdding(null), setNewName(''))}>
+        cancel
+      </button>
+      {addError && <span className="late small">{addError}</span>}
+    </span>
+  )
+
   if (!splitting)
-    return (
+    return adding != null ? (
+      addBox
+    ) : (
       <span className="target-cell">
         <select
           value={current[0]?.id ?? ''}
           className={current.length ? '' : 'unallocated'}
-          onChange={(e) => onSave(e.target.value ? [{ package_id: e.target.value, share: 1 }] : [])}
+          onChange={(e) => (e.target.value === ADD ? setAdding(0) : onSave(e.target.value ? [{ package_id: e.target.value, share: 1 }] : []))}
         >
-          <option value="">– not allocated –</option>
-          {packages.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
+          <option value="">Package</option>
+          {options}
         </select>
         <button className="link-button small" onClick={() => setSplitting(true)}>
           split
@@ -524,19 +584,19 @@ function Allocate({
   const total = rows.reduce((s, r) => s + Number(r.pct || 0), 0)
   return (
     <div className="split">
-      {rows.map((r, i) => (
-        <span key={i} className="target-cell">
-          <select value={r.id} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, id: e.target.value } : x)))}>
-            <option value="">– package –</option>
-            {packages.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <input type="number" step="1" value={r.pct} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)))} />%
-        </span>
-      ))}
+      {rows.map((r, i) =>
+        adding === i ? (
+          <span key={i}>{addBox}</span>
+        ) : (
+          <span key={i} className="target-cell">
+            <select value={r.id} onChange={(e) => (e.target.value === ADD ? setAdding(i) : setRows(rows.map((x, j) => (j === i ? { ...x, id: e.target.value } : x))))}>
+              <option value="">Package</option>
+              {options}
+            </select>
+            <input type="number" step="1" value={r.pct} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)))} />%
+          </span>
+        ),
+      )}
       <span className="small">
         <button className="link-button small" onClick={() => setRows([...rows, { id: '', pct: String(Math.max(0, 100 - total)) }])}>
           + another package
