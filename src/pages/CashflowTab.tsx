@@ -174,7 +174,7 @@ function ProgrammeCard({ data, onSave }: { data: Data; onSave: (p: ParsedProgram
       <div className="pane-head">
         <h2>Programme</h2>
         <label className="file-button">
-          <input type="file" accept=".xer,.json" onChange={(e) => (e.target.files?.[0] && read(e.target.files[0]), (e.target.value = ''))} />
+          <input type="file" accept=".xer,.xml,.mpp,.json" onChange={(e) => (e.target.files?.[0] && read(e.target.files[0]), (e.target.value = ''))} />
           <span className="button">{programme ? 'Import a new revision…' : 'Import the programme…'}</span>
         </label>
       </div>
@@ -184,7 +184,10 @@ function ProgrammeCard({ data, onSave }: { data: Data; onSave: (p: ParsedProgram
           {ukDate(programme.imported_at)}
         </p>
       ) : (
-        <p className="muted small">Save the programme from DBP Timeline as a P6 .xer file and import it here. Import it again whenever it's revised: links to activities are kept by their ID.</p>
+        <p className="muted small">
+          Import the programme: a P6 .xer from DBP Timeline, or MS Project saved as XML (File › Save As › XML Format; a .mpp itself can't be read in the browser). Import it again whenever it's
+          revised: links to activities are kept by their ID.
+        </p>
       )}
       {error && <p className="error">{error}</p>}
       {pending && (

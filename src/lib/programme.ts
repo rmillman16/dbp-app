@@ -5,6 +5,9 @@
 //   activities use their actual dates, the rest their scheduled (early) dates.
 // - Timeline's own file (.json, as read from its autosave on 18 Nov): groups, trades and tasks
 //   with a start and a duration in working days.
+// - MS Project XML (MS Project › Save As › XML, or Timeline's MS Project export): summary tasks
+//   are the sections, the rest the activities, kept by their unique ID (UID) as task IDs renumber
+//   when rows are inserted. A .mpp can't be read in a browser, so the app asks for the XML.
 // Activities are kept by their ID (A1010…), so links to them survive a new revision.
 import { supabase } from './supabase'
 import { cached, must } from './offline'
@@ -133,15 +136,59 @@ function parseTimeline(json: TimelineFile): ParsedProgramme {
   return { project_name: d.projectName || 'Programme', ...span(tasks), tasks }
 }
 
+// ---------- MS Project XML ----------
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
+const unescape = (s: string) => s.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, e: string) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITIES[e.toLowerCase()]))
+const tag = (block: string, name: string) => {
+  const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(block)
+  return m ? unescape(m[1].trim()) : null
+}
+function parseMsProjectXml(text: string): ParsedProgramme {
+  const tasksXml = /<Tasks>([\s\S]*?)<\/Tasks>/.exec(text)?.[1] ?? ''
+  const rows = [...tasksXml.matchAll(/<Task>([\s\S]*?)<\/Task>/g)].map((m) => m[1])
+  if (!rows.length) throw new Error('This XML file has no MS Project tasks. In MS Project use File › Save As › XML Format, then import that file.')
+  const tasks: ProgrammeTask[] = []
+  const heads: string[] = [] // the summary task at each outline level
+  for (const r of rows) {
+    const level = Number(tag(r, 'OutlineLevel') ?? 1)
+    const name = tag(r, 'Name') ?? ''
+    if (level === 0 || tag(r, 'IsNull') === '1') continue // the project summary row / blank rows
+    if (tag(r, 'Summary') === '1') {
+      heads[level - 1] = name
+      heads.length = level
+      continue
+    }
+    const start = day(tag(r, 'ActualStart') ?? tag(r, 'Start') ?? undefined)
+    const finish = day(tag(r, 'ActualFinish') ?? tag(r, 'Finish') ?? undefined) ?? start
+    if (!start || !finish) continue
+    tasks.push({
+      code: tag(r, 'UID') ?? tag(r, 'ID') ?? String(tasks.length + 1),
+      name,
+      section: heads.slice(0, level - 1).filter(Boolean).join(' / ') || null,
+      trade: null,
+      start_date: start,
+      finish_date: finish < start ? start : finish,
+      milestone: tag(r, 'Milestone') === '1',
+    })
+  }
+  if (!tasks.length) throw new Error('The tasks in this MS Project file have no dates. Save it again from MS Project (File › Save As › XML Format) with the schedule calculated.')
+  // MS Project's <Name> is the file name; the title is the project's own name
+  const head = text.replace(/<Tasks>[\s\S]*$/, '')
+  return { project_name: tag(head, 'Title') || tag(head, 'Name')?.replace(/\.(xml|mpp)$/i, '') || 'Programme', ...span(tasks), tasks }
+}
+
 export async function parseProgramme(file: File): Promise<ParsedProgramme> {
+  if (/\.mpp$/i.test(file.name))
+    throw new Error('An MS Project .mpp file can’t be read in the browser. In MS Project use File › Save As, choose “XML Format (*.xml)”, then import that file here.')
   const bytes = await file.arrayBuffer()
   if (/\.xer$/i.test(file.name)) return parseXer(new TextDecoder('windows-1252').decode(bytes))
   const text = new TextDecoder('utf-8').decode(bytes)
   if (text.startsWith('ERMHDR')) return parseXer(text)
+  if (/^\s*(<\?xml|<Project)/.test(text)) return parseMsProjectXml(text)
   try {
     return parseTimeline(JSON.parse(text) as TimelineFile)
   } catch (e) {
-    if (e instanceof SyntaxError) throw new Error('This isn’t a programme file the app can read. Save it from DBP Timeline as a P6 .xer (or its own .json) file.')
+    if (e instanceof SyntaxError) throw new Error('This isn’t a programme file the app can read. Use a P6 .xer, an MS Project XML (.xml) or a DBP Timeline .json file.')
     throw e
   }
 }
