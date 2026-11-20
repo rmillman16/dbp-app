@@ -14,7 +14,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `008_enquiries.sql` | Estimating enquiries (E001…) with client details, dates and status; quotations belong to an enquiry and are numbered per enquiry; won enquiries become jobs | ✅ Run 20 Nov 2026 |
 | `009_applications.sql` | Client applications: priced SoW import (sections, FOC / Excl text, below-the-line items), psum adjustment, practical completion, VAT, Client Assessment comments | ✅ Run 20 Nov 2026 |
 | `010_valuation_reminders.sql` | Monthly "valuation due" reminders on every live job, one week before month end, start to PC (rebuilt when dates change) | ✅ Run 20 Nov 2026 |
-| `011_valuation_reminder_timing.sql` | Valuation reminders due on month end and shown only in the last 7 days (other reminders keep 14 days) | ⬜ Not yet run |
+| `011_valuation_reminder_timing.sql` | Valuation reminders due on month end and shown only in the last 7 days (other reminders keep 14 days) | ✅ Run 20 Nov 2026 |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
