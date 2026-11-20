@@ -1,0 +1,282 @@
+// The CVR sums (docs/decisions.md "CVR: built"). Kept free of the database so it can be tested
+// on its own. For each cost package:
+//   target   = typed target, else the orders placed against it (order value + instructed
+//              subcontract variations), else EP at a % of the contract sum, else the SoW budget;
+//              plus the cost of agreed VOs allocated to it
+//   cost     = iPlicit Final Total Costs of the suppliers allocated to it (by share)
+//   forecast = the month's typed forecast, else the larger of target and cost: an overspend
+//              shows and reduces the margin (agreed 20 Nov; the KOSH sheet let it go negative)
+// OH&P, DuB management and DuB design are shown and omitted (forecast 0). Nothing is dropped:
+// costs not yet allocated, and agreed VOs not given a package, still count in the total cost.
+// Value = contract sum + agreed VOs (agreed only, 20 Nov) + possible reduction / negotiations.
+
+export type Kind = 'cost' | 'omit' | 'ep'
+
+export interface CalcPackage {
+  id: string
+  name: string
+  kind: Kind
+  budget: number | null
+  target: number | null // typed
+  target_note: string | null
+  supplier_note: string | null
+  sort: number
+}
+export interface CalcOrder {
+  package_id: string | null
+  label: string // "Logik Ceilings Ltd (Drylining)"
+  order_value: number | null
+  instructed_variations: number // instructed subcontract variations
+}
+export interface CalcVo {
+  id: string
+  label: string // "VO 3 – Extra joinery"
+  value: number // what it adds to the final account
+  cost: number // build-up before OH&P and prelims
+  package_id: string | null
+}
+export interface CalcCost {
+  supplier_code: string
+  supplier_name: string
+  total_cost: number
+  last_reported: number | null
+}
+export interface Allocation {
+  supplier_code: string
+  supplier_name: string
+  package_id: string
+  share: number
+}
+export interface Forecast {
+  package_id: string
+  forecast: number | null
+  note: string | null
+}
+
+export interface CalcInput {
+  contractSum: number
+  budgetTotal: number | null // office SoW total the budgets came from
+  epPct: number
+  packages: CalcPackage[]
+  orders: CalcOrder[]
+  vos: CalcVo[] // agreed VOs only
+  allocations: Allocation[]
+  costs: CalcCost[] // this month's job costing report
+  previousCosts: CalcCost[] | null // last CVR's report (null if this is the first)
+  forecasts: Forecast[]
+  possibleReduction: number
+  certified: { gross: number; retention: number; label: string } | null
+  programme: { start: string | null; originalPc: string | null; revisedPc: string | null }
+}
+
+export type TargetSource = 'typed' | 'order' | 'ep' | 'budget' | 'omitted'
+
+export interface PackageRow {
+  id: string
+  name: string
+  kind: Kind
+  budget: number
+  source: TargetSource
+  sourceNote: string // "Logik Ceilings Ltd order", "4% of contract sum", the typed note…
+  voCost: number
+  target: number
+  cost: number
+  forecast: number
+  forecastNote: string | null
+  forecastTyped: boolean
+  stillToCome: number
+  overrun: number // forecast above target
+  suppliers: string[]
+  supplierNote: string | null
+}
+
+export interface SupplierRow {
+  key: string // code|name
+  code: string
+  name: string
+  total: number
+  previous: number | null
+  movement: number | null // this month less last (positive = cost went up)
+  packages: { id: string; name: string; share: number }[]
+  unallocated: number // the part not allocated to a package
+}
+
+export interface CvrResult {
+  packages: PackageRow[]
+  unallocatedVos: { label: string; cost: number }[]
+  suppliers: SupplierRow[]
+  unallocatedCost: number
+  totals: { budget: number; target: number; cost: number; forecast: number; stillToCome: number; overrun: number }
+  jcTotal: number
+  movement: number | null
+  tender: { contractSum: number; ohp: number; ohpPct: number; omitted: number }
+  value: { contractSum: number; agreedVos: number; possibleReduction: number; afv: number }
+  totalCost: number
+  margin: number
+  marginPct: number
+  certified: CalcInput['certified']
+  programme: { start: string | null; originalPc: string | null; originalWeeks: number | null; revisedPc: string | null; weeksDelay: number | null }
+  warnings: string[]
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100
+export const supplierKey = (c: Pick<CalcCost, 'supplier_code' | 'supplier_name'>) => `${c.supplier_code.trim()}|${c.supplier_name.trim()}`
+const weeks = (from: string | null, to: string | null) =>
+  from && to ? Math.round(((Date.parse(to) - Date.parse(from)) / 86400000 / 7) * 100) / 100 : null
+const gbp = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+export function computeCvr(i: CalcInput): CvrResult {
+  const warnings: string[] = []
+  const byId = new Map(i.packages.map((p) => [p.id, p]))
+
+  // ---- costs to packages ----
+  const prev = i.previousCosts ? new Map(i.previousCosts.map((c) => [supplierKey(c), c.total_cost])) : null
+  const costOf = new Map<string, number>()
+  const suppliersOf = new Map<string, string[]>()
+  let unallocatedCost = 0
+  const suppliers: SupplierRow[] = i.costs.map((c) => {
+    const key = supplierKey(c)
+    const mine = i.allocations.filter((a) => supplierKey(a) === key && byId.has(a.package_id))
+    const shares = mine.reduce((s, a) => s + a.share, 0)
+    if (shares > 1.0001) warnings.push(`${c.supplier_name} is allocated ${Math.round(shares * 100)}% (more than 100%): check its split.`)
+    for (const a of mine) {
+      costOf.set(a.package_id, (costOf.get(a.package_id) ?? 0) + c.total_cost * a.share)
+      suppliersOf.set(a.package_id, [...(suppliersOf.get(a.package_id) ?? []), a.share < 1 ? `${c.supplier_name} (${Math.round(a.share * 100)}%)` : c.supplier_name])
+    }
+    const unallocated = r2(c.total_cost * Math.max(0, 1 - shares))
+    unallocatedCost += unallocated
+    const previous = prev ? (prev.get(key) ?? 0) : c.last_reported
+    return {
+      key,
+      code: c.supplier_code,
+      name: c.supplier_name,
+      total: c.total_cost,
+      previous,
+      movement: previous == null ? null : r2(c.total_cost - previous),
+      packages: mine.map((a) => ({ id: a.package_id, name: byId.get(a.package_id)!.name, share: a.share })),
+      unallocated,
+    }
+  })
+  // a supplier on last month's report but not this month's (shouldn't happen: costs don't disappear)
+  if (i.previousCosts)
+    for (const c of i.previousCosts)
+      if (c.total_cost && !i.costs.some((x) => supplierKey(x) === supplierKey(c))) warnings.push(`${c.supplier_name} (${gbp(c.total_cost)} last month) isn't on this month's report.`)
+  const notAllocated = suppliers.filter((s) => s.unallocated)
+  if (notAllocated.length) warnings.push(`${notAllocated.length} supplier${notAllocated.length === 1 ? '' : 's'} not allocated to a package yet (${gbp(r2(unallocatedCost))}): counted in the total cost, but allocate them so each package is right.`)
+
+  // ---- agreed VOs ----
+  const voCostOf = new Map<string, number>()
+  const unallocatedVos: CvrResult['unallocatedVos'] = []
+  for (const v of i.vos) {
+    if (v.package_id && byId.has(v.package_id)) voCostOf.set(v.package_id, (voCostOf.get(v.package_id) ?? 0) + v.cost)
+    else unallocatedVos.push({ label: v.label, cost: v.cost })
+  }
+  if (unallocatedVos.length) warnings.push(`${unallocatedVos.length} agreed VO${unallocatedVos.length === 1 ? '' : 's'} not given a package: their cost is counted on its own line.`)
+
+  // ---- packages ----
+  const forecastOf = new Map(i.forecasts.filter((f) => f.forecast != null).map((f) => [f.package_id, f]))
+  const packages: PackageRow[] = [...i.packages]
+    .sort((a, b) => a.sort - b.sort)
+    .map((p) => {
+      const cost = r2(costOf.get(p.id) ?? 0)
+      const voCost = r2(voCostOf.get(p.id) ?? 0)
+      const budget = Number(p.budget ?? 0)
+      let source: TargetSource
+      let sourceNote = ''
+      let base: number
+      if (p.kind === 'omit') {
+        source = 'omitted'
+        base = 0
+        sourceNote = 'Shown and omitted'
+        if (cost) warnings.push(`${gbp(cost)} of cost is allocated to ${p.name}, which is omitted: it's counted, but check the allocation.`)
+      } else if (p.target != null) {
+        source = 'typed'
+        base = Number(p.target)
+        sourceNote = p.target_note || 'Typed target'
+      } else {
+        const orders = i.orders.filter((o) => o.package_id === p.id)
+        if (orders.length) {
+          source = 'order'
+          base = orders.reduce((s, o) => s + Number(o.order_value ?? 0) + o.instructed_variations, 0)
+          sourceNote = orders.map((o) => `${o.label}${o.instructed_variations ? ` incl. ${gbp(o.instructed_variations)} variations` : ''}`).join('; ')
+        } else if (p.kind === 'ep') {
+          source = 'ep'
+          base = r2((i.contractSum * i.epPct) / 100)
+          sourceNote = `${i.epPct}% of the contract sum`
+        } else {
+          source = 'budget'
+          base = budget
+          sourceNote = 'SoW budget'
+        }
+      }
+      const target = r2(base + voCost)
+      const typed = forecastOf.get(p.id)
+      const forecast = typed ? Number(typed.forecast) : p.kind === 'omit' ? cost : Math.max(target, cost)
+      if (typed && forecast < cost) warnings.push(`${p.name}: the forecast (${gbp(forecast)}) is below the cost to date (${gbp(cost)}).`)
+      if (!typed && cost > target && p.kind !== 'omit') warnings.push(`${p.name} is over its target by ${gbp(r2(cost - target))}.`)
+      return {
+        id: p.id,
+        name: p.name,
+        kind: p.kind,
+        budget,
+        source,
+        sourceNote,
+        voCost,
+        target,
+        cost,
+        forecast: r2(forecast),
+        forecastNote: typed?.note ?? null,
+        forecastTyped: !!typed,
+        stillToCome: r2(forecast - cost),
+        overrun: p.kind === 'omit' ? 0 : r2(Math.max(0, forecast - target)),
+        suppliers: suppliersOf.get(p.id) ?? [],
+        supplierNote: p.supplier_note,
+      }
+    })
+
+  const sum = (f: (p: PackageRow) => number) => r2(packages.reduce((s, p) => s + f(p), 0))
+  const voUnallocatedCost = r2(unallocatedVos.reduce((s, v) => s + v.cost, 0))
+  const totalCost = r2(sum((p) => p.forecast) + voUnallocatedCost + unallocatedCost)
+  const jcTotal = r2(i.costs.reduce((s, c) => s + c.total_cost, 0))
+
+  // ---- value and margin ----
+  const agreedVos = r2(i.vos.reduce((s, v) => s + v.value, 0))
+  const afv = r2(i.contractSum + agreedVos + i.possibleReduction)
+  const margin = r2(afv - totalCost)
+  const ohp = sum((p) => (p.kind === 'omit' && /^(oh&p|ohp|overh)/i.test(p.name) ? p.budget : 0))
+
+  if (i.budgetTotal != null && Math.abs(i.budgetTotal - i.contractSum) > 1)
+    warnings.push(`The contract sum (${gbp(i.contractSum)}) isn't the office SoW total the budgets came from (${gbp(i.budgetTotal)}): the budgets may be from a different revision.`)
+  if (!i.packages.length) warnings.push('No budgets yet: import the office SoW first.')
+
+  return {
+    packages,
+    unallocatedVos,
+    suppliers,
+    unallocatedCost: r2(unallocatedCost),
+    totals: {
+      budget: sum((p) => p.budget),
+      target: sum((p) => p.target),
+      cost: sum((p) => p.cost),
+      forecast: sum((p) => p.forecast),
+      stillToCome: sum((p) => p.stillToCome),
+      overrun: sum((p) => p.overrun),
+    },
+    jcTotal,
+    movement: suppliers.some((s) => s.movement != null) ? r2(suppliers.reduce((s, x) => s + (x.movement ?? 0), 0)) : null,
+    tender: { contractSum: i.contractSum, ohp, ohpPct: i.contractSum ? ohp / i.contractSum : 0, omitted: sum((p) => (p.kind === 'omit' ? p.budget : 0)) },
+    value: { contractSum: i.contractSum, agreedVos, possibleReduction: i.possibleReduction, afv },
+    totalCost,
+    margin,
+    marginPct: afv ? margin / afv : 0,
+    certified: i.certified,
+    programme: {
+      start: i.programme.start,
+      originalPc: i.programme.originalPc,
+      originalWeeks: weeks(i.programme.start, i.programme.originalPc),
+      revisedPc: i.programme.revisedPc,
+      weeksDelay: weeks(i.programme.originalPc, i.programme.revisedPc ?? i.programme.originalPc),
+    },
+    warnings,
+  }
+}

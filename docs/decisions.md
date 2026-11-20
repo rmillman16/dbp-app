@@ -260,6 +260,44 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **Days granted** are recorded per event; revised completion = contract PC + days granted (calendar days); weeks delay feeds the CVR programme block.
 - **Prolongation** = weeks granted × the job's **weekly prelims** (new job field); **"Add prolongation to application"** adds it to the latest draft client application's new **Loss and expense** line (also on the application export, row 30).
 
+## CVR: built (20 Nov, script 015)
+**Found in the 2609 KOSH June CVR (template):**
+- Powerhouse counted twice: £4,870 order value in D and again in Allowances / Variations, which understates the margin by £4,870. The breakdown's Return £ differs from the summary margin by exactly that.
+- Overspends hidden: a package's remaining budget goes negative (Tiling supply: £6,458.54 target, Mudrak £11,788.40), so the overspend never reaches the margin.
+- The JC movement column is last less this, so increases show as minus. Both period headings have the same date.
+- Retention is calculated at 0% while the note says 5%. Some "See … above" notes are out of date.
+
+**Found in the Micro office SoW (R5):**
+- The OHP column is 15% even on lines priced at their own OH&P (M&E at 10%).
+- VE omissions reduce the price without reducing the cost columns (23 lines, −£29,459.81).
+- "Client Direct" / "Excluded" / "Omitted" / option lines carry £114,586 of cost in the cost columns.
+
+**Decisions (Richard, 20 Nov):**
+- **Overspends show and reduce the margin.** Forecast = the larger of target and cost to date, unless a forecast is typed with a note. It's flagged either way.
+- **Only agreed VOs count** in the anticipated final value. Each agreed VO's cost (its build-up before OH&P and prelims) goes to a package's target, chosen in the CVR.
+- **Both SoW layouts are read:**
+  - Micro: only priced lines count, OH&P = price less cost line by line, and Subbie is split by SoW section.
+  - Older KOSH breakdown: every package is read as it stands.
+  - Both reconcile to the SoW total to the penny. The lines that don't reconcile are listed after the import.
+
+**How it works (Job › CVR tab):**
+- **Packages (budgets):** the office SoW's cost columns. Each package has a target, chosen in this order:
+  1. a typed target with a note (as the Prelims tab / row 1444)
+  2. the orders placed against it (order value + instructed subcontract variations, from Payment notices)
+  3. EP at the job's % of the contract sum (4% by default)
+  4. the SoW budget
+
+  OH&P, DuB management and DuB design are shown and omitted.
+- **Costs:** the iPlicit Jobcost Report as Excel, read by its headings. Final Total Costs = invoiced + committed + unposted + provisions, so it includes committed POs. Each supplier (code + name, since CC04 covers several) is allocated to a package once and remembered for the job. A supplier can be split by % (e.g. Mudrak: tiles and timber floor). Unallocated costs still count in the total.
+- **Movement:** this month less last month's CVR, by supplier, so an increase shows as a plus. For the first CVR it uses the report's Last Reported column.
+- **Value and margin:** anticipated final value = contract sum + agreed VOs + possible reduction / negotiations. Margin = AFV − total cost.
+- **Interim position:** gross certified and retention from the latest assessed application. The programme block (start, original PC, duration, revised PC, weeks delay) comes from the job and the EOT tab.
+- **Status:** a CVR is a draft until finalised, then its figures are kept as issued.
+
+**Tested:**
+- Both SoWs import and reconcile.
+- Rebuilding the KOSH June CVR (same targets, allocations and JC costs) gives targets of £757,521.24 (= K1436), JC £89,474.38, tender OH&P 12.03% and 4.57 weeks delay, all as the sheet. Total cost is £762,851.10 and the margin £184,829.06 (19.50%). That is the sheet's figures corrected for the two errors above: −£4,870 + £5,329.86.
+
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).
 - **A letter won't generate until the clauses it needs are filled in.** The app says what's missing instead. The notice also needs the event's days claimed and the job's PC date.
