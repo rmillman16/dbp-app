@@ -110,8 +110,9 @@ a { color: var(--blue); }
 
 /* job page: header + module tabs */
 .job-meta { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 14px; }
-.tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); overflow-x: auto; margin-top: -8px; }
-.tab { padding: 10px 16px; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; font-weight: 600; }
+/* the tabs wrap onto another row when they don't fit, rather than scrolling sideways */
+.tabs { display: flex; flex-wrap: wrap; gap: 0 2px; border-bottom: 2px solid var(--line); margin-top: -8px; }
+.tab { padding: 10px 12px; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; font-weight: 600; }
 .tab:hover { color: var(--navy); }
 .tab.active { color: var(--navy); border-bottom-color: var(--blue); }
 .tab.disabled { opacity: 0.4; cursor: default; }
@@ -452,6 +453,7 @@ select.unallocated { border-color: var(--red); }
   input, select, textarea { font-size: 16px; }
   .page { padding: 12px; gap: 14px; }
   .toolbar .segmented { width: 100%; }
+  .tab { padding: 8px 9px; font-size: 14px; }
   .toolbar .segmented button { flex: 1; justify-content: center; padding: 7px 4px; }
   .stat { min-width: 0; flex: 1 1 40%; }
 
