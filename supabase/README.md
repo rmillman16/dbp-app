@@ -20,7 +20,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `014_eot_clauses.sql` | EOT clauses typed in per job (notice, extension of time, loss and expense; no defaults) and per delay event (Relevant Event), plus area / mitigation / recap; job's client contact; user job title; notice of delay wording in DBP's style | ✅ Run 20 Nov 2026 |
 | `015_cvr.sql` | CVR: cost packages from the office SoW (target, note, OH&P / management / design omitted, EP %), iPlicit job costing import columns, suppliers allocated to packages (remembered, can be split), agreed VO costs to a package, draft / final CVRs and per-month forecasts | ✅ Run 20 Nov 2026 |
 | `016_cvr_groups.sql` | CVR packages grouped (Labour & materials, Subcontractors, Preliminaries, Other); prelims sections from the SoW draw down the single prelims budget ("Preliminaries – not yet split") | ✅ Run 20 Nov 2026 |
-| `017_cvr_split_by_amount.sql` | CVR: a supplier's cost split across packages by £ as well as by % | ⬜ Not yet run |
+| `017_cvr_split_by_amount.sql` | CVR: a supplier's cost split across packages by £ as well as by % | ✅ Run 20 Nov 2026 |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
