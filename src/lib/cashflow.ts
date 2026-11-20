@@ -76,12 +76,37 @@ export function sowSections(lines: SowLine[]) {
   return out.map((s) => ({ ...s, value: Math.round(s.value * 100) / 100 }))
 }
 
-export async function loadCashflow(job: Job) {
-  let stages = await loadStages(job.id)
+// the starting stages are made once per job: the page can load twice at the same moment, and
+// both used to see none and make a set each (found 20 Nov, everything doubled)
+const creating = new Map<string, Promise<void>>()
+async function ensureStages(jobId: string) {
+  let stages = await loadStages(jobId)
   if (!stages.length && navigator.onLine) {
-    await createDefaultStages(job.id)
-    stages = await loadStages(job.id)
+    if (!creating.has(jobId)) creating.set(jobId, createDefaultStages(jobId))
+    await creating.get(jobId)
+    stages = await loadStages(jobId)
   }
+  // tidy a doubled set: the same name twice, the later one not used by any section, goes
+  const seen = new Set<string>()
+  const extra = stages.filter((s) => {
+    const k = s.name.trim().toLowerCase()
+    if (seen.has(k)) return true
+    seen.add(k)
+    return false
+  })
+  if (extra.length && navigator.onLine) {
+    const used = new Set((await must<{ stage_id: string }[]>(supabase.from('cashflow_weights').select('stage_id').eq('job_id', jobId))).map((w) => w.stage_id))
+    const gone = extra.filter((s) => !used.has(s.id)).map((s) => s.id)
+    if (gone.length) {
+      await must1(supabase.from('cashflow_stages').delete().in('id', gone))
+      stages = await loadStages(jobId)
+    }
+  }
+  return stages
+}
+
+export async function loadCashflow(job: Job) {
+  const stages = await ensureStages(job.id)
   const [sow, vos, prog, items, weights] = await Promise.all([
     loadCurrentSow(job.id),
     loadJobVariations(job),
