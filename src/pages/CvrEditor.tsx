@@ -1,11 +1,33 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseJobCosting } from '../lib/cvrCosts'
 import { addPackage, computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
-import type { CvrResult, Forecast } from '../lib/cvrCalc'
+import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type CvrResult, type Forecast, type Group } from '../lib/cvrCalc'
+
+type PkgOption = { id: string; name: string; group: Group }
+
+// the package list, in groups and alphabetical within each
+function PackageOptions({ packages }: { packages: PkgOption[] }) {
+  return (
+    <>
+      {GROUP_ORDER.map((g) => {
+        const mine = packages.filter((p) => p.group === g)
+        return mine.length ? (
+          <optgroup key={g} label={GROUP_LABELS[g]}>
+            {mine.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </optgroup>
+        ) : null
+      })}
+    </>
+  )
+}
 import type { Cvr } from '../lib/types'
 import { useJob } from './JobLayout'
 
@@ -121,16 +143,17 @@ export default function CvrEditor() {
     if (ordered.length) return ordered.join(', ')
     return note && !/^(tbc|n\/a|0|dub|multiple|see\b.*)$/i.test(note.trim()) ? note.trim() : ''
   }
-  const pkgOptions = ctx.packages
+  const pkgOptions: PkgOption[] = ctx.packages
     .filter((p) => p.kind !== 'omit')
     .map((p) => {
       const who = subbieOf(p.id, p.supplier_note)
-      return { id: p.id, name: who ? `${p.name} – ${who}` : p.name }
+      return { id: p.id, name: who ? `${p.name} – ${who}` : p.name, group: groupOf(p) }
     })
+    .sort(byGroupThenName)
   // a bespoke package added from the dropdown; returns its id so the cost can go straight to it
-  const addBespoke = async (name: string) => {
+  const addBespoke = async (name: string, group: Group) => {
     if (!navigator.onLine) throw new Error(saveError(new Error('offline')))
-    const p = await addPackage(job, name, Math.max(0, ...ctx.packages.map((x) => x.sort)) + 1)
+    const p = await addPackage(job, name, Math.max(0, ...ctx.packages.map((x) => x.sort)) + 1, group)
     setCtx({ ...ctx, packages: [...ctx.packages, p], input: { ...ctx.input, packages: [...ctx.input.packages, { ...p, budget: 0, target: null }] } })
     return p.id
   }
@@ -203,8 +226,15 @@ export default function CvrEditor() {
             </tr>
           </thead>
           <tbody>
-            {result.packages.map((p) => (
-              <tr key={p.id} className={p.overrun ? 'overrun' : p.kind === 'omit' ? 'omitted' : ''}>
+            {result.packages.map((p, i) => (
+              <Fragment key={p.id}>
+              {/* CVRs finalised before groups existed have none: they show as one list */}
+              {p.group && p.group !== result.packages[i - 1]?.group && (
+                <tr className="group-head">
+                  <td colSpan={6}>{GROUP_LABELS[p.group]}</td>
+                </tr>
+              )}
+              <tr className={p.overrun ? 'overrun' : p.kind === 'omit' ? 'omitted' : ''}>
                 <td className="stack-title">
                   <strong>{p.name}</strong>
                   <div className="muted small">
@@ -246,6 +276,7 @@ export default function CvrEditor() {
                   {p.overrun ? money(p.overrun) : ''}
                 </td>
               </tr>
+              </Fragment>
             ))}
             {result.unallocatedVos.map((v) => (
               <tr key={v.label} className="overrun">
@@ -379,11 +410,7 @@ export default function CvrEditor() {
                     {v.status === 'agreed' && !final ? (
                       <select value={v.package_id ?? ''} onChange={(e) => run(() => linkVo(v.id, e.target.value || null))}>
                         <option value="">Package</option>
-                        {pkgOptions.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
+                        <PackageOptions packages={pkgOptions} />
                       </select>
                     ) : (
                       ctx.packages.find((p) => p.id === v.package_id)?.name ?? '–'
@@ -516,22 +543,23 @@ function Allocate({
   onSave,
   onAdd,
 }: {
-  packages: { id: string; name: string }[]
+  packages: PkgOption[]
   current: { id: string; share: number }[]
   onSave: (split: { package_id: string; share: number }[]) => void
-  onAdd: (name: string) => Promise<string>
+  onAdd: (name: string, group: Group) => Promise<string>
 }) {
   const [splitting, setSplitting] = useState(current.length > 1)
   const [rows, setRows] = useState(current.length ? current.map((c) => ({ id: c.id, pct: String(Math.round(c.share * 10000) / 100) })) : [{ id: '', pct: '100' }])
   const [adding, setAdding] = useState<number | null>(null) // which row is adding (0 when not splitting)
   const [newName, setNewName] = useState('')
+  const [newGroup, setNewGroup] = useState<Group>('subcontract')
   const [addError, setAddError] = useState<string | null>(null)
 
   async function add() {
     if (!newName.trim()) return
     setAddError(null)
     try {
-      const id = await onAdd(newName.trim())
+      const id = await onAdd(newName.trim(), newGroup)
       if (splitting) setRows(rows.map((x, j) => (j === adding ? { ...x, id } : x)))
       else onSave([{ package_id: id, share: 1 }])
       setAdding(null)
@@ -542,16 +570,19 @@ function Allocate({
   }
   const options = (
     <>
-      {packages.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-        </option>
-      ))}
+      <PackageOptions packages={packages} />
       <option value={ADD}>+ Add a package…</option>
     </>
   )
   const addBox = (
     <span className="target-cell">
+      <select value={newGroup} onChange={(e) => setNewGroup(e.target.value as Group)} title="Group">
+        {GROUP_ORDER.map((g) => (
+          <option key={g} value={g}>
+            {GROUP_LABELS[g]}
+          </option>
+        ))}
+      </select>
       <input autoFocus value={newName} placeholder="New package, e.g. Feature staircase" onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
       <button className="small-button" onClick={add} disabled={!newName.trim()}>
         Add

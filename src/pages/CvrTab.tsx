@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type Group } from '../lib/cvrCalc'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate } from '../lib/format'
@@ -264,10 +265,19 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
   const [busy, setBusy] = useState(false)
   const [newName, setNewName] = useState('')
   useEffect(() => setRows(packages), [packages])
+  const [newGroup, setNewGroup] = useState<Group>('subcontract')
   const changed = rows.filter((r) => {
     const o = packages.find((p) => p.id === r.id)!
-    return o.kind !== r.kind || o.target !== r.target || (o.target_note ?? '') !== (r.target_note ?? '') || (o.supplier_note ?? '') !== (r.supplier_note ?? '')
+    return (
+      o.kind !== r.kind ||
+      o.target !== r.target ||
+      (o.target_note ?? '') !== (r.target_note ?? '') ||
+      (o.supplier_note ?? '') !== (r.supplier_note ?? '') ||
+      (o.cvr_group ?? null) !== (r.cvr_group ?? null)
+    )
   })
+  // grouped and alphabetical, as the CVR (by each package's saved group, so rows don't jump while editing)
+  const sorted = [...rows].sort((a, b) => byGroupThenName({ group: groupOf(packages.find((p) => p.id === a.id)!), name: a.name }, { group: groupOf(packages.find((p) => p.id === b.id)!), name: b.name }))
   const set = (id: string, k: keyof CvrPackage, v: unknown) => setRows(rows.map((r) => (r.id === id ? { ...r, [k]: v } : r)))
 
   async function save() {
@@ -293,7 +303,7 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
   async function add() {
     if (!newName.trim()) return
     try {
-      await addPackage(job, newName.trim(), Math.max(0, ...packages.map((p) => p.sort)) + 1)
+      await addPackage(job, newName.trim(), Math.max(0, ...packages.map((p) => p.sort)) + 1, newGroup)
       setNewName('')
       onSaved()
     } catch (e) {
@@ -311,6 +321,7 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
         <thead>
           <tr>
             <th>Package</th>
+            <th>Group</th>
             <th>Type</th>
             <th className="num">SoW budget</th>
             <th>Target £ (blank = budget / order)</th>
@@ -318,13 +329,31 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
           </tr>
         </thead>
         <tbody>
-          {rows.map((p) => {
+          {sorted.map((p, i) => {
             const mine = orders.filter((o) => o.package_id === p.id)
+            const g = groupOf(packages.find((x) => x.id === p.id)!)
+            const prev = i ? groupOf(packages.find((x) => x.id === sorted[i - 1].id)!) : null
             return (
-              <tr key={p.id}>
+              <Fragment key={p.id}>
+              {g !== prev && (
+                <tr className="group-head">
+                  <td colSpan={6}>{GROUP_LABELS[g]}</td>
+                </tr>
+              )}
+              <tr>
                 <td className="stack-title">
                   <strong>{p.name}</strong>
+                  {p.is_remainder && <div className="muted small">The prelims sections draw on this until you type their own targets.</div>}
                   <input className="inline-note" value={p.supplier_note ?? ''} placeholder="who it's with" onChange={(e) => set(p.id, 'supplier_note', e.target.value || null)} />
+                </td>
+                <td data-label="Group">
+                  <select value={p.cvr_group ?? groupOf(p)} onChange={(e) => set(p.id, 'cvr_group', e.target.value)}>
+                    {GROUP_ORDER.map((x) => (
+                      <option key={x} value={x}>
+                        {GROUP_LABELS[x]}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td data-label="Type">
                   <select value={p.kind} onChange={(e) => set(p.id, 'kind', e.target.value)}>
@@ -371,6 +400,7 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
                   )}
                 </td>
               </tr>
+              </Fragment>
             )
           })}
         </tbody>
@@ -383,6 +413,13 @@ function Packages({ job, packages, orders, onSaved }: { job: Job; packages: CvrP
         <label className="span-2">
           Add a package
           <span className="target-cell">
+            <select value={newGroup} onChange={(e) => setNewGroup(e.target.value as Group)} title="Group">
+              {GROUP_ORDER.map((x) => (
+                <option key={x} value={x}>
+                  {GROUP_LABELS[x]}
+                </option>
+              ))}
+            </select>
             <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Unforeseen costs" />
             <button onClick={add} disabled={!newName.trim()}>
               Add

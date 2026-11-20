@@ -6,7 +6,7 @@ import { loadJobVariations } from './variations'
 import { frontSheet, latestRevisions, loadApplication, loadApplications, loadSowRevision, appName } from './applications'
 import { loadCompanies, loadOrders } from './subcontracts'
 import { loadEot, programme } from './eot'
-import { supplierKey, computeCvr, type Allocation, type CalcInput, type CvrResult, type Forecast } from './cvrCalc'
+import { supplierKey, computeCvr, type Allocation, type CalcInput, type CvrResult, type Forecast, type Group } from './cvrCalc'
 import type { ParsedBudget } from './cvrBudget'
 import type { CostLine, ParsedCosts } from './cvrCosts'
 import type { Cvr, CvrPackage, Job, SubVariation } from './types'
@@ -57,6 +57,8 @@ export async function importBudget(job: Job, p: ParsedBudget, fileName: string, 
       budget: k.budget,
       sow_column: k.sow_column,
       supplier_note: old?.supplier_note ?? k.supplier_note,
+      cvr_group: old?.cvr_group ?? k.group ?? null,
+      is_remainder: !!k.is_remainder,
       sort: i,
     }
   })
@@ -66,15 +68,14 @@ export async function importBudget(job: Job, p: ParsedBudget, fileName: string, 
   await must1(supabase.from('jobs').update({ cvr_budget_file: fileName, cvr_budget_total: p.total, cvr_budget_imported_at: new Date().toISOString() }).eq('id', job.id))
 }
 
-export async function savePackage(p: Pick<CvrPackage, 'id' | 'kind' | 'target' | 'target_note' | 'supplier_note'>) {
-  const { id, ...rest } = p
-  await must1(supabase.from('packages').update(rest).eq('id', id))
+export async function savePackage(p: Pick<CvrPackage, 'id' | 'kind' | 'target' | 'target_note' | 'supplier_note' | 'cvr_group'>) {
+  const { id, kind, target, target_note, supplier_note, cvr_group } = p
+  await must1(supabase.from('packages').update({ kind, target, target_note, supplier_note, cvr_group }).eq('id', id))
 }
 
-export async function addPackage(job: Job, name: string, sort: number) {
-  return must1<CvrPackage>(supabase.from('packages').insert({ job_id: job.id, name, kind: 'cost', budget: 0, sort }).select('*').single())
+export async function addPackage(job: Job, name: string, sort: number, group: Group) {
+  return must1<CvrPackage>(supabase.from('packages').insert({ job_id: job.id, name, kind: 'cost', budget: 0, sort, cvr_group: group }).select('*').single())
 }
-
 export async function linkOrder(orderId: string, packageId: string | null) {
   await must1(supabase.from('orders').update({ package_id: packageId }).eq('id', orderId))
 }

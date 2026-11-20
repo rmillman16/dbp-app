@@ -5,7 +5,7 @@
 // A second sheet lists the iPlicit costs by supplier with the movement since last month.
 import type { Cell, Worksheet } from 'exceljs'
 import { download, excelDate, fill, newWorkbook, placeLogo, safeName, setupPage } from './excel'
-import type { CvrResult } from './cvrCalc'
+import { GROUP_LABELS, type CvrResult } from './cvrCalc'
 import type { SavedCostLine } from './cvr'
 import type { Cvr, Job } from './types'
 
@@ -77,12 +77,18 @@ export async function exportCvr(job: Job, cvr: Cvr, r: CvrResult, costs: SavedCo
     if (omit) for (let c = 1; c <= 9; c++) fill(ws.getRow(row).getCell(c), OMIT)
     row++
   }
-  for (const p of r.packages) {
+  r.packages.forEach((p, i) => {
+    if (p.group && p.group !== r.packages[i - 1]?.group) {
+      const c = put(ws, `A${row}`, GROUP_LABELS[p.group].toUpperCase(), { bold: true, size: 9 })
+      for (let k = 1; k <= 9; k++) fill(ws.getRow(row).getCell(k), 'FFEEF3FA')
+      c.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FF1F1246' } }
+      row++
+    }
     const from = [p.sourceNote, p.suppliers.length ? `Costs: ${p.suppliers.join(', ')}` : '', p.supplierNote ?? ''].filter(Boolean).join(' · ')
     const note = [p.forecastNote, p.overrun ? `Over target by ${gbp(p.overrun)}` : ''].filter(Boolean).join(' · ')
     if (p.kind === 'omit') line(`${p.name} (omitted: ${gbp(p.budget)})`, 'Shown and omitted', 0, null, p.cost, p.forecast, note, true)
     else line(p.name, from, p.target, p.voCost, p.cost, p.forecast, note, false, p.overrun > 0)
-  }
+  })
   for (const v of r.unallocatedVos) line(v.label, 'Agreed VO, no package', v.cost, v.cost, 0, v.cost, 'Allocate to a package')
   if (r.unallocatedCost) line('Costs not yet allocated to a package', 'iPlicit', null, null, r.unallocatedCost, r.unallocatedCost, 'See the Costs sheet')
   const last = row - 1

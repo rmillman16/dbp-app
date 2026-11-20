@@ -9,8 +9,37 @@
 // OH&P, DuB management and DuB design are shown and omitted (forecast 0). Nothing is dropped:
 // costs not yet allocated, and agreed VOs not given a package, still count in the total cost.
 // Value = contract sum + agreed VOs (agreed only, 20 Nov) + possible reduction / negotiations.
+// Preliminaries (agreed 20 Nov): the SoW prices prelims as one lump, kept as a "remainder"
+// package ("Preliminaries – not yet split"). The prelims sections (packages in the same group
+// with no budget of their own) draw it down: the lump's target is its budget less the sections'
+// forecasts, and an overspend shows once the group passes the whole prelims budget. A section
+// with a typed target is its own budget and flags its own overspend.
 
 export type Kind = 'cost' | 'omit' | 'ep'
+export type Group = 'labour_materials' | 'subcontract' | 'prelims' | 'other'
+
+export const GROUP_LABELS: Record<Group, string> = {
+  labour_materials: 'Labour & materials',
+  subcontract: 'Subcontractors',
+  prelims: 'Preliminaries',
+  other: 'Other',
+}
+export const GROUP_ORDER: Group[] = ['labour_materials', 'subcontract', 'prelims', 'other']
+
+// a typed group, else from the package's type and name
+export function groupOf(p: { kind: Kind; name: string; cvr_group?: Group | null }): Group {
+  if (p.cvr_group) return p.cvr_group
+  const n = p.name.toLowerCase()
+  if (p.kind !== 'cost' || /provision|prov sum|contingency/.test(n)) return 'other'
+  if (/^subbie/.test(n)) return 'subcontract'
+  if (/^(dub )?(labour|materials)$|builderswork/.test(n)) return 'labour_materials'
+  if (/prelim|project manager|site manager|labourer|consumable|skip|plant|cleaning|expenses|welfare|mess|ppe|health & safety|protection|temporary|sundries|waste|management|coordination|it\/|office/.test(n))
+    return 'prelims'
+  return 'subcontract'
+}
+
+export const byGroupThenName = (a: { group: Group; name: string }, b: { group: Group; name: string }) =>
+  GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group) || a.name.localeCompare(b.name, 'en-GB', { numeric: true, sensitivity: 'base' })
 
 export interface CalcPackage {
   id: string
@@ -21,6 +50,8 @@ export interface CalcPackage {
   target_note: string | null
   supplier_note: string | null
   sort: number
+  cvr_group?: Group | null
+  is_remainder?: boolean
 }
 export interface CalcOrder {
   package_id: string | null
@@ -69,12 +100,13 @@ export interface CalcInput {
   programme: { start: string | null; originalPc: string | null; revisedPc: string | null }
 }
 
-export type TargetSource = 'typed' | 'order' | 'ep' | 'budget' | 'omitted'
+export type TargetSource = 'typed' | 'order' | 'ep' | 'budget' | 'omitted' | 'drawdown' | 'remainder'
 
 export interface PackageRow {
   id: string
   name: string
   kind: Kind
+  group: Group
   budget: number
   source: TargetSource
   sourceNote: string // "Logik Ceilings Ltd order", "4% of contract sum", the typed note…
@@ -175,64 +207,98 @@ export function computeCvr(i: CalcInput): CvrResult {
 
   // ---- packages ----
   const forecastOf = new Map(i.forecasts.filter((f) => f.forecast != null).map((f) => [f.package_id, f]))
-  const packages: PackageRow[] = [...i.packages]
-    .sort((a, b) => a.sort - b.sort)
-    .map((p) => {
-      const cost = r2(costOf.get(p.id) ?? 0)
-      const voCost = r2(voCostOf.get(p.id) ?? 0)
-      const budget = Number(p.budget ?? 0)
-      let source: TargetSource
-      let sourceNote = ''
-      let base: number
-      if (p.kind === 'omit') {
-        source = 'omitted'
-        base = 0
-        sourceNote = 'Shown and omitted'
-        if (cost) warnings.push(`${gbp(cost)} of cost is allocated to ${p.name}, which is omitted: it's counted, but check the allocation.`)
-      } else if (p.target != null) {
-        source = 'typed'
-        base = Number(p.target)
-        sourceNote = p.target_note || 'Typed target'
+  const remainderGroups = new Set(i.packages.filter((p) => p.is_remainder && p.kind === 'cost').map((p) => groupOf(p)))
+  // a prelims section: no budget or order of its own, in a group whose lump it draws down
+  const drawsDown = (p: CalcPackage) =>
+    !p.is_remainder && p.kind === 'cost' && !Number(p.budget ?? 0) && remainderGroups.has(groupOf(p)) && !i.orders.some((o) => o.package_id === p.id)
+
+  const row = (p: CalcPackage, drawn = 0): PackageRow => {
+    const cost = r2(costOf.get(p.id) ?? 0)
+    const voCost = r2(voCostOf.get(p.id) ?? 0)
+    const budget = Number(p.budget ?? 0)
+    let source: TargetSource
+    let sourceNote = ''
+    let base: number
+    const drawing = drawsDown(p) && p.target == null
+    if (p.is_remainder && p.target == null) {
+      source = 'remainder'
+      base = Math.max(0, budget - drawn)
+      sourceNote = drawn ? `${gbp(budget)} prelims budget less ${gbp(r2(drawn))} drawn by the sections` : `${gbp(budget)} prelims budget (sections draw on it)`
+    } else if (drawing) {
+      source = 'drawdown'
+      base = 0
+      sourceNote = 'Draws on the prelims budget'
+    } else if (p.kind === 'omit') {
+      source = 'omitted'
+      base = 0
+      sourceNote = 'Shown and omitted'
+      if (cost) warnings.push(`${gbp(cost)} of cost is allocated to ${p.name}, which is omitted: it's counted, but check the allocation.`)
+    } else if (p.target != null) {
+      source = 'typed'
+      base = Number(p.target)
+      sourceNote = p.target_note || 'Typed target'
+    } else {
+      const orders = i.orders.filter((o) => o.package_id === p.id)
+      if (orders.length) {
+        source = 'order'
+        base = orders.reduce((s, o) => s + Number(o.order_value ?? 0) + o.instructed_variations, 0)
+        sourceNote = orders.map((o) => `${o.label}${o.instructed_variations ? ` incl. ${gbp(o.instructed_variations)} variations` : ''}`).join('; ')
+      } else if (p.kind === 'ep') {
+        source = 'ep'
+        base = r2((i.contractSum * i.epPct) / 100)
+        sourceNote = `${i.epPct}% of the contract sum`
       } else {
-        const orders = i.orders.filter((o) => o.package_id === p.id)
-        if (orders.length) {
-          source = 'order'
-          base = orders.reduce((s, o) => s + Number(o.order_value ?? 0) + o.instructed_variations, 0)
-          sourceNote = orders.map((o) => `${o.label}${o.instructed_variations ? ` incl. ${gbp(o.instructed_variations)} variations` : ''}`).join('; ')
-        } else if (p.kind === 'ep') {
-          source = 'ep'
-          base = r2((i.contractSum * i.epPct) / 100)
-          sourceNote = `${i.epPct}% of the contract sum`
-        } else {
-          source = 'budget'
-          base = budget
-          sourceNote = 'SoW budget'
-        }
+        source = 'budget'
+        base = budget
+        sourceNote = 'SoW budget'
       }
-      const target = r2(base + voCost)
-      const typed = forecastOf.get(p.id)
-      const forecast = typed ? Number(typed.forecast) : p.kind === 'omit' ? cost : Math.max(target, cost)
-      if (typed && forecast < cost) warnings.push(`${p.name}: the forecast (${gbp(forecast)}) is below the cost to date (${gbp(cost)}).`)
-      if (!typed && cost > target && p.kind !== 'omit') warnings.push(`${p.name} is over its target by ${gbp(r2(cost - target))}.`)
-      return {
-        id: p.id,
-        name: p.name,
-        kind: p.kind,
-        budget,
-        source,
-        sourceNote,
-        voCost,
-        target,
-        cost,
-        forecast: r2(forecast),
-        forecastNote: typed?.note ?? null,
-        forecastTyped: !!typed,
-        stillToCome: r2(forecast - cost),
-        overrun: p.kind === 'omit' ? 0 : r2(Math.max(0, forecast - target)),
-        suppliers: suppliersOf.get(p.id) ?? [],
-        supplierNote: p.supplier_note,
-      }
-    })
+    }
+    const target = r2(base + voCost)
+    const typed = forecastOf.get(p.id)
+    const forecast = typed ? Number(typed.forecast) : p.kind === 'omit' ? cost : Math.max(target, cost)
+    if (typed && forecast < cost) warnings.push(`${p.name}: the forecast (${gbp(forecast)}) is below the cost to date (${gbp(cost)}).`)
+    // sections drawing down and the lump itself: the overspend is judged on the whole prelims group
+    const ownOverrun = !drawing && !(p.is_remainder && p.target == null) && p.kind !== 'omit'
+    if (!typed && cost > target && ownOverrun) warnings.push(`${p.name} is over its target by ${gbp(r2(cost - target))}.`)
+    return {
+      id: p.id,
+      name: p.name,
+      kind: p.kind,
+      group: groupOf(p),
+      budget,
+      source,
+      sourceNote,
+      voCost,
+      target,
+      cost,
+      forecast: r2(forecast),
+      forecastNote: typed?.note ?? null,
+      forecastTyped: !!typed,
+      stillToCome: r2(forecast - cost),
+      overrun: ownOverrun ? r2(Math.max(0, forecast - target)) : 0,
+      suppliers: suppliersOf.get(p.id) ?? [],
+      supplierNote: p.supplier_note,
+    }
+  }
+
+  // sections first, then each lump less what its sections have drawn
+  const ordered = [...i.packages].sort((a, b) => a.sort - b.sort)
+  const rows = new Map(ordered.filter((p) => !p.is_remainder).map((p) => [p.id, row(p)]))
+  for (const lump of ordered.filter((p) => p.is_remainder)) {
+    const g = groupOf(lump)
+    const sections = ordered.filter((p) => drawsDown(p) && groupOf(p) === g).map((p) => rows.get(p.id)!)
+    const drawn = sections.reduce((s, x) => s + x.forecast - x.overrun, 0)
+    const r = lump.target != null ? row(lump) : row(lump, drawn)
+    // the group's overspend (beyond sections' own typed targets) shows on the lump
+    const excess = r2(drawn + r.forecast - (r.budget + r.voCost))
+    if (lump.target == null && excess > 0.005) {
+      r.overrun = excess
+      warnings.push(`${GROUP_LABELS[g]} are over the prelims budget (${gbp(r.budget + r.voCost)}) by ${gbp(excess)}.`)
+    }
+    rows.set(lump.id, r)
+  }
+  // by group (Labour & materials, Subcontractors, Preliminaries, Other), then alphabetically
+  const packages: PackageRow[] = ordered.map((p) => rows.get(p.id)!).sort(byGroupThenName)
 
   const sum = (f: (p: PackageRow) => number) => r2(packages.reduce((s, p) => s + f(p), 0))
   const voUnallocatedCost = r2(unallocatedVos.reduce((s, v) => s + v.cost, 0))

@@ -50,6 +50,8 @@ export interface CvrPackage {
   target_note: string | null
   supplier_note: string | null
   sort: number
+  cvr_group: import('./cvrCalc').Group | null // blank = worked out from the name (script 016)
+  is_remainder: boolean // the prelims lump that the prelims sections draw down
 }
 
 export interface Cvr {

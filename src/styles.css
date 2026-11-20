@@ -326,6 +326,7 @@ td.late { color: var(--red); font-weight: 600; }
 .cvr-table tr.overrun td { background: #fdecea; }
 .cvr-table tr.omitted td, .table tr.omitted td { color: var(--muted); background: #f7f7f7; }
 .cvr-table tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
+.table tr.group-head td { background: #eef3fa; font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--navy); padding: 6px 8px; }
 .target-cell, .forecast-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .target-cell input[type='number'], .forecast-cell input[type='number'] { width: 120px; text-align: right; }
 .forecast-cell { justify-content: flex-end; }

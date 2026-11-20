@@ -7,6 +7,9 @@
 //   uses 15% even where a line has its own OH&P (M&E at 10%) and ignores VE omissions priced
 //   without a cost; so the packages always add back to the SoW total (found 20 Nov on Micro).
 //   "Subbie" is one column for every subcontract item, so it's split by SoW section.
+//   Preliminaries are priced as one lump with the prelims headings listed unpriced under it
+//   (Project & commercial management, Site management & multi services team…): each heading
+//   becomes a prelims section package that draws the lump down (agreed 20 Nov, see cvrCalc).
 // - Breakdown (e.g. the "CVR 030826" tab of 2609 KOSH CVR): package names over rows 2–4
 //   (L onwards), each line's Total in H spread across them; the totals row is where column A
 //   holds the grand total with no description.
@@ -22,7 +25,11 @@ export interface BudgetPackage {
   budget: number
   sow_column: string // where it came from, e.g. "AT" or "BM · section 3"
   supplier_note: string | null // e.g. subbie names / the breakdown's supplier row
+  group?: 'prelims' // prelims sections and the lump they draw down
+  is_remainder?: boolean // the lump: "Preliminaries – not yet split"
 }
+
+export const PRELIMS_LUMP = 'Preliminaries – not yet split'
 
 // a SoW line that doesn't reconcile, shown after the import
 export interface BudgetQuery {
@@ -118,6 +125,9 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
   }
   const subbieNameCol = [...seen.entries()].find(([k]) => k === 'subbie name')?.[1]
   const queries: BudgetQuery[] = []
+  const prelimSections: string[] = []
+  const prelimColumns = new Set<string>() // packages the prelims lump was priced into
+  let prelimSectionNo = ''
   let section = ''
   let sectionNo = ''
   let sowTotal = 0
@@ -140,6 +150,14 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
     const shown = lineTotal != null ? String(r2(lineTotal)) : text(totalCell)
     const refText = ref == null ? '' : typeof ref === 'number' ? ref.toFixed(2) : String(ref)
     const priced = lineTotal != null || /^(foc|incl)/i.test(shown)
+    const inPrelims = /prelim/i.test(section)
+    // an unpriced heading under Preliminaries is a prelims section
+    if (inPrelims && !priced && !costs.length) {
+      if (!prelimSections.includes(desc)) prelimSections.push(desc)
+      prelimSectionNo = sectionNo
+      continue
+    }
+    if (inPrelims) for (const { name } of costs) if (!/^subbie/i.test(name)) prelimColumns.add(name)
     if (!priced) {
       if (Math.abs(cost) >= 0.01) queries.push({ ref: refText, description: desc, total: shown || '(blank)', cost: r2(cost), issue: 'not_priced' })
       continue
@@ -155,7 +173,17 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
     }
   }
   add('OH&P', `${colName(ohpCol)} (Total less cost)`, ohp)
-  const packages = [...totals.values()].map((p) => ({ ...p, budget: r2(p.budget) })).filter((p) => p.budget !== 0)
+  // the prelims lump becomes "Preliminaries – not yet split" with the sections drawing it down
+  const lumpName = [...prelimColumns].find((n) => /prelim/i.test(n))
+  if (prelimSections.length && lumpName && totals.has(lumpName)) {
+    const lump = totals.get(lumpName)!
+    totals.delete(lumpName)
+    totals.set(PRELIMS_LUMP, { ...lump, name: PRELIMS_LUMP, group: 'prelims', is_remainder: true })
+  }
+  const packages: BudgetPackage[] = [...totals.values()].map((p) => ({ ...p, budget: r2(p.budget) })).filter((p) => p.budget !== 0)
+  if (totals.has(PRELIMS_LUMP))
+    for (const s of prelimSections)
+      if (!packages.some((p) => p.name === s)) packages.push({ name: s, kind: 'cost', budget: 0, sow_column: `section ${prelimSectionNo}`, supplier_note: null, group: 'prelims' })
   return { layout: 'micro', sheet: ws.name.trim(), packages, total: r2(packages.reduce((s, p) => s + p.budget, 0)), sow_total: r2(sowTotal), queries }
 }
 
