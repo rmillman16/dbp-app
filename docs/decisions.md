@@ -243,7 +243,7 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **Offline use (agreed 20 Nov):** **meeting minutes** can be written offline (saved to an outbox on the device, synced when the signal returns) and the **latest programme** is kept on the device so it can be viewed offline (both come with the Timeline / Minutes merge). **Everything else is view-only offline**, so offline edits to money figures can't clash.
 
 ## Monthly valuation reminders (20 Nov)
-- **Every live job** gets a "valuation due" reminder each month it runs (start, or today, to PC; 12 months ahead if no PC date): **one week before month end**, moved back to the Friday at weekends. Shown on the bell / home page, linking to the job's Applications tab; rebuilt automatically when status, start or PC date change (script 010).
+- **Every live job** gets a "valuation due" reminder each month it runs (start, or today, to PC; 12 months ahead if no PC date). **Revised 20 Nov (script 011):** due **on month end** and shown only **in the last 7 days** (amber), red if month end passes without it being marked Done; earlier than that it's noise. Other reminders keep their 14-day window. Linked to the job's Applications tab; rebuilt automatically when status, start or PC date change.
 - **Outlook:** until IT approves the Microsoft 365 link, each job's Overview has **"Add valuation dates to my calendar"**: an .ics file with a 09:00 appointment (15-minute alert) on each date, which Outlook / iPhone adds when opened. Stable IDs, so re-opening an updated file changes appointments rather than duplicating them. Once Microsoft Graph is approved, the app can put these in users' calendars directly.
 
 ## Layout and templates area (20 Nov)

@@ -52,8 +52,8 @@ export default function JobOverview() {
         ) : (
           <>
             <p className="muted small">
-              One week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. They appear on the bell
-              when due.
+              Valuation starts one week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. The reminder
+              shows on the bell in that last week.
             </p>
             <ul className="date-list">
               {valuationDates(job)
