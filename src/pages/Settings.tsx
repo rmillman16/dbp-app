@@ -4,7 +4,7 @@ import { cached, must, saveError } from '../lib/offline'
 import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
 import AdminOnly from '../components/AdminOnly'
-import { Insurances } from './Sections'
+import { Insurances, OmStandardDocuments } from './Sections'
 
 export default function Settings() {
   return (
@@ -12,6 +12,7 @@ export default function Settings() {
       <h1>Settings</h1>
       <CompanyDetails />
       <Insurances />
+      <OmStandardDocuments />
       <Users />
       <ExportAll />
     </AdminOnly>

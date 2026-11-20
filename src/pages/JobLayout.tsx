@@ -12,6 +12,7 @@ const TABS: { to: string; label: string; soon?: boolean }[] = [
   { to: 'quotations', label: 'Quotations' },
   { to: 'applications', label: 'Applications', soon: true },
   { to: 'payment-notices', label: 'Payment notices', soon: true },
+  { to: 'om', label: 'O&M', soon: true },
 ]
 
 export interface JobContext {

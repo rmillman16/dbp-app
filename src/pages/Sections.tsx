@@ -179,8 +179,9 @@ export function Contracts() {
   )
 }
 
-// ---------- O&M ----------
-// standard documents by trade, from the O&M scope in docs/decisions.md
+// ---------- Settings › O&M standard documents (admins only) ----------
+// The company-wide list each job's O&M tracker starts from (the tracker itself is a job tab).
+// Standard documents by trade, from the O&M scope in docs/decisions.md.
 const STARTER_OM: [string, string][] = [
   ['Electrical', 'Installation and test certificates'],
   ['Electrical', 'Emergency lighting certificate'],
@@ -196,8 +197,7 @@ const STARTER_OM: [string, string][] = [
   ['Joinery', 'Warranty'],
 ]
 
-export function OandM() {
-  const readOnly = !useIsAdmin()
+export function OmStandardDocuments() {
   const [reload, setReload] = useState(0)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -212,12 +212,11 @@ export function OandM() {
 
   return (
     <>
-      <h1>O&M</h1>
       <section className="card">
-        <h3 className="sub-head">Standard documents by trade</h3>
+        <h2>O&M standard documents</h2>
         <p className="muted small intro">
-          The O&M documents asked of each trade. Project-specific items (Reg 38 pack, BREEAM evidence, client requirements)
-          are added per job in the O&M module.
+          The O&M documents asked of each trade; each job's O&M tab starts from this list. Project-specific items (Reg 38
+          pack, BREEAM evidence, client requirements) are added in the job.
         </p>
         <RecordList
           key={reload}
@@ -229,7 +228,6 @@ export function OandM() {
           newRow={{ trade: '', name: '', standard: true }}
           addLabel="Add document"
           canDelete
-          readOnly={readOnly}
           emptyText="No standard documents yet."
           extraActions={<button onClick={addStarter}>Add starter list (electrical, mechanical, joinery)</button>}
           fields={[
