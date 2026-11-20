@@ -308,6 +308,7 @@ td.late { color: var(--red); font-weight: 600; }
 .date-list { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
 .pricing-import { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
 .file-button input { display: none; }
+.import-warnings { flex-basis: 100%; margin: 0; padding-left: 28px; font-size: 13px; }
 .file-button .button { cursor: pointer; }
 
 /* ---------- applications ---------- */

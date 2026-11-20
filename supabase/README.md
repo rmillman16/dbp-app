@@ -16,6 +16,13 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `010_valuation_reminders.sql` | Monthly "valuation due" reminders on every live job, one week before month end, start to PC (rebuilt when dates change) | ✅ Run 20 Nov 2026 |
 | `011_valuation_reminder_timing.sql` | Valuation reminders due on month end and shown only in the last 7 days (other reminders keep 14 days) | ⬜ Not yet run |
 
+## Edge Functions (server steps)
+Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
+
+| Function | What it does | Needs | Deployed? |
+|---|---|---|---|
+| `read-pricing-pdf` | Reads a pricing PDF with Claude and returns its priced lines (quotations; later payment notices). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
+
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
 - **Changes come as a new script** (`002_…`, `003_…`) that alters what's there, so nothing already in the app is lost. Claude adds each new script here and a row to the table above.

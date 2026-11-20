@@ -1,0 +1,39 @@
+# DBP app: questions and requests for IT
+
+Running list of what the DBP app needs from IT. Newest additions at the top of each section; tick items off as they're done.
+**Next discussion: Monday 23 November 2026.**
+
+## 1. Anthropic API for reading PDFs (capped trial)
+**What for:** the app reads PDFs (supplier quotes, schedules of works, subcontractors' applications) and turns them into priced lines for staff to check, instead of retyping them. Used now in quotations; next in subcontract payment notices (Lumen / Mercury style applications).
+**How it's built:** a small server step on our Supabase project (Edge Function `read-pricing-pdf`, code in `supabase/functions/read-pricing-pdf/index.ts`) sends the PDF to Claude and returns the lines. The key never goes into the app itself; only signed-in users can use it. **If there's no credit or no key, the app says so and asks for the Excel version instead: nothing breaks.**
+- [ ] Create an Anthropic API account for DBP (console.anthropic.com), company card or invoice.
+- [ ] **Prepaid credits with auto-reload OFF** (suggest £10 to start) and a monthly spend limit, so it can never overspend. Note: this is separate from any Claude subscription; subscriptions don't cover API use.
+- [ ] Create an API key and add it in Supabase › Edge Functions › Secrets as `ANTHROPIC_API_KEY`.
+- [ ] Deploy the function: Supabase › Edge Functions › Deploy a new function › name `read-pricing-pdf` › paste the code from the file above › Deploy. (Or with the Supabase CLI: `supabase functions deploy read-pricing-pdf`.)
+- [ ] Data protection: PDFs may include names, prices and bank details. Check Anthropic's current commercial terms and data processing agreement (API data isn't used for model training; limited retention) against DBP policy.
+- **Cost:** about 5–15p per typical 1–7 page PDF on the main model (Claude Opus 5.5, $4 / $20 per million tokens in / out). 50 documents a month ≈ £3–£7. A smaller model (Claude Haiku 5.5) is ~40× cheaper but may misread messy tables; to choose one, set the secret `ANTHROPIC_MODEL=claude-haiku-5-5`. Richard to decide after testing both on real PDFs.
+
+## 2. Microsoft 365 app registration (Microsoft Graph)
+**What for:** (a) save exports (VO sheets, quotations, applications, payment notices) straight into each job's SharePoint site in the right folder; (b) put monthly valuation dates (and later other reminders) straight into users' Outlook calendars. Until then, exports download and calendar dates come as a file to open in Outlook.
+- [ ] Approve an app registration in Entra ID with access limited to the job SharePoint sites (`Sites.Selected`) and calendar write for signed-in users (`Calendars.ReadWrite`, delegated).
+- [ ] Agree how the app signs users in to Microsoft (single sign-on with work accounts would also replace separate app passwords).
+
+## 3. Supabase plan before go-live
+- [ ] Upgrade the Supabase project to **Pro** (about $25 / month) for daily backups of the data. The free plan has no automatic backups; until then an admin runs Settings › **Export all data** weekly.
+- [ ] Confirm the project's region is London (UK data residency).
+- [ ] Decide who else holds owner access to the Supabase project (currently Richard).
+
+## 4. Hosting and the web address
+- [ ] Host the app (suggested Firebase Hosting, like Timeline and Minutes) so staff can use it outside Richard's laptop; it's a static site, so hosting is low cost.
+- [ ] Web address: `dbp-app.com` (if DBP owns it) or e.g. `app.duboulay.co.uk`, pointed at the hosting.
+- [ ] Once hosted, the app installs to phones / tablets and works offline (already built in).
+
+## 5. Code backup (no GitHub)
+Richard would rather not use GitHub. The code is kept in Git on his laptop and a single backup file is refreshed in OneDrive after every change (`OneDrive - du Boulay Projects\RM\Claude\dbp APP\dbp-app-backup.bundle`).
+- [ ] Is that OneDrive location acceptable / backed up by IT? Should a second copy go somewhere else (e.g. SharePoint, or a private Azure DevOps repo)?
+
+## 6. Timeline and Minutes merge (parked)
+- [ ] Access to the Minutes Firebase project (held by the developer) and fresh copies of both apps when work starts.
+
+## Notes
+- Some SharePoint Word files couldn't be copied out (probably a sensitivity label); PDFs worked. Worth knowing for future template updates.

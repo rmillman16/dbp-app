@@ -46,5 +46,7 @@ You are building **one web app for du Boulay Projects Ltd**, a London fit-out co
 ## Working with Richard
 - Show him the screen (`npm run dev`) after each meaningful step and ask if it matches what he expects. He prefers previews before big changes.
 - **Backup (decided 20 Nov, no GitHub):** local Git in this folder. **Commit after every change**, with a plain-English message. A post-commit hook (`.git/hooks/post-commit`) then refreshes the off-site copy `OneDrive - du Boulay Projects\RM\Claude\dbp APP\dbp-app-backup.bundle` (one file, safe for OneDrive). Rebuild anywhere with `git clone dbp-app-backup.bundle dbp-app`, then copy in `.env.local` and run `npm install`. Git may need its PATH refreshed in a shell opened before it was installed.
+- **Anything that needs IT** (accounts, approvals, hosting, costs, access) goes in `docs/questions-for-IT.md` as a checklist item with what it's for: keep that list current, tick items off when done, and tell Richard when you add one.
+- **Supabase Edge Functions** live in `supabase/functions/<name>/index.ts` (Deno). They're deployed separately from the SQL scripts (dashboard or `supabase functions deploy`); secrets such as `ANTHROPIC_API_KEY` sit in Supabase › Edge Functions › Secrets, never in the app or `.env.local`.
 - Database data is **not** in that backup: Supabase free plan has no automatic backups. Raise with IT (Pro plan daily backups, or an app "export everything" button).
 - When you finish a module, update `docs/decisions.md` only if a decision changed, and tell Richard what's next.

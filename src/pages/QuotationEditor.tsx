@@ -11,52 +11,91 @@ import GroupsEditor from '../components/GroupsEditor'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
 import { parseSow } from '../lib/sowImport'
+import { readPricingPdf } from '../lib/readPdf'
 
 // Pricing schedule from a priced SoW in Excel (our SoW template, client / office SoW, or an
-// application workbook): every priced line, or one line per section with its total.
+// application workbook) or from a PDF read by Claude: every priced line, or one line per
+// section with its total. If the PDF can't be read, it asks for the Excel version instead.
+type Priced = { section: string | null; sectionTitle: string | null; heading: string | null; description: string; qty: number | null; unit: string | null; rate: number | null; total: number | null }
+
+function toQuotationLines(items: Priced[], mode: 'lines' | 'sections'): QuotationLine[] {
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  if (mode === 'lines')
+    return items.map((l, i) => ({ item: null, heading: l.heading, description: l.description, qty: l.qty ?? 1, unit: l.unit, rate: l.rate ?? l.total, total: l.total, sort: i }))
+  const sections = [...new Set(items.map((l) => l.section ?? ''))]
+  return sections
+    .map((sec, i) => {
+      const inSec = items.filter((l) => (l.section ?? '') === sec)
+      const total = r2(inSec.reduce((t, l) => t + (l.total ?? 0), 0))
+      return { item: null, heading: inSec[0]?.sectionTitle || sec || 'Works', description: '', qty: 1, unit: 'Item', rate: total, total, sort: i }
+    })
+    .filter((l) => l.total)
+}
+
 function PricingImport({ hasLines, onLines }: { hasLines: boolean; onLines: (l: QuotationLine[], replace: boolean) => void }) {
   const [mode, setMode] = useState<'lines' | 'sections'>('lines')
   const [msg, setMsg] = useState<string | null>(null)
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
 
   async function read(f: File) {
     setMsg(null)
-    if (/\.pdf$/i.test(f.name)) return setMsg('Reading PDFs isn\'t set up yet: use the Excel version for now.')
+    setWarnings([])
+    setBusy(true)
     try {
-      const p = await parseSow(await f.arrayBuffer())
-      const items = p.lines.filter((l) => l.kind === 'item' && !l.below_line && l.total != null)
-      let out: QuotationLine[]
-      if (mode === 'lines') {
-        out = items.map((l, i) => ({ item: null, heading: null, description: l.description, qty: l.qty ?? 1, unit: l.unit, rate: l.rate ?? l.total, total: l.total, sort: i }))
+      let items: Priced[]
+      let source: string
+      let stated: number | null = null
+      const warn: string[] = []
+      if (/\.pdf$/i.test(f.name)) {
+        setMsg('Reading the PDF… (this can take up to a minute)')
+        const p = await readPricingPdf(f)
+        items = p.lines.filter((l) => l.total != null).map((l) => ({ ...l, sectionTitle: l.section }))
+        source = `${f.name}${p.supplier ? ` (${p.supplier})` : ''}, read by Claude`
+        stated = p.document_total
+        warn.push(...p.warnings)
+        const skipped = p.lines.filter((l) => l.total == null).length
+        if (skipped) warn.push(`${skipped} line${skipped > 1 ? 's' : ''} with no figure (e.g. ${p.lines.find((l) => l.total == null)?.note ?? 'Excl'}) left out.`)
       } else {
-        const sections = p.lines.filter((l) => l.kind === 'section' && !l.below_line)
-        out = sections
-          .map((sec, i) => {
-            const total = Math.round(items.filter((l) => l.section === sec.section).reduce((t, l) => t + (l.total ?? 0), 0) * 100) / 100
-            return { item: null, heading: sec.description, description: '', qty: 1, unit: 'Item', rate: total, total, sort: i }
-          })
-          .filter((l) => l.total)
+        const p = await parseSow(await f.arrayBuffer())
+        const titles = new Map(p.lines.filter((l) => l.kind === 'section').map((l) => [l.section, l.description]))
+        items = p.lines.filter((l) => l.kind === 'item' && !l.below_line && l.total != null).map((l) => ({ ...l, heading: null, sectionTitle: titles.get(l.section) ?? null }))
+        source = `${p.sheet} (${p.revision})`
+        stated = p.stated_total
       }
+      const out = toQuotationLines(items, mode)
       if (!out.length) return setMsg('No priced lines found in that file.')
+      const sum = out.reduce((t, l) => t + (l.total ?? 0), 0)
+      if (stated != null && Math.abs(stated - sum) > 0.01) warn.push(`The lines add up to ${money(sum)} but the document's total is ${money(stated)}: check before saving.`)
       const replace = hasLines ? confirm(`Replace the current pricing lines with these ${out.length}?\n\nOK = replace, Cancel = add them to the end.`) : true
       onLines(out, replace)
-      const sum = out.reduce((t, l) => t + (l.total ?? 0), 0)
-      setMsg(`Imported ${out.length} ${mode === 'lines' ? 'lines' : 'sections'} from ${p.sheet} (${p.revision}), ${money(sum)}. Check them, then Save.`)
+      setMsg(`Imported ${out.length} ${mode === 'lines' ? 'lines' : 'sections'} from ${source}, ${money(sum)}. Check every line, then Save.`)
+      setWarnings(warn)
     } catch (e) {
       setMsg((e as Error).message)
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
     <div className="pricing-import">
       <label className="file-button">
-        <input type="file" accept=".xlsx,.xlsm,.pdf" onChange={(e) => (e.target.files?.[0] && read(e.target.files[0]), (e.target.value = ''))} />
-        <span className="button">Import from Excel…</span>
+        <input type="file" accept=".xlsx,.xlsm,.pdf" disabled={busy} onChange={(e) => (e.target.files?.[0] && read(e.target.files[0]), (e.target.value = ''))} />
+        <span className="button">{busy ? 'Reading…' : 'Import from Excel or PDF…'}</span>
       </label>
       <select value={mode} onChange={(e) => setMode(e.target.value as 'lines' | 'sections')}>
         <option value="lines">every priced line</option>
         <option value="sections">one line per section</option>
       </select>
       {msg && <span className="small">{msg}</span>}
+      {warnings.length > 0 && (
+        <ul className="warning import-warnings">
+          {warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
