@@ -1,12 +1,16 @@
 // The iPlicit job costing report ("Jobcost Report", run each month from iPlicit's Excel add-in;
-// layout as 2609_Jobcosting report 26.10.15). Columns are found by their headings, which run
-// over several rows ("Final / Total / Costs"), so moved or extra columns don't matter.
+// tested on reference/test-cases/2609_Jobcosting report.xlsx, "Master doc" tab: 50 suppliers,
+// £691,933.60 = the report's total). Columns are found by their headings, which run over
+// several rows ("Final / Total / Costs"), so moved or extra columns don't matter. The figures
+// are live formulas, so the values read are as last saved (save after refreshing in iPlicit).
+// PREPARED is TODAY(), so it's only a suggestion for "cost as at".
 // One row per supplier: Cost Code (e.g. 9LOG01, CC04 or a number), Description (supplier name),
 // iPlicit PO total (memorandum only), Invoiced, Committed, Unposted, Final provisions,
 // Final Total Costs, Last Reported, This Period, Paid to Date, Retention, O/S, Explanation.
 // The supplier list ends at the count row under it; the revenue build-up below is ignored
 // (certified figures come from Applications).
 import type { Worksheet } from 'exceljs'
+import { loadXlsx } from './xlsxLoad'
 
 export interface CostLine {
   supplier_code: string
@@ -56,13 +60,13 @@ const text = (c: Cell) => {
 // "(64)" and "-" as accountants write them
 function money(c: Cell): number | null {
   const v = val(c)
-  if (typeof v === 'number') return Number.isFinite(v) ? v : null
+  if (typeof v === 'number') return Number.isFinite(v) ? r2(v) : null // the report's sums carry float noise
   if (typeof v !== 'string') return null
   const s = v.replace(/[£,\s]/g, '')
   if (s === '' || s === '-') return null
   const neg = /^\(.*\)$/.test(s)
   const n = Number(s.replace(/[()]/g, ''))
-  return Number.isFinite(n) ? (neg ? -n : n) : null
+  return Number.isFinite(n) ? r2(neg ? -n : n) : null
 }
 function isoDate(c: Cell): string | null {
   const v = val(c)
@@ -96,9 +100,7 @@ const HEADINGS: [Key, RegExp][] = [
 ]
 
 export async function parseJobCosting(data: ArrayBuffer | Uint8Array): Promise<ParsedCosts> {
-  const ExcelJS = (await import('exceljs')).default
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(data as ArrayBuffer)
+  const wb = await loadXlsx(data)
   for (const ws of wb.worksheets) {
     if (ws.state !== 'visible') continue
     const p = parseSheet(ws)
@@ -172,6 +174,8 @@ function parseSheet(ws: Worksheet): ParsedCosts | null {
       break
     }
     if (!name) continue
+    // the iPlicit add-in's own field-name row ("SupplierCode", "SupplierName")
+    if (/^supplier ?(code|name)$/i.test(code) || /^supplier ?name$/i.test(name)) continue
     const total = n(row, 'total_cost')
     const parts = (['invoiced', 'committed', 'unposted', 'provisions'] as const).map((k) => n(row, k))
     // a supplier with nothing against it at all is still listed (it may have a PO)

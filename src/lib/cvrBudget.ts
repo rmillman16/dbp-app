@@ -12,6 +12,7 @@
 //   holds the grand total with no description.
 // Below-the-line items aren't part of the contract sum, so they're left out of the budgets.
 import type { Worksheet } from 'exceljs'
+import { loadXlsx } from './xlsxLoad'
 
 export type PackageKind = 'cost' | 'omit' | 'ep'
 
@@ -219,9 +220,7 @@ function findHeader(ws: Worksheet) {
 }
 
 export async function parseBudget(data: ArrayBuffer | Uint8Array): Promise<ParsedBudget> {
-  const ExcelJS = (await import('exceljs')).default
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(data as ArrayBuffer)
+  const wb = await loadXlsx(data)
   for (const ws of wb.worksheets) {
     if (ws.state !== 'visible') continue
     const h = findHeader(ws)
