@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseJobCosting } from '../lib/cvrCosts'
-import { type Split, addPackage, computeCvr, finaliseCvr, linkVo, loadBudgetLines, loadContext, loadCvr, loadCvrs, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
+import { parseBudget } from '../lib/cvrBudget'
+import { type Split, addPackage, computeCvr, countBudgetLines, finaliseCvr, importBudget, linkVo, loadBudgetLines, loadContext, loadCvr, loadCvrs, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
 import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type CvrResult, type Forecast, type Group } from '../lib/cvrCalc'
 
 type PkgOption = { id: string; name: string; group: Group }
@@ -46,6 +47,7 @@ export default function CvrEditor() {
   const [ctx, setCtx] = useState<CvrContext | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [lineCount, setLineCount] = useState<number | null>(null)
 
   const reload = async () => {
     try {
@@ -55,6 +57,7 @@ export default function CvrEditor() {
       setFile(d.imp?.file_name ?? null)
       setForecasts(d.forecasts)
       setCtx(await loadContext(job, d.cvr, d.costs, d.forecasts))
+      countBudgetLines(job.id).then(setLineCount, () => setLineCount(null))
     } catch (e) {
       setError((e as Error).message)
     }
@@ -109,9 +112,21 @@ export default function CvrEditor() {
       const [lines, cvrs] = await Promise.all([loadBudgetLines(job.id), loadCvrs(job.id)])
       // the breakdown sheet lists the SoW's items, saved when the office SoW is imported (script 018)
       if (!lines.length)
-        return setError("The office SoW's items aren't saved for this job yet, so the breakdown sheet would be empty. Go to the CVR tab › Budgets › Import a new SoW revision, import the office SoW again, then export.")
+        return setError("The office SoW's items aren't saved for this job yet, so the second sheet would be empty. Use “Choose the office SoW…” just below, then click Excel again.")
       const previous = cvrs.filter((c) => c.period_end < cvr!.period_end).pop()
       await exportCvr(job, cvr!, result!, costs, { packages: ctx!.packages, lines, previousDate: previous?.period_end ?? null })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+
+  // the office SoW again, to save its items for the breakdown sheet (jobs imported before script 018)
+  async function importSow(f: File) {
+    setError(null)
+    try {
+      const p = await parseBudget(await f.arrayBuffer())
+      if (!confirm(`Save the ${p.lines.length} lines of ${f.name} (${money(p.total)}) for the breakdown sheet? Budgets are updated from it; targets, notes and allocations are kept.`)) return
+      await run(() => importBudget(job, p, f.name, ctx!.packages), `${p.lines.length} SoW lines saved. Click Excel to export.`)
     } catch (e) {
       setError((e as Error).message)
     }
@@ -196,6 +211,19 @@ export default function CvrEditor() {
           )}
         </div>
       </div>
+      {lineCount === 0 && (
+        <div className="warning">
+          <p>
+            <strong>The Excel's second sheet needs the office SoW's items</strong> (each item with its cost and OH&P split out). They're saved when the office SoW is imported, and
+            this job's were imported before that was added. Choose the office SoW once (the same file as before); budgets, targets and allocations stay as they are.
+          </p>
+          <label className="file-button">
+            <input type="file" accept=".xlsx,.xlsm" onChange={(e) => (e.target.files?.[0] && importSow(e.target.files[0]), (e.target.value = ''))} />
+            <span className="button primary">Choose the office SoW…</span>
+          </label>
+        </div>
+      )}
+      {lineCount != null && lineCount > 0 && <p className="muted small">Office SoW: {lineCount} lines saved for the Excel's breakdown sheet.</p>}
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
       {result.warnings.length > 0 && (
