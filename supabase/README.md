@@ -16,6 +16,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `010_valuation_reminders.sql` | Monthly "valuation due" reminders on every live job, one week before month end, start to PC (rebuilt when dates change) | ✅ Run 20 Nov 2026 |
 | `011_valuation_reminder_timing.sql` | Valuation reminders due on month end and shown only in the last 7 days (other reminders keep 14 days) | ✅ Run 20 Nov 2026 |
 | `012_subcontracts.sql` | Subcontract payment notices: order trade, subcontractor's stated previous, previous-notice figures, notes, adjustment blocks | ✅ Run 20 Nov 2026 |
+| `013_eot.sql` | EOT: VO programme days become delay events automatically; notice period per job and notice reminders on the bell; event numbers, days granted | ⬜ Not yet run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

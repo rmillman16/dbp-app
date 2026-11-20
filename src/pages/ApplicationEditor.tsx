@@ -174,6 +174,7 @@ export default function ApplicationEditor() {
             </label>
             <Num label="Psum adjustment £" value={app.psum_adjustment} onChange={(v) => setA('psum_adjustment', v ?? 0)} />
             <Num label="Materials on site £" value={app.materials_on_site} onChange={(v) => setA('materials_on_site', v)} />
+            <Num label="Loss and expense £ (e.g. EOT prolongation)" value={app.loss_and_expense} onChange={(v) => setA('loss_and_expense', v)} />
             <Num label="Retention %" value={app.retention_pct} onChange={(v) => setA('retention_pct', v)} />
             <label className="check">
               <span>
@@ -433,6 +434,7 @@ export const FRONT_ROWS: [keyof FrontSheet, string, boolean?][] = [
   ['construction', 'Construction'],
   ['voClaimed', 'Variations'],
   ['mos', 'Materials on site'],
+  ['lossAndExpense', 'Loss and expense'],
   ['totalApplication', 'Total application', true],
   ['retention', 'Less retention'],
   ['deposits', 'Less deposits'],

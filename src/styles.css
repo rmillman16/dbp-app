@@ -393,6 +393,13 @@ td.late { color: var(--red); font-weight: 600; }
   .contact-row { grid-template-columns: 1fr 1fr; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
 }
 
+/* ---------- EOT ---------- */
+.eot-granted { color: #2e7d32; font-weight: 600; }
+.eot-rejected { color: var(--red); }
+.eot-claimed, .eot-notified { color: var(--blue); }
+.claim-events { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.claim-events label.check span { font-weight: 400; color: var(--ink); }
+
 /* ---------- offline ---------- */
 .offline-pill { display: inline-block; background: var(--amber-bg); color: var(--amber); border: 1px solid #f0c27a; border-radius: 14px; padding: 3px 12px; font-size: 13px; font-weight: 600; }
 

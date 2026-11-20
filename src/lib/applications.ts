@@ -193,6 +193,7 @@ export interface FrontSheet {
   construction: number
   voClaimed: number
   mos: number
+  lossAndExpense: number
   totalApplication: number
   retentionPct: number // after halving at practical completion
   retention: number // negative
@@ -231,7 +232,8 @@ export function frontSheet(
   const psum = Number(app.psum_adjustment ?? 0)
   const variations = vos.reduce((s, v) => s + projectedValue(v.vo, v.build), 0)
   const mos = Number(app.materials_on_site ?? 0)
-  const totalApplication = construction + voClaimed + mos
+  const lossAndExpense = Number(app.loss_and_expense ?? 0)
+  const totalApplication = construction + voClaimed + mos + lossAndExpense
   const fullRet = Number(app.retention_pct ?? job.retention_pct)
   const retentionPct = app.practical_completion ? fullRet / 2 : fullRet
   const retention = -totalApplication * (retentionPct / 100)
@@ -250,6 +252,7 @@ export function frontSheet(
     construction,
     voClaimed,
     mos,
+    lossAndExpense,
     totalApplication,
     retentionPct,
     retention,

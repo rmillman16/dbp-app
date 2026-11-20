@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { cached, must, saveError } from '../lib/offline'
-import { JOB_STATUS_LABELS, type Enquiry, type Job, type JobStatus } from '../lib/types'
+import { JOB_STATUS_LABELS, type Company, type Enquiry, type Job, type JobStatus } from '../lib/types'
+import { loadCompanies } from '../lib/subcontracts'
 import { enquiryRef, moveEnquiryToJob } from '../lib/quotations'
 import { loadEnquiry } from './Estimating'
 
@@ -22,6 +23,9 @@ interface FormState {
   ohp_pct: string
   prelims_pct: string
   retention_pct: string
+  client_company_id: string
+  weekly_prelims: string
+  eot_notice_days: string
 }
 
 const EMPTY: FormState = {
@@ -38,6 +42,9 @@ const EMPTY: FormState = {
   ohp_pct: '15',
   prelims_pct: '9',
   retention_pct: '5',
+  client_company_id: '',
+  weekly_prelims: '',
+  eot_notice_days: '',
 }
 
 function fromJob(j: Job): FormState {
@@ -56,6 +63,9 @@ function fromJob(j: Job): FormState {
     ohp_pct: s(j.ohp_pct),
     prelims_pct: s(j.prelims_pct),
     retention_pct: s(j.retention_pct),
+    client_company_id: s(j.client_company_id),
+    weekly_prelims: s(j.weekly_prelims),
+    eot_notice_days: s(j.eot_notice_days),
   }
 }
 
@@ -69,6 +79,10 @@ export default function JobForm() {
   const [enquiry, setEnquiry] = useState<Enquiry | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
   const [carLimit, setCarLimit] = useState<number | null>(null)
+  const [clients, setClients] = useState<Company[]>([])
+  useEffect(() => {
+    loadCompanies().then((cs) => setClients(cs.filter((c) => c.type === 'client')), () => {})
+  }, [])
   const [loading, setLoading] = useState(!isNew)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -148,6 +162,9 @@ export default function JobForm() {
       ohp_pct: Number(form.ohp_pct),
       prelims_pct: Number(form.prelims_pct),
       retention_pct: Number(form.retention_pct),
+      client_company_id: form.client_company_id || null,
+      weekly_prelims: blankToNull(form.weekly_prelims) == null ? null : Number(form.weekly_prelims),
+      eot_notice_days: blankToNull(form.eot_notice_days) == null ? null : Number(form.eot_notice_days),
     }
 
     setBusy(true)
@@ -245,7 +262,20 @@ export default function JobForm() {
           />
           {contractSum != null && <span className="hint">{money(contractSum)}</span>}
         </label>
-        <div />
+        <label>
+          Client
+          <select value={form.client_company_id} onChange={(e) => set('client_company_id', e.target.value)}>
+            <option value="">Not set</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <span className="hint">
+            Letters are addressed to them. Add clients under <Link to="/contractors">Contractors</Link> (type Client).
+          </span>
+        </label>
         <label>
           Start on site
           <input type="date" value={form.start_date} onChange={(e) => set('start_date', e.target.value)} />
@@ -289,6 +319,15 @@ export default function JobForm() {
             onChange={(e) => set('retention_pct', e.target.value)}
             required
           />
+        </label>
+        <label>
+          Weekly prelims £ (EOT prolongation)
+          <input type="number" step="0.01" min="0" value={form.weekly_prelims} onChange={(e) => set('weekly_prelims', e.target.value)} />
+        </label>
+        <label>
+          Notice of delay due (days after an event)
+          <input type="number" step="1" min="0" value={form.eot_notice_days} onChange={(e) => set('eot_notice_days', e.target.value)} />
+          <span className="hint">As the contract requires; leave blank if none set.</span>
         </label>
       </div>
 

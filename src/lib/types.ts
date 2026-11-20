@@ -24,6 +24,55 @@ export interface Job {
   ohp_pct: number
   prelims_pct: number
   sharepoint_site_url: string | null
+  client_company_id: string | null
+  weekly_prelims: number | null // EOT prolongation rate per week
+  eot_notice_days: number | null // notice of delay due this many days after an event (per contract)
+}
+
+// ---------- EOT ----------
+export type DelayType = 'variation' | 'late_information' | 'client_third_party'
+export type EotStatus = 'draft' | 'notified' | 'claimed' | 'granted' | 'rejected'
+
+export const DELAY_TYPE_LABELS: Record<DelayType, string> = {
+  variation: 'Variation',
+  late_information: 'Late information',
+  client_third_party: 'Client / third party',
+}
+
+export const EOT_STATUS_LABELS: Record<EotStatus, string> = {
+  draft: 'Draft',
+  notified: 'Notified',
+  claimed: 'Claimed',
+  granted: 'Granted',
+  rejected: 'Rejected',
+}
+
+export interface DelayEvent {
+  id: string
+  job_id: string
+  event_no: number | null
+  type: DelayType
+  variation_id: string | null
+  description: string
+  details: string | null
+  event_date: string | null
+  days_claimed: number | null
+  days_granted: number | null
+  notice_due: string | null
+  notice_sent: string | null
+  status: EotStatus
+}
+
+export interface EotClaim {
+  id: string
+  job_id: string
+  claim_no: number
+  submitted_date: string | null
+  days_claimed: number | null
+  days_granted: number | null
+  weekly_prelims: number | null
+  status: EotStatus
+  notes: string | null
 }
 
 export type VoStatus = 'not_issued' | 'issued' | 'agreed' | 'rejected'
@@ -115,6 +164,7 @@ export interface Application {
   sow_revision_id: string | null
   psum_adjustment: number
   materials_on_site: number | null
+  loss_and_expense: number | null // e.g. agreed EOT prolongation
   deposit: number | null // less deposits received
   retention_pct: number | null
   practical_completion: boolean

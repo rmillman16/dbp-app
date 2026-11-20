@@ -17,6 +17,7 @@ import ApplicationEditor from './pages/ApplicationEditor'
 import SubcontractsTab, { OrderPage } from './pages/Subcontracts'
 import PaymentNoticeEditor from './pages/PaymentNoticeEditor'
 import Contractors from './pages/Contractors'
+import EotTab from './pages/EotTab'
 import Estimating, { EnquiryForm, EnquiryPage } from './pages/Estimating'
 import Settings from './pages/Settings'
 import QuotationsRegister from './pages/QuotationsRegister'
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="payment-notices" element={<SubcontractsTab />} />
           <Route path="payment-notices/:orderId" element={<OrderPage />} />
           <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
+          <Route path="eot" element={<EotTab />} />
         </Route>
         <Route path="/estimating" element={<Estimating />} />
         <Route path="/estimating/new" element={<EnquiryForm />} />
