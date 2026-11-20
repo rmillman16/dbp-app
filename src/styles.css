@@ -379,6 +379,20 @@ td.late { color: var(--red); font-weight: 600; }
   .pn-lines tr.subtotal-row, .pn-lines tr.sec-row { display: flex; justify-content: space-between; }
 }
 
+/* ---------- contractors and contacts ---------- */
+.record-extra { padding: 0 14px 14px; }
+.contacts { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.contacts h4 { margin: 0; color: var(--navy); font-size: 14px; }
+.contact-row { display: grid; grid-template-columns: 1.2fr 1.2fr 1fr 1.4fr auto; gap: 6px; align-items: center; }
+.with-link { display: flex; align-items: center; gap: 4px; }
+.with-link input { flex: 1; min-width: 0; }
+.with-link a { text-decoration: none; font-size: 18px; }
+.quick-add { border: 1px solid var(--blue); border-radius: 10px; padding: 12px; background: #fff; }
+.quick-add-btn { align-self: flex-start; margin-top: 4px; }
+@media (max-width: 700px) {
+  .contact-row { grid-template-columns: 1fr 1fr; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+}
+
 /* ---------- offline ---------- */
 .offline-pill { display: inline-block; background: var(--amber-bg); color: var(--amber); border: 1px solid #f0c27a; border-radius: 14px; padding: 3px 12px; font-size: 13px; font-weight: 600; }
 

@@ -30,7 +30,14 @@ export default function SubcontractsTab() {
           + New order
         </button>
       </div>
-      {adding && <NewOrder companies={companies} orders={orders ?? []} onCancel={() => setAdding(false)} />}
+      {adding && (
+        <NewOrder
+          companies={companies}
+          orders={orders ?? []}
+          onCancel={() => setAdding(false)}
+          onCompanyAdded={(c) => setCompanies((cs) => [...cs, c].sort((a, b) => a.name.localeCompare(b.name)))}
+        />
+      )}
       {error && <p className="error">{error}</p>}
       {orders?.length === 0 && !adding && <p className="muted">No subcontract orders yet. Add one to start taking applications.</p>}
       {orders && orders.length > 0 && (
@@ -65,7 +72,75 @@ export default function SubcontractsTab() {
   )
 }
 
-function NewOrder({ companies, orders, onCancel }: { companies: Company[]; orders: Order[]; onCancel: () => void }) {
+// Add a subcontractor without leaving the job: saved to the main Contractors list,
+// with their main contact, and picked for this order.
+function QuickAddCompany({ onAdded, onCancel }: { onAdded: (c: Company) => void; onCancel: () => void }) {
+  const [c, setC] = useState({ name: '', trade: '', address: '', postcode: '', email: '', phone: '', contact: '', contactRole: '', contactPhone: '', contactEmail: '' })
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function save() {
+    setError(null)
+    if (!c.name.trim()) return setError('The company name is needed.')
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    setBusy(true)
+    const ins = await supabase
+      .from('companies')
+      .insert({ name: c.name.trim(), type: 'subcontractor', trade: c.trade.trim() || null, address: c.address.trim() || null, postcode: c.postcode.trim() || null, email: c.email.trim() || null, phone: c.phone.trim() || null })
+      .select('*')
+      .single()
+    if (ins.error) {
+      setBusy(false)
+      return setError(saveError(ins.error))
+    }
+    if (c.contact.trim()) {
+      const ct = await supabase.from('contacts').insert({ company_id: ins.data.id, name: c.contact.trim(), role: c.contactRole.trim() || null, phone: c.contactPhone.trim() || null, email: c.contactEmail.trim() || null })
+      if (ct.error) setError(`Company added, but the contact wasn't: ${saveError(ct.error)}`)
+    }
+    setBusy(false)
+    onAdded(ins.data as Company)
+  }
+
+  const input = (k: keyof typeof c, label: string, type = 'text', wide = false) => (
+    <label className={wide ? 'span-2' : ''}>
+      {label}
+      <input type={type} value={c[k]} onChange={(e) => setC({ ...c, [k]: e.target.value })} />
+    </label>
+  )
+
+  return (
+    <div className="quick-add">
+      <h3 className="sub-head">New subcontractor (added to Contractors)</h3>
+      <div className="form-grid">
+        {input('name', 'Company name (as it should print)', 'text', true)}
+        {input('trade', 'Trade')}
+        {input('postcode', 'Postcode')}
+        <label className="span-2">
+          Address (one line per line, without the postcode)
+          <textarea rows={2} value={c.address} onChange={(e) => setC({ ...c, address: e.target.value })} />
+        </label>
+        {input('phone', 'Office phone', 'tel')}
+        {input('email', 'Office email', 'email')}
+        {input('contact', 'Main contact name')}
+        {input('contactRole', 'Their role')}
+        {input('contactPhone', 'Contact phone', 'tel')}
+        {input('contactEmail', 'Contact email', 'email')}
+      </div>
+      {error && <p className="error">{error}</p>}
+      <div className="form-actions">
+        <button type="button" className="primary" onClick={save} disabled={busy}>
+          {busy ? 'Adding…' : 'Add subcontractor'}
+        </button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function NewOrder({ companies, orders, onCancel, onCompanyAdded }: { companies: Company[]; orders: Order[]; onCancel: () => void; onCompanyAdded: (c: Company) => void }) {
+  const [quickAdd, setQuickAdd] = useState(false)
   const { job } = useJob()
   const navigate = useNavigate()
   const folder = Math.max(0, ...orders.map((o) => o.folder_no ?? 0)) + 1
@@ -85,7 +160,7 @@ function NewOrder({ companies, orders, onCancel }: { companies: Company[]; order
   async function save(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!f.company_id) return setError('Choose the subcontractor (add them under Contractors first if they are new).')
+    if (!f.company_id) return setError('Choose the subcontractor, or add a new one with "+ New subcontractor".')
     const ins = await supabase
       .from('orders')
       .insert({
@@ -130,10 +205,24 @@ function NewOrder({ companies, orders, onCancel }: { companies: Company[]; order
               </option>
             ))}
           </select>
-          <span className="hint">
-            Not listed? <Link to="/contractors">Add them under Contractors</Link>, then come back.
-          </span>
+          {!quickAdd && (
+            <button type="button" className="small-button quick-add-btn" onClick={() => setQuickAdd(true)}>
+              + New subcontractor
+            </button>
+          )}
         </label>
+        {quickAdd && (
+          <div className="span-2">
+            <QuickAddCompany
+              onCancel={() => setQuickAdd(false)}
+              onAdded={(co) => {
+                onCompanyAdded(co)
+                setF((cur) => ({ ...cur, company_id: co.id, trade: cur.trade || co.trade || '' }))
+                setQuickAdd(false)
+              }}
+            />
+          </div>
+        )}
         {input('folder_no', 'Folder no.', 'number', '3. Orders / NN - Trade - Subcontractor')}
         {input('trade', 'Trade', 'text', 'e.g. Electrical')}
         {input('order_no', 'Order no.')}

@@ -9,7 +9,7 @@ export default defineConfig({
     // Only active in the built app (npm run build + npm run preview, or once hosted), not in npm run dev.
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['dbp-logo.svg', 'dbp-logo.png', 'apple-touch-icon.png'],
+      includeAssets: ['dbp-logo.svg', 'dbp-logo.png', 'apple-touch-icon.png', 'favicon-32.png', 'favicon-64.png'],
       manifest: {
         name: 'du Boulay Projects',
         short_name: 'DBP',

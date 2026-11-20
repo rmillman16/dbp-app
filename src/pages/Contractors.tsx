@@ -1,4 +1,5 @@
 import RecordList from '../components/RecordList'
+import ContactsEditor from '../components/ContactsEditor'
 import type { CompanyType } from '../lib/types'
 
 // The company list: subcontractors, suppliers, clients, consultants. Used for orders and
@@ -31,6 +32,7 @@ export default function Contractors() {
           addLabel="Add company"
           canDelete
           emptyText="No companies yet."
+          extra={(r) => <ContactsEditor companyId={String(r.id)} />}
           fields={[
             { key: 'name', label: 'Company name', required: true, wide: true, hint: 'Full legal name, as it should print, e.g. Lumen Fit Out Ltd' },
             { key: 'type', label: 'Type', type: 'select', options: COMPANY_TYPES },

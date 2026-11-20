@@ -34,6 +34,7 @@ interface Props {
   emptyText?: string
   extraActions?: ReactNode
   readOnly?: boolean // non-admins: can open and read, not change
+  extra?: (r: Row) => ReactNode // shown under a saved record's fields when it's open (e.g. a company's contacts)
 }
 
 export default function RecordList(p: Props) {
@@ -175,6 +176,7 @@ export default function RecordList(p: Props) {
           {p.subtitle && <span className="muted small">{p.subtitle(r)}</span>}
         </button>
         {openId === id && editor}
+        {openId === id && p.extra && <div className="record-extra">{p.extra(r)}</div>}
       </li>
     )
   }
