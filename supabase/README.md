@@ -21,6 +21,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `015_cvr.sql` | CVR: cost packages from the office SoW (target, note, OH&P / management / design omitted, EP %), iPlicit job costing import columns, suppliers allocated to packages (remembered, can be split), agreed VO costs to a package, draft / final CVRs and per-month forecasts | ✅ Run 20 Nov 2026 |
 | `016_cvr_groups.sql` | CVR packages grouped (Labour & materials, Subcontractors, Preliminaries, Other); prelims sections from the SoW draw down the single prelims budget ("Preliminaries – not yet split") | ✅ Run 20 Nov 2026 |
 | `017_cvr_split_by_amount.sql` | CVR: a supplier's cost split across packages by £ as well as by % | ✅ Run 20 Nov 2026 |
+| `018_cvr_budget_lines.sql` | CVR: keeps the office SoW's lines (each item's cost and OH&P by package) for the breakdown sheet of the CVR export; re-import the SoW afterwards | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

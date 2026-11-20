@@ -7,7 +7,7 @@ import { frontSheet, latestRevisions, loadApplication, loadApplications, loadSow
 import { loadCompanies, loadOrders } from './subcontracts'
 import { loadEot, programme } from './eot'
 import { supplierKey, computeCvr, type Allocation, type CalcInput, type CvrResult, type Forecast, type Group } from './cvrCalc'
-import type { ParsedBudget } from './cvrBudget'
+import type { BudgetLine, ParsedBudget } from './cvrBudget'
 import type { CostLine, ParsedCosts } from './cvrCosts'
 import type { Cvr, CvrPackage, Job, SubVariation } from './types'
 
@@ -65,7 +65,16 @@ export async function importBudget(job: Job, p: ParsedBudget, fileName: string, 
   await must1(supabase.from('packages').upsert(rows, { onConflict: 'job_id,name' }))
   const gone = existing.filter((x) => !p.packages.some((k) => k.name === x.name)).map((x) => x.id)
   if (gone.length) await must1(supabase.from('packages').update({ budget: 0, sort: 1000 }).in('id', gone))
+  // the SoW's lines, for the breakdown sheet of the export (script 018)
+  await must1(supabase.from('cvr_budget_lines').delete().eq('job_id', job.id))
+  const lines = p.lines.map((l, i) => ({ ...l, job_id: job.id, sort: i }))
+  for (let i = 0; i < lines.length; i += 500) await must1(supabase.from('cvr_budget_lines').insert(lines.slice(i, i + 500)))
   await must1(supabase.from('jobs').update({ cvr_budget_file: fileName, cvr_budget_total: p.total, cvr_budget_imported_at: new Date().toISOString() }).eq('id', job.id))
+}
+
+export type SavedBudgetLine = BudgetLine & { id: string; job_id: string; sort: number }
+export function loadBudgetLines(jobId: string) {
+  return cached(`cvr-budget-lines:${jobId}`, () => must<SavedBudgetLine[]>(supabase.from('cvr_budget_lines').select('*').eq('job_id', jobId).order('sort')))
 }
 
 export async function savePackage(p: Pick<CvrPackage, 'id' | 'kind' | 'target' | 'target_note' | 'supplier_note' | 'cvr_group'>) {

@@ -311,6 +311,23 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **A £ split stays fixed.** If the supplier's total changes in a later report, the difference shows as not allocated (or too much), with a warning, until the split is updated. Switching between % and £ converts what's typed.
 - **Management is an item under Preliminaries, like Site Manager, not a heading of its own** (Richard corrected this, 20 Nov). DuB Management and DuB Design are grouped under Preliminaries and can be chosen in the dropdown, marked "(omitted)". Cost allocated to them still counts, so it reduces the margin.
 
+**Excel export = the KOSH CVR, cell for cell (Richard, 20 Nov, script 018):** "identical, as it runs into the wider company CVR". Two sheets.
+- **Summary ("CVR_November 26"):** laid out as "CVR_June 26", same cells, columns, fonts, fills and formulas.
+  - Every iPlicit supplier: code, name, Order Value, Allowances / Variations, Expected Final, Included in cost from JC, the package in L, last month / this month / movement in M–O.
+  - Then Deposit Payments and Unforeseen Costs, OH&P / DuB Management / DuB Design each shown and omitted, each package (E = −its suppliers' costs + agreed VO cost, colour-matched to them), EP / Contingency last.
+  - Total Cost = G + H + I of the totals row; Final account projected = contract sum + agreed VOs; AFV, margin, certified, retention and programme as the sheet.
+  - A package let as one order wholly to one supplier sits on that supplier's row (order value in D), as Logik / Oscar / Powerhouse do. Its agreed VOs go in E, not its cost, so the Powerhouse double count above doesn't happen.
+  - **Column I** (blank on the KOSH sheet but already inside its Total Cost) carries what a package is over target, or a typed forecast's difference, headed "Over target". That's how overspends reach the margin (decision above).
+  - A prelims section's order value is what it draws from the lump, so the lump and its sections add up to the prelims budget.
+- **Breakdown ("CVR 201126", the date prepared):** laid out as "CVR 030826". Every office SoW item: section totals in A, item total in B, number in C, then lines under it with the cost by package and its OH&P, each spread into a package column. L is OH&P, M is EP, then the omitted, prelims and the rest in SoW order, with a row check at the end.
+  - Underneath: SoW totals, % of total, targets (yellow), Return £ / %, and who each package is with.
+  - The summary's order values link to the target row, and OH&P to the OH&P total, as on the KOSH sheet.
+- **The SoW lines are now kept** (script 018, table `cvr_budget_lines`). Re-import the office SoW once to fill them for a job.
+- **Tested:**
+  - Excel recalculates both files with no errors. Total Cost, AFV and margin equal the app to the penny (KOSH with an order, VOs and a 50/50 split; Micro with a prelims section and an overspend).
+  - The KOSH lines rebuild every package budget and the £947,680.16 SoW total. OH&P is £113,978.56, 1p from the sheet's £113,978.57 because lines are kept to the penny.
+- **Logo:** left off these two sheets for now. Top right is where the KOSH sheet has Date prepared and Tender Values, so the 60 × 15 mm logo would cover them. Richard to confirm.
+
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).
 - **A letter won't generate until the clauses it needs are filled in.** The app says what's missing instead. The notice also needs the event's days claimed and the job's PC date.

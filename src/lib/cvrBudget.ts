@@ -14,6 +14,8 @@
 //   (L onwards), each line's Total in H spread across them; the totals row is where column A
 //   holds the grand total with no description.
 // Below-the-line items aren't part of the contract sum, so they're left out of the budgets.
+// The lines are kept too (script 018) for the CVR export's breakdown sheet, laid out as the
+// KOSH "CVR 030826" tab: each item, then its cost by package and its OH&P on lines under it.
 import type { Worksheet } from 'exceljs'
 import { loadXlsx } from './xlsxLoad'
 
@@ -40,6 +42,21 @@ export interface BudgetQuery {
   issue: 'no_cost' | 'not_priced' // priced with no cost build-up / carries cost but isn't in the price
 }
 
+// a row of the breakdown: a section heading, an item (its SoW total), or a line of an item
+// (its amount, in one package column or a few)
+export interface BudgetLine {
+  kind: 'section' | 'item' | 'line'
+  ref: string | null
+  description: string
+  qty: number | null
+  unit: string | null
+  rate: number | null
+  total: number | null
+  shown: string | null // a total in words: FOC, Included…
+  amounts: Record<string, number> // package name → amount; OH&P under "OH&P"
+  note: string | null
+}
+
 export interface ParsedBudget {
   layout: 'micro' | 'breakdown'
   sheet: string
@@ -47,7 +64,10 @@ export interface ParsedBudget {
   total: number // sum of every package, OH&P included
   sow_total: number | null // the schedule's own total (excl. below the line), to check against
   queries: BudgetQuery[]
+  lines: BudgetLine[]
 }
+
+const blank = { ref: null, qty: null, unit: null, rate: null, total: null, shown: null, amounts: {}, note: null }
 
 type Cell = ReturnType<Worksheet['getCell']>
 
@@ -125,6 +145,7 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
   }
   const subbieNameCol = [...seen.entries()].find(([k]) => k === 'subbie name')?.[1]
   const queries: BudgetQuery[] = []
+  const lines: BudgetLine[] = []
   const prelimSections: string[] = []
   const prelimColumns = new Set<string>() // packages the prelims lump was priced into
   let prelimSectionNo = ''
@@ -143,6 +164,7 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
       if (/below the line/i.test(desc)) break
       section = desc
       sectionNo = String(ref)
+      lines.push({ ...blank, kind: 'section', ref: sectionNo, description: desc })
       continue
     }
     const costs = pkgCols.map(({ c, name }) => ({ c, name, v: num(row.getCell(c)) ?? 0 })).filter((x) => x.v)
@@ -155,6 +177,7 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
     if (inPrelims && !priced && !costs.length) {
       if (!prelimSections.includes(desc)) prelimSections.push(desc)
       prelimSectionNo = sectionNo
+      lines.push({ ...blank, kind: 'item', ref: refText || null, description: desc })
       continue
     }
     if (inPrelims) for (const { name } of costs) if (!/^subbie/i.test(name)) prelimColumns.add(name)
@@ -165,12 +188,32 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
     sowTotal += lineTotal ?? 0
     ohp += (lineTotal ?? 0) - cost
     if (lineTotal && !costs.length) queries.push({ ref: refText, description: desc, total: shown, cost: 0, issue: 'no_cost' })
+    const item: BudgetLine = {
+      ...blank,
+      kind: 'item',
+      ref: refText || null,
+      description: desc,
+      qty: cols.qty ? num(row.getCell(cols.qty)) : null,
+      unit: cols.unit ? text(row.getCell(cols.unit)) || null : null,
+      rate: num(row.getCell(cols.rate)),
+      total: lineTotal == null ? null : r2(lineTotal),
+      shown: lineTotal == null ? shown : null,
+    }
+    lines.push(item)
+    // the item's cost by package, then its OH&P (Total less cost), each on a line under it
+    const parts = new Map<string, number>()
     for (const { c, name, v } of costs) {
+      let pkg = name
       if (/^subbie$/i.test(name) && section) {
         const who = subbieNameCol ? text(row.getCell(subbieNameCol)) : ''
-        add(`Subbie – ${sectionNo} ${section}`, `${colName(c)} · section ${sectionNo}`, v, who || undefined)
+        pkg = `Subbie – ${sectionNo} ${section}`
+        add(pkg, `${colName(c)} · section ${sectionNo}`, v, who || undefined)
       } else add(name, colName(c), v)
+      parts.set(pkg, (parts.get(pkg) ?? 0) + v)
     }
+    const lineOhp = r2((lineTotal ?? 0) - cost)
+    if (Math.abs(lineOhp) >= 0.005) parts.set('OH&P', lineOhp)
+    for (const [pkg, v] of parts) lines.push({ ...blank, kind: 'line', description: pkg, qty: 1, unit: 'item', rate: r2(v), total: r2(v), amounts: { [pkg]: r2(v) } })
   }
   add('OH&P', `${colName(ohpCol)} (Total less cost)`, ohp)
   // the prelims lump becomes "Preliminaries – not yet split" with the sections drawing it down
@@ -179,12 +222,17 @@ function parseMicro(ws: Worksheet, namesRow: number, headRow: number, cols: Reco
     const lump = totals.get(lumpName)!
     totals.delete(lumpName)
     totals.set(PRELIMS_LUMP, { ...lump, name: PRELIMS_LUMP, group: 'prelims', is_remainder: true })
+    for (const l of lines)
+      if (lumpName in l.amounts) {
+        l.amounts = { [PRELIMS_LUMP]: l.amounts[lumpName] }
+        l.description = PRELIMS_LUMP
+      }
   }
   const packages: BudgetPackage[] = [...totals.values()].map((p) => ({ ...p, budget: r2(p.budget) })).filter((p) => p.budget !== 0)
   if (totals.has(PRELIMS_LUMP))
     for (const s of prelimSections)
       if (!packages.some((p) => p.name === s)) packages.push({ name: s, kind: 'cost', budget: 0, sow_column: `section ${prelimSectionNo}`, supplier_note: null, group: 'prelims' })
-  return { layout: 'micro', sheet: ws.name.trim(), packages, total: r2(packages.reduce((s, p) => s + p.budget, 0)), sow_total: r2(sowTotal), queries }
+  return { layout: 'micro', sheet: ws.name.trim(), packages, total: r2(packages.reduce((s, p) => s + p.budget, 0)), sow_total: r2(sowTotal), queries, lines }
 }
 
 // the older breakdown: names in rows 2–4 from column L, descriptions in D, totals in H
@@ -201,6 +249,7 @@ function parseBreakdown(ws: Worksheet): ParsedBudget | null {
   if (names.length < 5 || !names.some((n) => /oh&p/i.test(n.name))) return null
 
   const sums = new Map<number, number>()
+  const lines: BudgetLine[] = []
   let totalsRow = 0
   for (let r = 5; r <= ws.rowCount; r++) {
     const row = ws.getRow(r)
@@ -210,10 +259,31 @@ function parseBreakdown(ws: Worksheet): ParsedBudget | null {
       totalsRow = r
       break
     }
-    for (const { c } of names) {
+    const amounts: Record<string, number> = {}
+    for (const { c, name } of names) {
       const v = num(row.getCell(c))
-      if (v) sums.set(c, (sums.get(c) ?? 0) + v)
+      if (v) {
+        sums.set(c, (sums.get(c) ?? 0) + v)
+        amounts[name] = (amounts[name] ?? 0) + v
+      }
     }
+    // A: a section's total; B: an item's total (C its number); otherwise a line of the item
+    if (!desc && !Object.keys(amounts).length) continue
+    const h = val(row.getCell(8))
+    const refV = val(row.getCell(3))
+    const kind = num(row.getCell(1)) != null && desc ? 'section' : num(row.getCell(2)) != null ? 'item' : 'line'
+    lines.push({
+      kind,
+      ref: refV == null ? null : typeof refV === 'number' ? refV.toFixed(2) : String(refV),
+      description: desc,
+      qty: num(row.getCell(5)),
+      unit: text(row.getCell(6)) || null,
+      rate: num(row.getCell(7)),
+      total: kind === 'item' ? num(row.getCell(2)) : typeof h === 'number' ? r2(h) : null,
+      shown: typeof h === 'string' ? text(row.getCell(8)) : null,
+      amounts,
+      note: text(row.getCell(11)) || null,
+    })
   }
   if (!totalsRow) return null
   // the supplier row a few rows under the totals ("Logik", "Client Direct"…), not the % or target rows
@@ -228,7 +298,7 @@ function parseBreakdown(ws: Worksheet): ParsedBudget | null {
   const packages = names
     .map(({ c, name, supplier }) => ({ name, kind: kindOf(name), budget: r2(sums.get(c) ?? 0), sow_column: colName(c), supplier_note: supplier && supplier !== '0' ? supplier : null }))
     .filter((p) => p.budget !== 0)
-  return { layout: 'breakdown', sheet: ws.name.trim(), packages, total: r2(packages.reduce((s, p) => s + p.budget, 0)), sow_total: num(ws.getRow(totalsRow).getCell(8)), queries: [] }
+  return { layout: 'breakdown', sheet: ws.name.trim(), packages, total: r2(packages.reduce((s, p) => s + p.budget, 0)), sow_total: num(ws.getRow(totalsRow).getCell(8)), queries: [], lines }
 }
 
 // the # / Description / Rate / Total row of a priced schedule
@@ -240,6 +310,8 @@ function findHeader(ws: Worksheet) {
       if ((t === '#' || t === 'ref') && !cols.ref) cols.ref = c
       else if (t === 'description' && !cols.desc) cols.desc = c
       else if (t === 'rate' && !cols.rate) cols.rate = c
+      else if ((t === 'quantity' || t === 'qty') && !cols.qty) cols.qty = c
+      else if (t === 'unit' && !cols.unit) cols.unit = c
       else if (t === 'total' && !cols.total) cols.total = c
     })
     if (cols.desc && cols.rate && cols.total) return { row: r, cols }

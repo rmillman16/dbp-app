@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseJobCosting } from '../lib/cvrCosts'
-import { type Split, addPackage, computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
+import { type Split, addPackage, computeCvr, finaliseCvr, linkVo, loadBudgetLines, loadContext, loadCvr, loadCvrs, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
 import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type CvrResult, type Forecast, type Group } from '../lib/cvrCalc'
 
 type PkgOption = { id: string; name: string; group: Group }
@@ -106,7 +106,9 @@ export default function CvrEditor() {
     setError(null)
     try {
       const { exportCvr } = await import('../lib/exportCvr')
-      await exportCvr(job, cvr!, result!, costs)
+      const [lines, cvrs] = await Promise.all([loadBudgetLines(job.id).catch(() => []), loadCvrs(job.id)])
+      const previous = cvrs.filter((c) => c.period_end < cvr!.period_end).pop()
+      await exportCvr(job, cvr!, result!, costs, { packages: ctx!.packages, lines, previousDate: previous?.period_end ?? null })
     } catch (e) {
       setError((e as Error).message)
     }
