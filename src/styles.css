@@ -234,6 +234,23 @@ form > section.card { margin-bottom: 16px; }
 .pct { display: inline-flex; align-items: center; gap: 4px; }
 .pct input { width: 80px; text-align: right; }
 
+/* ---------- templates / record lists ---------- */
+.intro { margin: 0 0 14px; max-width: 760px; }
+.record-actions { margin-bottom: 12px; }
+.record-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 8px; }
+.record { border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.record.open { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); margin-bottom: 8px; }
+.record-head { width: 100%; text-align: left; border: none; background: none; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; border-radius: 8px; }
+.record-head:hover { background: #f6f9fc; }
+.record-head.static { cursor: default; }
+.record-title { font-weight: 600; color: var(--navy); }
+.record-editor { padding: 4px 14px 14px; border-top: 1px solid var(--line); }
+.record-editor .form-grid { margin-top: 12px; }
+label.check span { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+label.check input { width: 20px; height: 20px; }
+button.danger { color: var(--red); border-color: #e9b4b4; margin-left: auto; }
+code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 12px; word-break: break-all; }
+
 /* ---------- offline ---------- */
 .offline-pill { display: inline-block; background: var(--amber-bg); color: var(--amber); border: 1px solid #f0c27a; border-radius: 14px; padding: 3px 12px; font-size: 13px; font-weight: 600; }
 

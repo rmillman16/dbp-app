@@ -67,7 +67,67 @@ export interface VariationLine {
   sort: number
 }
 
-export type Severity ='overdue' | 'due_soon' | 'info'
+// ---------- company and templates (admin) ----------
+export interface CompanySettings {
+  id: number
+  legal_name: string
+  address: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  default_retention_pct: number
+  default_ohp_pct: number
+  default_prelims_pct: number
+}
+
+export interface Insurance {
+  id: string
+  cover: string
+  insurer: string | null
+  policy_no: string | null
+  limit_text: string | null
+  limit_amount: number | null
+  excess: number | null
+  start_date: string | null
+  end_date: string
+  certificate_url: string | null
+}
+
+export interface TextTemplate {
+  key: string
+  title: string
+  category: string | null
+  body: string
+  notes: string | null
+  sort: number
+  updated_at: string
+}
+
+export interface Clause {
+  id: string
+  title: string
+  body: string
+  category: string | null
+  approved: boolean
+}
+
+export interface OmDocType {
+  id: string
+  trade: string
+  name: string
+  standard: boolean
+  job_id: string | null
+}
+
+export interface Profile {
+  id: string
+  full_name: string | null
+  email: string | null
+  initials: string | null
+  is_admin: boolean
+}
+
+export type Severity = 'overdue' | 'due_soon' | 'info'
 
 export interface Notification {
   id: string

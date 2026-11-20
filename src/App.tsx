@@ -11,6 +11,8 @@ import JobLayout from './pages/JobLayout'
 import JobOverview from './pages/JobOverview'
 import VariationsRegister from './pages/VariationsRegister'
 import VariationEditor from './pages/VariationEditor'
+import Templates, { ClauseLibrary, Insurances, OmDocuments, WordingTemplates } from './pages/Templates'
+import Settings from './pages/Settings'
 
 // The sign-in Supabase keeps on the device (cleared on sign-out).
 function storedSignInEmail(): string | null {
@@ -65,6 +67,13 @@ export default function App() {
           <Route path="variations" element={<VariationsRegister />} />
           <Route path="variations/:voId" element={<VariationEditor />} />
         </Route>
+        <Route path="/templates" element={<Templates />}>
+          <Route index element={<WordingTemplates />} />
+          <Route path="clauses" element={<ClauseLibrary />} />
+          <Route path="insurances" element={<Insurances />} />
+          <Route path="om" element={<OmDocuments />} />
+        </Route>
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
