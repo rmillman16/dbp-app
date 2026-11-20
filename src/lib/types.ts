@@ -139,6 +139,109 @@ export interface ApplicationLine {
   client_comment: string | null
 }
 
+// ---------- contractors and subcontract payment notices ----------
+export type CompanyType = 'client' | 'subcontractor' | 'supplier' | 'consultant' | 'designer' | 'other'
+
+export interface Company {
+  id: string
+  name: string
+  type: CompanyType
+  trade: string | null
+  address: string | null // lines separated by new lines
+  postcode: string | null
+  email: string | null
+  phone: string | null
+  iplicit_code: string | null
+  notes: string | null
+}
+
+export interface Order {
+  id: string
+  job_id: string
+  company_id: string
+  folder_no: number | null // 3. Orders / NN - Trade - Subcontractor
+  trade: string | null
+  order_no: string | null // 2611/FISL/02
+  po_ref: string | null // POR000986
+  order_value: number | null
+  order_date: string | null
+  retention_pct: number
+  notes: string | null
+}
+
+export interface SubVariation {
+  id?: string
+  order_id?: string
+  ref: string | null // VA1
+  description: string | null
+  value: number | null
+  instructed: boolean
+}
+
+export type Block = 'measured' | 'materials' | 'variations'
+
+export interface SubApplication {
+  id: string
+  order_id: string
+  app_no: number
+  app_date: string | null
+  received_date: string | null
+  stated_gross: number | null // their gross to date
+  stated_previous: number | null // their "previously applied / paid"
+  stated_due: number | null // their amount due
+  import_checks: unknown
+  notes: string | null
+}
+
+export interface SubAppLine {
+  id?: string
+  sub_application_id?: string
+  block: Block
+  heading: string | null // their section, e.g. "4. Air conditioning systems"
+  item_ref: string | null
+  description: string | null
+  value: number | null
+  pct: number | null // 0–1
+  amount: number | null // value × % (what we count)
+  their_amount: number | null // what they say they claim
+  note: string | null // DuB notes
+  sort: number
+}
+
+export interface PaymentNotice {
+  id: string
+  order_id: string
+  notice_no: number
+  sub_application_id: string | null
+  status: 'draft' | 'issued'
+  notice_date: string | null
+  valuation_date: string | null
+  payment_due_date: string | null
+  dbp_payment_date: string | null
+  loss_and_expense: number | null
+  contra_charges: number | null
+  retention_pct: number | null
+  previously_paid: number | null
+  prev_measured: number | null
+  prev_variations: number | null
+  prev_materials: number | null
+  prev_loss_and_expense: number | null
+  prev_contra: number | null
+  notes: string | null
+  measured_works: number | null // DuB assessment, stored when saved
+  variations: number | null
+  materials_on_site: number | null
+}
+
+export interface Adjustment {
+  id?: string
+  payment_notice_id?: string
+  block: Block
+  description: string
+  amount: number
+  sort: number
+}
+
 // ---------- estimating ----------
 export type EnquiryStatus = 'enquiry' | 'pricing' | 'submitted' | 'won' | 'lost'
 

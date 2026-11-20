@@ -8,7 +8,8 @@ import { cached, must, saveError } from '../lib/offline'
 export interface Field {
   key: string
   label: string
-  type?: 'text' | 'textarea' | 'number' | 'date' | 'checkbox'
+  type?: 'text' | 'textarea' | 'number' | 'date' | 'checkbox' | 'select'
+  options?: [string, string][] // for select: [value, label]
   wide?: boolean
   rows?: number
   required?: boolean
@@ -130,6 +131,14 @@ export default function RecordList(p: Props) {
             )}
             {f.type === 'textarea' ? (
               <textarea rows={f.rows ?? 6} value={String(draft?.[f.key] ?? '')} onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} />
+            ) : f.type === 'select' ? (
+              <select value={String(draft?.[f.key] ?? '')} onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })}>
+                {f.options?.map(([v, l]) => (
+                  <option key={v} value={v}>
+                    {l}
+                  </option>
+                ))}
+              </select>
             ) : f.type === 'checkbox' ? null : (
               <input
                 type={f.type ?? 'text'}

@@ -346,6 +346,39 @@ td.late { color: var(--red); font-weight: 600; }
   .app-sow .item-row td:first-child { flex-basis: 100%; }
 }
 
+/* ---------- subcontract payment notices ---------- */
+.new-panel-form { border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; background: #fafbfd; }
+.checks ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.checks li.issue { color: var(--red); }
+.checks li.note { color: var(--amber); }
+.checks.has-issues { border-left: 4px solid var(--red); }
+.pn-block { margin-top: 16px; }
+.pn-block .pane-head { margin-bottom: 6px; }
+.paste-box { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; margin-bottom: 10px; }
+.paste-box textarea { width: 100%; font-family: Consolas, monospace; font-size: 13px; }
+.pn-lines td { padding: 4px 5px; }
+.pn-lines input { width: 100%; padding: 5px 6px; }
+.pn-lines .c-ref input { width: 64px; }
+.pn-lines .c-desc { min-width: 220px; }
+.pn-lines .c-qty input, .pn-lines .c-rate input { width: 110px; text-align: right; }
+.pn-lines .c-unit input { width: 70px; text-align: right; }
+.pn-lines .sec-row td { font-weight: 700; background: #f6f8fb; }
+.adj-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.adj-row input:nth-of-type(1) { flex: 1 1 280px; }
+.adj-row input[type='number'] { width: 120px; text-align: right; }
+.sub-vars input[type='text'], .sub-vars input:not([type]) { width: 100%; }
+@media (max-width: 640px) {
+  .pn-lines thead { display: none; }
+  .pn-lines, .pn-lines tbody { display: block; }
+  .pn-lines tr.line-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .pn-lines td { border: none; padding: 0; }
+  .pn-lines .c-desc { grid-column: 1 / -1; order: -1; min-width: 0; }
+  .pn-lines .c-note { grid-column: 1 / 3; }
+  .pn-lines td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; color: var(--muted); }
+  .pn-lines .c-qty input, .pn-lines .c-rate input, .pn-lines .c-unit input, .pn-lines .c-ref input { width: 100%; }
+  .pn-lines tr.subtotal-row, .pn-lines tr.sec-row { display: flex; justify-content: space-between; }
+}
+
 /* ---------- offline ---------- */
 .offline-pill { display: inline-block; background: var(--amber-bg); color: var(--amber); border: 1px solid #f0c27a; border-radius: 14px; padding: 3px 12px; font-size: 13px; font-weight: 600; }
 

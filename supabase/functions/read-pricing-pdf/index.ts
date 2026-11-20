@@ -1,5 +1,7 @@
-// Supabase Edge Function: read a PDF (supplier quote, schedule of works, subcontractor
-// application) with Claude and return its priced lines for the app to check.
+// Supabase Edge Function: read a PDF with Claude and return its lines for the app to check.
+// kind "pricing" (default): supplier quote / schedule of works → priced lines (quotations).
+// kind "application": a subcontractor's application for payment → lines with value, % and
+// £ claimed plus their stated totals (payment notices).
 //
 // Needs the secret ANTHROPIC_API_KEY (Supabase › Edge Functions › Secrets). Optional
 // ANTHROPIC_MODEL to use a cheaper model (default claude-opus-5-5).
@@ -39,6 +41,30 @@ const Result = z.object({
   warnings: z.array(z.string()).describe("Anything unclear: illegible figures, totals that don't add up, pages that couldn't be read"),
 });
 
+// a subcontractor's application for payment (kind: "application")
+const AppLine = z.object({
+  block: z.enum(["measured", "materials", "variations"]).describe("Contract works / measured, materials on site, or variations"),
+  heading: z.string().nullable().describe("Their section heading, e.g. '4. Air conditioning systems'"),
+  item_ref: z.string().nullable(),
+  description: z.string(),
+  value: z.number().nullable().describe("£ line value (contract sum for the line), excluding VAT"),
+  pct: z.number().nullable().describe("Their stated % complete as a fraction 0-1"),
+  their_amount: z.number().nullable().describe("£ they claim to date for the line"),
+  note: z.string().nullable().describe("Anything odd about the line, e.g. no value given, marked removed"),
+});
+const AppResult = z.object({
+  app_date: z.string().nullable().describe("Application / valuation date as YYYY-MM-DD"),
+  stated_gross: z.number().nullable().describe("Their gross valuation to date before retention"),
+  stated_previous: z.number().nullable().describe("What they show as previously applied / paid / deposit deducted"),
+  stated_due: z.number().nullable().describe("The amount they say is due now, excluding VAT"),
+  lines: z.array(AppLine),
+  warnings: z.array(z.string()).describe("Totals that don't add up, %s that don't match amounts, anything unclear"),
+});
+
+const APP_PROMPT = `This PDF is a subcontractor's application for payment to du Boulay Projects, a London fit-out contractor.
+
+Extract every line, in the order shown, into the blocks contract works (measured), materials on site and variations. For each line give the line value, their stated % complete (as a fraction, e.g. 40% = 0.4) and the £ they claim to date, exactly as shown; don't correct them. Put their section headings in "heading". Skip subtotal and total rows as lines, but give their stated gross to date, previous (applied, paid or deposit deducted) and amount due. Note anything inconsistent in warnings (e.g. a % that doesn't match the £ claimed, totals that don't add up, a variation with no value).`;
+
 const PROMPT = `This PDF is a construction pricing document for du Boulay Projects, a London fit-out contractor: a supplier or subcontractor quotation, a schedule of works, or a payment application.
 
 Extract every priced line, in the order shown. Rules:
@@ -55,8 +81,11 @@ Deno.serve(async (req) => {
   if (!apiKey) return fail("not_configured", "PDF reading isn't switched on (no Anthropic key in Supabase).");
 
   let pdf: string;
+  let kind = "pricing";
   try {
-    pdf = (await req.json()).pdf;
+    const body = await req.json();
+    pdf = body.pdf;
+    if (body.kind === "application") kind = "application";
   } catch {
     return fail("failed", "No PDF received.", 400);
   }
@@ -73,11 +102,11 @@ Deno.serve(async (req) => {
           role: "user",
           content: [
             { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf } },
-            { type: "text", text: PROMPT },
+            { type: "text", text: kind === "application" ? APP_PROMPT : PROMPT },
           ],
         },
       ],
-      output_config: { format: zodOutputFormat(Result) },
+      output_config: { format: kind === "application" ? zodOutputFormat(AppResult) : zodOutputFormat(Result) },
     });
     if (response.stop_reason === "refusal" || !response.parsed_output) {
       return fail("unreadable", "Claude couldn't read the pricing from this PDF.");

@@ -14,6 +14,9 @@ import VariationEditor from './pages/VariationEditor'
 import { Contracts } from './pages/Sections'
 import ApplicationsTab from './pages/ApplicationsTab'
 import ApplicationEditor from './pages/ApplicationEditor'
+import SubcontractsTab, { OrderPage } from './pages/Subcontracts'
+import PaymentNoticeEditor from './pages/PaymentNoticeEditor'
+import Contractors from './pages/Contractors'
 import Estimating, { EnquiryForm, EnquiryPage } from './pages/Estimating'
 import Settings from './pages/Settings'
 import QuotationsRegister from './pages/QuotationsRegister'
@@ -75,6 +78,9 @@ export default function App() {
           <Route path="quotations/:quoteId" element={<QuotationEditor />} />
           <Route path="applications" element={<ApplicationsTab />} />
           <Route path="applications/:appId" element={<ApplicationEditor />} />
+          <Route path="payment-notices" element={<SubcontractsTab />} />
+          <Route path="payment-notices/:orderId" element={<OrderPage />} />
+          <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
         </Route>
         <Route path="/estimating" element={<Estimating />} />
         <Route path="/estimating/new" element={<EnquiryForm />} />
@@ -83,6 +89,7 @@ export default function App() {
         <Route path="/estimating/q/:quoteId" element={<EstimatingQuotationEditor />} />
         <Route path="/estimating/:tab" element={<Estimating />} />
         <Route path="/contracts" element={<Contracts />} />
+        <Route path="/contractors" element={<Contractors />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

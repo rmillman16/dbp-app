@@ -46,8 +46,26 @@ async function toBase64(file: File) {
 }
 
 export async function readPricingPdf(file: File): Promise<PdfResult> {
+  return (await callReader(file, 'pricing')) as PdfResult
+}
+
+// A subcontractor's application for payment: lines with value, their %, £ claimed, and their totals.
+export interface AppPdfResult {
+  app_date: string | null
+  stated_gross: number | null
+  stated_previous: number | null
+  stated_due: number | null
+  lines: { block: 'measured' | 'materials' | 'variations'; heading: string | null; item_ref: string | null; description: string; value: number | null; pct: number | null; their_amount: number | null; note: string | null }[]
+  warnings: string[]
+}
+
+export async function readApplicationPdf(file: File): Promise<AppPdfResult> {
+  return (await callReader(file, 'application')) as AppPdfResult
+}
+
+async function callReader(file: File, kind: 'pricing' | 'application'): Promise<unknown> {
   if (!navigator.onLine) throw new PdfReadError(`You're offline, so the PDF can't be read. ${EXCEL}`)
-  const { data, error } = await supabase.functions.invoke('read-pricing-pdf', { body: { pdf: await toBase64(file) } })
+  const { data, error } = await supabase.functions.invoke('read-pricing-pdf', { body: { pdf: await toBase64(file), kind } })
   if (error) {
     // a 404 means the function hasn't been put on Supabase yet
     if (error instanceof FunctionsHttpError && error.context?.status === 404) throw new PdfReadError(MESSAGES.not_configured)
@@ -60,5 +78,5 @@ export async function readPricingPdf(file: File): Promise<PdfResult> {
     throw new PdfReadError(MESSAGES[reason] ?? MESSAGES.failed)
   }
   if (!data?.ok) throw new PdfReadError(MESSAGES[data?.reason] ?? MESSAGES.failed)
-  return data as PdfResult
+  return data
 }

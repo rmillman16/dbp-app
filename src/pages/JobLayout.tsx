@@ -11,7 +11,7 @@ const TABS: { to: string; label: string; soon?: boolean }[] = [
   { to: 'variations', label: 'Variations' },
   { to: 'quotations', label: 'Quotations' },
   { to: 'applications', label: 'Applications' },
-  { to: 'payment-notices', label: 'Payment notices', soon: true },
+  { to: 'payment-notices', label: 'Payment notices' },
   { to: 'om', label: 'O&M', soon: true },
 ]
 
