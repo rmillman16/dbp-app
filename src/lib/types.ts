@@ -67,6 +67,78 @@ export interface VariationLine {
   sort: number
 }
 
+// ---------- priced SoW and client applications ----------
+export interface SowRevision {
+  id: string
+  job_id: string
+  revision: string // R5
+  kind: 'office' | 'client'
+  file_name: string | null
+  total: number | null
+  imported_at: string
+  is_current: boolean
+}
+
+export interface SowLine {
+  id: string
+  revision_id: string
+  kind: 'section' | 'item'
+  section: string | null // section number, e.g. "2"
+  item_ref: string | null // 2.01
+  description: string | null
+  qty: number | null
+  unit: string | null
+  rate: number | null
+  total: number | null
+  total_text: string | null // FOC, Excl, incl below, Client Direct
+  below_line: boolean
+  sort: number
+}
+
+export type AppStatus = 'draft' | 'submitted' | 'assessed' | 'paid'
+
+export const APP_STATUS_LABELS: Record<AppStatus, string> = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  assessed: 'Assessed',
+  paid: 'Paid',
+}
+
+export interface Application {
+  id: string
+  job_id: string
+  app_no: number
+  revision: number // R1, R2…
+  status: AppStatus
+  valuation_date: string | null
+  submitted_date: string | null
+  sow_revision_id: string | null
+  psum_adjustment: number
+  materials_on_site: number | null
+  deposit: number | null // less deposits received
+  retention_pct: number | null
+  practical_completion: boolean
+  previously_paid: number | null
+  vat_pct: number
+  client_certified: number | null
+  paid_amount: number | null
+  paid_date: string | null
+  notes: string | null
+}
+
+export interface ApplicationLine {
+  id?: string
+  application_id?: string
+  sow_line_id: string | null
+  variation_id: string | null
+  pct_claimed: number | null // 0–1, cumulative
+  amount_claimed: number | null
+  client_pct: number | null // "Client Assessment"
+  client_amount: number | null
+  comment: string | null
+  client_comment: string | null
+}
+
 // ---------- estimating ----------
 export type EnquiryStatus = 'enquiry' | 'pricing' | 'submitted' | 'won' | 'lost'
 
