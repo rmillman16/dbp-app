@@ -6,9 +6,9 @@ import type { Job, Quotation, QuotationClause, QuotationLine } from './types'
 
 export const DEFAULT_VALID_DAYS = 30
 
-// "2611 FISL – QU001 – Waterproofing" (agreed 20 Nov)
-export function fullRef(job: Pick<Job, 'job_no' | 'code'>, q: Pick<Quotation, 'quote_no' | 'subject'>) {
-  return `${job.job_no} ${job.code} – QU${String(q.quote_no).padStart(3, '0')} – ${q.subject}`
+// "2611 FISL – QU001 – Waterproofing" (agreed 20 Nov); Estimating (no job): "EST – QU001 – …"
+export function fullRef(job: Pick<Job, 'job_no' | 'code'> | null, q: Pick<Quotation, 'quote_no' | 'subject'>) {
+  return `${job ? `${job.job_no} ${job.code}` : 'EST'} – QU${String(q.quote_no).padStart(3, '0')} – ${q.subject}`
 }
 
 export function quoteTotal(lines: Pick<QuotationLine, 'qty' | 'rate'>[]) {
@@ -32,26 +32,29 @@ export function linesFromVo({ lines, build }: VoWithLines, prelimsOwnLine: boole
   return out
 }
 
-export async function nextQuoteNo(jobId: string) {
-  const r = await must<{ quote_no: number }[]>(supabase.from('quotations').select('quote_no').eq('job_id', jobId).order('quote_no', { ascending: false }).limit(1))
+// Job quotations are numbered per job; Estimating ones (no job) share one series.
+export async function nextQuoteNo(jobId: string | null) {
+  const base = supabase.from('quotations').select('quote_no')
+  const q = jobId ? base.eq('job_id', jobId) : base.is('job_id', null)
+  const r = await must<{ quote_no: number }[]>(q.order('quote_no', { ascending: false }).limit(1))
   return (r[0]?.quote_no ?? 0) + 1
 }
 
-// Creates a draft quotation (standalone, or from a VO) and returns its id.
-export async function createQuotation(job: Job, from?: { vo: VoWithLines; prelimsOwnLine: boolean }) {
-  const quote_no = await nextQuoteNo(job.id)
+// Creates a draft quotation (for a job: standalone or from a VO; or Estimating with no job) and returns its id.
+export async function createQuotation(job: Job | null, from?: { vo: VoWithLines; prelimsOwnLine: boolean }) {
+  const quote_no = await nextQuoteNo(job?.id ?? null)
   const vo = from?.vo.vo
   const ins = await supabase
     .from('quotations')
     .insert({
-      job_id: job.id,
+      job_id: job?.id ?? null,
       variation_id: vo?.id ?? null,
       quote_no,
       subject: vo?.title ?? 'New quotation',
       summary: vo ? `the ${vo.title.toLowerCase()}` : null,
       scope: vo?.description ?? null,
       prepared_by: 'du Boulay Projects',
-      site: job.site_address,
+      site: job?.site_address ?? null,
       issued_date: todayIso(),
       valid_until: addDaysIso(todayIso(), DEFAULT_VALID_DAYS),
     })
@@ -68,9 +71,11 @@ export async function createQuotation(job: Job, from?: { vo: VoWithLines; prelim
   return ins.data.id as string
 }
 
-export async function loadQuotations(jobId: string) {
-  return cached(`quotes:${jobId}`, async () => {
-    const quotes = await must<Quotation[]>(supabase.from('quotations').select('*').eq('job_id', jobId).order('quote_no'))
+// a job's quotations, or (null) the Estimating ones with no job
+export async function loadQuotations(jobId: string | null) {
+  return cached(`quotes:${jobId ?? 'estimating'}`, async () => {
+    const base = supabase.from('quotations').select('*')
+    const quotes = await must<Quotation[]>((jobId ? base.eq('job_id', jobId) : base.is('job_id', null)).order('quote_no', { ascending: false }))
     const ids = quotes.map((q) => q.id)
     type Priced = Pick<QuotationLine, 'quotation_id' | 'qty' | 'rate'>
     const lines = ids.length ? await must<Priced[]>(supabase.from('quotation_lines').select('quotation_id, qty, rate').in('quotation_id', ids)) : []

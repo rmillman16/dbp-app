@@ -6,7 +6,7 @@ import { cached, must, saveError } from '../lib/offline'
 import { lineTotal } from '../lib/variations'
 import { acceptQuotation, fullRef, loadQuotation, saveQuotation } from '../lib/quotations'
 import { exportQuotationWord } from '../lib/exportQuotation'
-import { QUOTE_STATUS_LABELS, type Clause, type Quotation, type QuotationClause, type QuotationLine, type QuoteStatus, type TextTemplate } from '../lib/types'
+import { QUOTE_STATUS_LABELS, type Clause, type Job, type Quotation, type QuotationClause, type QuotationLine, type QuoteStatus, type TextTemplate } from '../lib/types'
 import GroupsEditor from '../components/GroupsEditor'
 import { useJob } from './JobLayout'
 
@@ -31,9 +31,19 @@ function toLine(d: LineDraft, sort: number): QuotationLine {
   return l
 }
 
-export default function QuotationEditor() {
-  const { quoteId } = useParams()
+// A job's quotation (inside the job's tabs)…
+export default function JobQuotationEditor() {
   const { job } = useJob()
+  return <QuotationEditor job={job} backTo={`/jobs/${job.id}/quotations`} />
+}
+
+// …or an Estimating one with no job (small works, new enquiry).
+export function EstimatingQuotationEditor() {
+  return <QuotationEditor job={null} backTo="/estimating" />
+}
+
+function QuotationEditor({ job, backTo }: { job: Job | null; backTo: string }) {
+  const { quoteId } = useParams()
   const [q, setQ] = useState<Quotation | null>(null)
   const [lines, setLines] = useState<LineDraft[]>([])
   const [clauses, setClauses] = useState<QuotationClause[]>([])
@@ -150,7 +160,7 @@ export default function QuotationEditor() {
     <div className="quote-editor">
       <div className="sub-bar">
         <div>
-          <Link to={`/jobs/${job.id}/quotations`} className="link-button small">
+          <Link to={backTo} className="link-button small">
             ← All quotations
           </Link>
           <h2>{fullRef(job, q)}</h2>
@@ -229,10 +239,11 @@ export default function QuotationEditor() {
               <input value={s(q.summary)} placeholder="the waterproofing and associated builder's works" onChange={(e) => set('summary', e.target.value || null)} /> set out below.
             </span>
           </label>
+          {!job && field('project_name', 'Project', { wide: true, placeholder: 'e.g. Norton Folgate glazing', hint: 'No job yet, so name the project here' })}
           {field('client_name', 'Client')}
           {field('client_contact', 'Client contact')}
           {field('prepared_by', 'Prepared by')}
-          {field('site', 'Site address', { hint: 'From the job; change if this quote is for somewhere else' })}
+          {field('site', 'Site address', { hint: job ? 'From the job; change if this quote is for somewhere else' : undefined })}
           {field('issued_date', 'Quotation date', { type: 'date' })}
           {field('valid_until', 'Valid until', { type: 'date' })}
           <label className="span-2">

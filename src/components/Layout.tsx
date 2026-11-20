@@ -10,7 +10,7 @@ import Bell from './Bell'
 const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: boolean }[] = [
   { to: '/', label: 'Home', icon: 'M3 11 12 3l9 8v10h-6v-6H9v6H3z' },
   { to: '/jobs', label: 'Jobs', icon: 'M4 7h16v13H4zM9 7V4h6v3' },
-  { to: '/commercial', label: 'Commercial', icon: 'M12 3v18M17 7.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.6 5 3.2 5 1.5 5 3.6-2.2 3.2-5 3.2-5-1.2-5-3.2' },
+  { to: '/estimating', label: 'Estimating', icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 7h6M9 11h2M13 11h2M9 15h2M13 15h2' },
   { to: '/contracts', label: 'Contracts', icon: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7' },
   { to: '/om', label: 'O&M', icon: 'M4 5h6a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H4zM20 5h-6a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h6z' },
   { to: '/project-management', label: 'Project management', icon: 'M4 6h10M4 12h16M4 18h7M17 4v4M20 10v4M14 16v4', soon: true },

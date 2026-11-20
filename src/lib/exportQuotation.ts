@@ -23,7 +23,7 @@ const longDate = (iso: string | null) =>
   iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
 
 export interface QuoteDoc {
-  job: Job
+  job: Job | null // null for Estimating quotations
   q: Quotation
   lines: QuotationLine[]
   clauses: QuotationClause[]
@@ -36,8 +36,8 @@ export async function exportQuotationWord(d: QuoteDoc) {
   const { AlignmentType, BorderStyle, Document, Footer, Header, HeightRule, ImageRun, LevelFormat, Packer, PageNumber, Paragraph, ShadingType, Table, TableCell, TableRow, TabStopType, TextRun, VerticalAlign, WidthType, TableLayoutType } = x
 
   const { job, q } = d
-  const project = job.name
-  const site = q.site ?? job.site_address ?? ''
+  const project = job?.name ?? q.project_name ?? ''
+  const site = q.site ?? job?.site_address ?? ''
   const siteOneLine = site.replace(/\s*\n\s*/g, ', ')
   const total = quoteTotal(d.lines)
 

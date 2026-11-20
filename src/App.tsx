@@ -11,10 +11,10 @@ import JobLayout from './pages/JobLayout'
 import JobOverview from './pages/JobOverview'
 import VariationsRegister from './pages/VariationsRegister'
 import VariationEditor from './pages/VariationEditor'
-import { Commercial, Contracts, OandM } from './pages/Sections'
+import { Contracts, Estimating, OandM } from './pages/Sections'
 import Settings from './pages/Settings'
 import QuotationsRegister from './pages/QuotationsRegister'
-import QuotationEditor from './pages/QuotationEditor'
+import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
 
 // The sign-in Supabase keeps on the device (cleared on sign-out).
 function storedSignInEmail(): string | null {
@@ -71,8 +71,9 @@ export default function App() {
           <Route path="quotations" element={<QuotationsRegister />} />
           <Route path="quotations/:quoteId" element={<QuotationEditor />} />
         </Route>
-        <Route path="/commercial" element={<Navigate to="/commercial/quotations" replace />} />
-        <Route path="/commercial/:doc" element={<Commercial />} />
+        <Route path="/estimating" element={<Estimating />} />
+        <Route path="/estimating/q/:quoteId" element={<EstimatingQuotationEditor />} />
+        <Route path="/estimating/:tab" element={<Estimating />} />
         <Route path="/contracts" element={<Contracts />} />
         <Route path="/om" element={<OandM />} />
         <Route path="/settings" element={<Settings />} />

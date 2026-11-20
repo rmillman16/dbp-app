@@ -1,14 +1,16 @@
-import { useState } from 'react'
-import { NavLink, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { NavLink, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useIsAdmin } from '../lib/admin'
+import { createQuotation, fullRef, loadQuotations } from '../lib/quotations'
+import { QUOTE_STATUS_LABELS, type Quotation } from '../lib/types'
 import RecordList from '../components/RecordList'
 
-// Company-wide areas in the left-hand menu (agreed 20 Nov): Commercial, Contracts, O&M,
-// Project management (coming soon). Each holds the standard wording and lists its documents
-// use. Everyone can read them; only admins can change them (the database enforces it too).
+// Company-wide areas in the left-hand menu (agreed 20 Nov): Estimating, Contracts, O&M,
+// Project management (coming soon). Standard wording and lists are readable by everyone;
+// only admins can change them (the database enforces it too).
 
 // Standard wording for one kind of document (text_templates.category).
 function Wording({ category, empty, readOnly }: { category: string; empty: string; readOnly: boolean }) {
@@ -31,48 +33,103 @@ function Wording({ category, empty, readOnly }: { category: string; empty: strin
   )
 }
 
-// ---------- Commercial ----------
-const COMMERCIAL = [
-  { doc: 'quotations', label: 'Quotations' },
-  { doc: 'variations', label: 'Variations' },
-  { doc: 'valuations', label: 'Valuations' },
-  { doc: 'payment-notices', label: 'Payment notices' },
-]
-
-export function Commercial() {
-  const { doc = 'quotations' } = useParams()
+// ---------- Estimating ----------
+// Quotations not linked to a job (small works, new enquiries), plus the standard
+// quotation wording and clause library that every quotation (job or not) uses.
+export function Estimating() {
+  const { tab } = useParams()
   const readOnly = !useIsAdmin()
-  const label = COMMERCIAL.find((c) => c.doc === doc)?.label ?? 'Quotations'
+  const navigate = useNavigate()
+  const [quotes, setQuotes] = useState<{ q: Quotation; total: number }[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!tab) loadQuotations(null).then(setQuotes, (e: Error) => setError(e.message))
+  }, [tab])
+
+  async function create() {
+    setError(null)
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    setBusy(true)
+    try {
+      navigate(`/estimating/q/${await createQuotation(null)}`)
+    } catch (e) {
+      setError(saveError(e))
+      setBusy(false)
+    }
+  }
+
   return (
     <>
-      <h1>Commercial</h1>
+      <h1>Estimating</h1>
       <nav className="pills">
-        {COMMERCIAL.map((c) => (
-          <NavLink key={c.doc} to={`/commercial/${c.doc}`} className="pill">
-            {c.label}
-          </NavLink>
-        ))}
+        <NavLink to="/estimating" end className="pill">
+          Quotations
+        </NavLink>
+        <NavLink to="/estimating/wording" className="pill">
+          Standard wording & clauses
+        </NavLink>
       </nav>
-      <section className="card">
-        {doc === 'quotations' && (
-          <>
-            <h3 className="sub-head">Wording</h3>
-            <p className="muted small intro">Standard wording on every quotation. Changes apply to quotations exported after saving.</p>
-            <Wording category="Quotations" empty="No quotation wording yet." readOnly={readOnly} />
-            <h3 className="sub-head">Clause library</h3>
-            <ClauseLibrary readOnly={readOnly} />
-          </>
-        )}
-        {doc === 'variations' && (
-          <p className="muted small intro">VO sheets use each job's OHP and prelims (defaults for new jobs are in Settings). Nothing else to set here yet.</p>
-        )}
-        {(doc === 'valuations' || doc === 'payment-notices') && (
-          <>
-            <p className="muted small intro">Standard wording for {label.toLowerCase()} will appear here as that part of the app is built.</p>
-            <Wording category={label} empty="Nothing here yet." readOnly={readOnly} />
-          </>
-        )}
-      </section>
+      {!tab && (
+        <section className="card">
+          <div className="pane-head">
+            <h2>Quotations without a job</h2>
+            <button className="primary" onClick={create} disabled={busy}>
+              + New quotation
+            </button>
+          </div>
+          <p className="muted small intro">Small works and new enquiries. Quotations for live jobs are in each job's Quotations tab.</p>
+          {error && <p className="error">{error}</p>}
+          {quotes === null && !error && <p className="muted">Loading…</p>}
+          {quotes?.length === 0 && <p className="muted">No quotations yet.</p>}
+          {quotes && quotes.length > 0 && (
+            <table className="table stack">
+              <thead>
+                <tr>
+                  <th>Reference</th>
+                  <th>Project</th>
+                  <th>Client</th>
+                  <th>Status</th>
+                  <th className="num">Total excl. VAT</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quotes.map(({ q, total }) => (
+                  <tr key={q.id} className="clickable" onClick={() => navigate(`/estimating/q/${q.id}`)}>
+                    <td className="stack-title">
+                      <strong>{fullRef(null, q)}</strong>
+                    </td>
+                    <td className="stack-sub">{q.project_name}</td>
+                    <td className={q.client_name ? '' : 'stack-hide'} data-label="Client">
+                      {q.client_name}
+                    </td>
+                    <td data-label="Status">
+                      <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span>
+                    </td>
+                    <td className="num" data-label="Total excl. VAT">
+                      {money(total)}
+                    </td>
+                    <td className="nowrap" data-label="Date">
+                      {ukDate(q.issued_date)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      )}
+      {tab === 'wording' && (
+        <section className="card">
+          <h3 className="sub-head">Quotation wording</h3>
+          <p className="muted small intro">Standard wording on every quotation (jobs and estimating). Changes apply to quotations exported after saving.</p>
+          <Wording category="Quotations" empty="No quotation wording yet." readOnly={readOnly} />
+          <h3 className="sub-head">Clause library</h3>
+          <ClauseLibrary readOnly={readOnly} />
+        </section>
+      )}
     </>
   )
 }

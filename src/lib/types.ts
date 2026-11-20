@@ -86,7 +86,8 @@ export interface TextGroup {
 
 export interface Quotation {
   id: string
-  job_id: string
+  job_id: string | null // null = Estimating (small works, new enquiry)
+  project_name: string | null // used when there's no job
   variation_id: string | null
   quote_no: number
   subject: string
