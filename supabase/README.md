@@ -9,7 +9,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `003_grant_signed_in_access.sql` | Gives signed-in users access to the tables (fixes "permission denied"); signed-out visitors still blocked | ✅ Run 20 Nov 2026 |
 | `004_variation_date.sql` | Adds the VO date (date raised) shown on the VO sheet and summary | ✅ Run 20 Nov 2026 |
 | `005_admins_and_templates.sql` | Admin logins (Richard first); only admins change templates; wording templates table; insurance reminders follow each cover's dates | ✅ Run 20 Nov 2026 |
-| `006_quotations.sql` | Quotation details for the waterproofing-quote layout: client, prepared by, site, opening line, scope and qualification groups, validity note, line headings, appendices, T&Cs on/off, editable add-on clauses | ⬜ Not yet run |
+| `006_quotations.sql` | Quotation details for the waterproofing-quote layout: client, prepared by, site, opening line, scope and qualification groups, validity note, line headings, appendices, T&Cs on/off, editable add-on clauses | ✅ Run 20 Nov 2026 |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
