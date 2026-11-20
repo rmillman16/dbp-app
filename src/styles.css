@@ -385,6 +385,9 @@ select.unallocated { border-color: var(--red); }
 .task-pick label.suggested { background: #fff8e1; }
 .task-pick input, .own-picks input { margin-top: 3px; flex: none; }
 .cf-weights input.pct { width: 80px; text-align: right; }
+.cf-weights input.gbp { width: 130px; text-align: right; }
+.cf-weight-head { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.cf-weight-head h3 { margin: 0; }
 .cf-weights select { max-width: 100%; }
 .cf-weights input[type='date'] { margin-top: 6px; display: block; }
 .own-picks { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; font-size: 13px; }

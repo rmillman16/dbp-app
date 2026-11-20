@@ -73,10 +73,18 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 
 **Weighting (Richard, 20 Nov): "a section where weighting can be configured — deposit, progress, delivery, installation as a guide, with the ability to rename and add sections".**
 - **Payment stages per job:** Deposit · Progress · Delivery · Installation · Completion to start with. They can be renamed, added, removed or reordered.
-- **Each SoW section** (from the current priced SoW, below the line left out), **agreed VO** and **issued VO (at risk, shown separately)** is linked to programme activities. The app suggests them from shared words in the names and trades, with M&E read as mechanical / electrical.
+- **Weighted on works packages, not the SoW's sections (Richard, 20 Nov):** "weighting should be on packages grouped by works not floor, i.e. joinery, metalwork, tiling".
+  - The same packages as the CVR (from the office SoW on the CVR tab), grouped the same way: Labour & materials, Subcontractors, Preliminaries, Other.
+  - **"All monies must be allocated."** Each package is valued at its cost plus its share of each SoW line's OH&P (in proportion to the line's cost), so the packages make up the SoW price.
+  - Priced lines with no cost in a package (Micro's VE omissions, −£29,459.81) and any **difference to the contract sum** are spread **in line with everything else** (pro rata each month).
+  - Until a package is set, it's spread across the activities matching its name, else start on site to PC. **Nothing is ever left out.** Tested on Micro (office SoW) against the Corsham programme: the months come to exactly the £847,000 contract sum.
+- **Weighting by % or £ (Richard, 20 Nov, script 020):** a toggle per package. Switching converts what's typed, and Save is only allowed once the stages come to the whole value.
+- **Each package**, **agreed VO** and **issued VO (at risk, shown separately)** is linked to programme activities. The app suggests them from shared words in the names and trades:
+  - M&E is read as mechanical / electrical, and HVAC / plumbing as mechanical;
+  - design, pre-construction / procurement and client activities aren't suggested.
 - **Each stage gets a %** (adding up to 100%) and a **when**: at the start of, spread across (by working day, Mon–Fri), or at the end of its activities (all linked, or a chosen few), or on a typed date. "Start on site to PC" is an activity of its own, using the job's dates.
 - **Starting weighting until set:**
-  - a linked section: 100% Progress spread across its activities;
+  - a package: 100% Progress spread across its (suggested) activities, else start on site to PC;
   - prelims (Richard chose "weighted to set-up and finish"): 10% at start on site, 80% spread to PC, 10% at PC.
 - **Nothing is lost:** a section not yet linked, or with stages short of 100%, is listed as "not placed" with the reason. Each section's months add back to its value to the penny.
 - **Forecast:**

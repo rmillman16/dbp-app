@@ -1,11 +1,12 @@
 // Cashflow: loading and saving (the sums are in cashflowCalc.ts; docs/decisions.md "Cashflow: built").
 import { supabase } from './supabase'
 import { cached, must } from './offline'
-import { loadCurrentSow } from './applications'
 import { loadJobVariations, projectedValue } from './variations'
 import { loadProgramme } from './programme'
-import { defaultWeights, type CfItem, type CfStage, type CfWeight, type Timing } from './cashflowCalc'
-import type { Job, SowLine } from './types'
+import { loadBudgetLines, loadPackages } from './cvr'
+import { GROUP_LABELS, byGroupThenName, groupOf } from './cvrCalc'
+import { defaultWeights, packageValues, suggestTasks, type CfItem, type CfStage, type CfWeight, type Timing } from './cashflowCalc'
+import type { Job } from './types'
 
 // the guide every job starts with (Richard, 20 Nov): renamed, added or removed per job.
 // Completion is there for prelims' finish (cleans, snagging, handover).
@@ -50,30 +51,24 @@ export async function saveItem(jobId: string, key: string, taskCodes: string[], 
   if (weights?.length)
     await must1(
       supabase.from('cashflow_weights').insert(
-        weights.map((w) => ({ job_id: jobId, item_key: key, stage_id: w.stage_id, pct: w.pct, timing: w.timing, task_codes: w.task_codes?.length ? w.task_codes : null, on_date: w.timing === 'date' ? w.on_date : null })),
+        weights.map((w) => ({
+          job_id: jobId,
+          item_key: key,
+          stage_id: w.stage_id,
+          pct: w.pct,
+          amount: w.amount ?? null,
+          timing: w.timing,
+          task_codes: w.task_codes?.length ? w.task_codes : null,
+          on_date: w.timing === 'date' ? w.on_date : null,
+        })),
       ),
     )
 }
 
 export interface CashflowItem extends CfItem {
+  group: string // works group, as the CVR (Labour & materials, Subcontractors, Preliminaries, Other), or Variations
   defaulted: boolean // no weighting saved: the starting weighting is used
-}
-
-// SoW sections (the current priced SoW, below-the-line items left out), prelims, agreed VOs;
-// issued VOs are at risk; not-issued and rejected VOs aren't in the cashflow
-export function sowSections(lines: SowLine[]) {
-  const out: { key: string; label: string; value: number; prelims: boolean }[] = []
-  for (const l of lines) {
-    if (l.below_line) continue
-    if (l.kind === 'section') {
-      const label = `${l.section ? `${l.section}. ` : ''}${l.description ?? ''}`.trim()
-      if (!out.some((s) => s.key === `sow:${l.section}`)) out.push({ key: `sow:${l.section}`, label, value: 0, prelims: /prelim/i.test(l.description ?? '') })
-    } else {
-      const s = out.find((x) => x.key === `sow:${l.section}`)
-      if (s) s.value += Number(l.total ?? 0)
-    }
-  }
-  return out.map((s) => ({ ...s, value: Math.round(s.value * 100) / 100 }))
+  suggested: boolean // its activities are suggested from its name, not yet chosen
 }
 
 // the starting stages are made once per job: the page can load twice at the same moment, and
@@ -105,10 +100,15 @@ async function ensureStages(jobId: string) {
   return stages
 }
 
+// The items: the job's works packages (as the CVR, from the office SoW imported on the CVR tab)
+// with their share of OH&P; margin not tied to a package and any difference to the contract sum
+// (spread in line with everything else); agreed VOs; issued VOs at risk. Not-issued and rejected
+// VOs aren't in the cashflow.
 export async function loadCashflow(job: Job) {
   const stages = await ensureStages(job.id)
-  const [sow, vos, prog, items, weights] = await Promise.all([
-    loadCurrentSow(job.id),
+  const [packages, lines, vos, prog, items, weights] = await Promise.all([
+    loadPackages(job.id),
+    loadBudgetLines(job.id).catch(() => []),
     loadJobVariations(job),
     loadProgramme(job.id),
     cached(`cashflow-items:${job.id}`, () => must<{ item_key: string; task_codes: string[] }[]>(supabase.from('cashflow_items').select('item_key, task_codes').eq('job_id', job.id))),
@@ -116,18 +116,38 @@ export async function loadCashflow(job: Job) {
   ])
   const linked = new Map(items.map((i) => [i.item_key, i.task_codes ?? []]))
   const stageIds = new Set(stages.map((s) => s.id))
-  const make = (key: string, label: string, kind: CfItem['kind'], value: number): CashflowItem => {
-    const tasks = linked.get(key) ?? []
+  const make = (key: string, label: string, kind: CfItem['kind'], value: number, group: string): CashflowItem => {
+    // not chosen yet: the activities that match its name
+    const chosen = linked.get(key)
+    const tasks = chosen ?? (kind === 'package' ? suggestTasks(label, prog.tasks) : [])
     const saved = weights
       .filter((w) => w.item_key === key && stageIds.has(w.stage_id))
-      .map((w) => ({ stage_id: w.stage_id, pct: Number(w.pct), timing: w.timing as Timing, task_codes: w.task_codes, on_date: w.on_date }))
+      .map((w) => ({ stage_id: w.stage_id, pct: Number(w.pct), amount: w.amount == null ? null : Number(w.amount), timing: w.timing as Timing, task_codes: w.task_codes, on_date: w.on_date }))
     const defaulted = !saved.length
-    return { key, label, kind, value, tasks, weights: defaulted ? defaultWeights({ kind, tasks }, stages) : saved, defaulted }
+    return { key, label, kind, value, group, tasks, weights: defaulted ? defaultWeights({ kind, tasks }, stages) : saved, defaulted, suggested: !chosen && tasks.length > 0 }
   }
-  const list: CashflowItem[] = sowSections(sow.lines).map((s) => make(s.key, s.label, s.prelims ? 'prelims' : 'section', s.value))
+
+  const pv = packageValues(
+    packages.map((p) => ({ name: p.name, kind: p.kind, budget: p.budget == null ? null : Number(p.budget) })),
+    lines,
+  )
+  const byName = new Map(packages.map((p) => [p.name, p]))
+  const list: CashflowItem[] = [...pv.values]
+    .map(([name, value]) => {
+      const p = byName.get(name)
+      const group = groupOf({ kind: p?.kind ?? 'cost', name, cvr_group: p?.cvr_group ?? null })
+      return { name, value, group }
+    })
+    .sort((a, b) => byGroupThenName({ group: a.group, name: a.name }, { group: b.group, name: b.name }))
+    // the CVR's prelims lump ("Preliminaries – not yet split") is simply Preliminaries here
+    .map(({ name, value, group }) => make(`pkg:${name}`, byName.get(name)?.is_remainder ? 'Preliminaries' : name, group === 'prelims' ? 'prelims' : 'package', value, GROUP_LABELS[group]))
+  // priced lines with no cost in a package: VE omissions (Micro: −£29,459.81), OH&P-only lines
+  if (pv.loose) list.push(make('adjust:margin', 'Omissions and OH&P not tied to a package', 'adjust', pv.loose, GROUP_LABELS.other))
+  const contract = job.contract_sum == null ? 0 : Math.round((Number(job.contract_sum) - pv.total) * 100) / 100
+  if (pv.total && contract) list.push(make('adjust:contract', 'Difference to the contract sum', 'adjust', contract, GROUP_LABELS.other))
   for (const v of vos) {
     if (v.vo.status !== 'agreed' && v.vo.status !== 'issued') continue
-    list.push(make(`vo:${v.vo.id}`, `VO ${v.vo.vo_no} – ${v.vo.title}`, v.vo.status === 'agreed' ? 'vo' : 'vo_risk', Math.round(projectedValue(v.vo, v.build) * 100) / 100))
+    list.push(make(`vo:${v.vo.id}`, `VO ${v.vo.vo_no} – ${v.vo.title}`, v.vo.status === 'agreed' ? 'vo' : 'vo_risk', Math.round(projectedValue(v.vo, v.build) * 100) / 100, 'Variations'))
   }
-  return { stages, items: list, programme: prog.programme, tasks: prog.tasks, sowRevision: sow.rev }
+  return { stages, items: list, programme: prog.programme, tasks: prog.tasks, sowTotal: pv.total, fromLines: pv.fromLines, budgetFile: job.cvr_budget_file }
 }

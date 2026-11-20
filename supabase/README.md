@@ -22,7 +22,8 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `016_cvr_groups.sql` | CVR packages grouped (Labour & materials, Subcontractors, Preliminaries, Other); prelims sections from the SoW draw down the single prelims budget ("Preliminaries – not yet split") | ✅ Run 20 Nov 2026 |
 | `017_cvr_split_by_amount.sql` | CVR: a supplier's cost split across packages by £ as well as by % | ✅ Run 20 Nov 2026 |
 | `018_cvr_budget_lines.sql` | CVR: keeps the office SoW's lines (each item's cost and OH&P by package) for the breakdown sheet of the CVR export; re-import the SoW afterwards | ✅ Run 20 Nov 2026 |
-| `019_programme_and_cashflow.sql` | Programme import (DBP Timeline / P6 .xer: activities, sections, trades, dates) and the cashflow: the job's payment stages (Deposit, Progress, Delivery, Installation…, renamable) and each SoW section's / VO's linked activities and weighting | ⬜ Not yet |
+| `019_programme_and_cashflow.sql` | Programme import (DBP Timeline / P6 .xer: activities, sections, trades, dates) and the cashflow: the job's payment stages (Deposit, Progress, Delivery, Installation…, renamable) and each SoW section's / VO's linked activities and weighting | ✅ Run 20 Nov 2026 |
+| `020_cashflow_weight_by_amount.sql` | Cashflow: a package's stages weighted by £ as well as by % | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

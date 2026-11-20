@@ -1,11 +1,14 @@
 // The cashflow sums (docs/decisions.md "Cashflow: built"). Kept free of the database so it can be
 // tested on its own. A client-facing forecast of what DBP will apply for each month:
-// - every item (a SoW section, prelims, an agreed VO; issued VOs shown separately as at risk)
-//   is paid in stages: the job's own list, Deposit, Progress, Delivery, Installation… as a guide
+// - every item (a works package: joinery, metalwork, tiling… as the CVR, valued with its share
+//   of OH&P; prelims; an agreed VO; issued VOs shown separately as at risk) is paid in stages:
+//   the job's own list, Deposit, Progress, Delivery, Installation… as a guide
 // - each stage takes a % of the item's value and falls at the start of, spread across (by working
 //   day, Monday to Friday) or at the end of its activities, or on a typed date
-// - "Start on site to PC" is an activity of its own (the job's dates), for prelims
-// - what isn't placed yet (no activities, weights short of 100%) is listed, not lost
+// - "Start on site to PC" is an activity of its own (the job's dates)
+// - all money is placed (Richard, 20 Nov): until it's set, a package is spread across the
+//   activities that match its name, else start on site to PC; margin not tied to a package and
+//   any difference to the contract sum go "in line with everything else" (pro rata each month)
 // - retention at the job's %, halved from the PC month, as on the applications
 // Months are calendar months (valuations fall at month end).
 
@@ -14,7 +17,8 @@ export const TIMING_LABELS: Record<Timing, string> = { start: 'at the start of',
 export const SITE = '@site' // start on site to PC
 export const SITE_LABEL = 'Start on site to PC'
 
-export type ItemKind = 'section' | 'prelims' | 'vo' | 'vo_risk'
+// adjust: spread in line with everything else (pro rata), no stages of its own
+export type ItemKind = 'package' | 'prelims' | 'adjust' | 'vo' | 'vo_risk'
 export interface CfStage {
   id: string
   name: string
@@ -22,12 +26,13 @@ export interface CfStage {
 export interface CfWeight {
   stage_id: string
   pct: number // 0–100
+  amount?: number | null // set = weighted by £ (fixed), else by % (script 020)
   timing: Timing
   task_codes: string[] | null // null = the item's linked activities
   on_date: string | null
 }
 export interface CfItem {
-  key: string // "sow:3", "prelims:1", "vo:<id>"
+  key: string // "pkg:Joinery", "adjust:contract", "vo:<id>"
   label: string
   kind: ItemKind
   value: number
@@ -116,10 +121,11 @@ const monthsBetween = (a: string, b: string) => {
   return out
 }
 
-// the starting weighting for an item that hasn't been set (agreed 20 Nov):
-// prelims 10% set-up at start on site, 80% spread to PC, 10% at PC; a linked section 100% Progress
+// the starting weighting for an item that hasn't been set (agreed 20 Nov), so every pound is placed:
+// prelims 10% set-up at start on site, 80% spread to PC, 10% at PC; anything else 100% Progress
+// spread across its activities, or start on site to PC when it has none
 export function defaultWeights(item: Pick<CfItem, 'kind' | 'tasks'>, stages: CfStage[]): CfWeight[] {
-  if (!stages.length) return []
+  if (!stages.length || item.kind === 'adjust') return []
   const progress = stages.find((s) => /progress/i.test(s.name)) ?? stages[0]
   if (item.kind === 'prelims') {
     const first = stages[0].id === progress.id ? null : stages[0]
@@ -128,7 +134,52 @@ export function defaultWeights(item: Pick<CfItem, 'kind' | 'tasks'>, stages: CfS
     if (!first || !last || first.id === last.id) return [w(progress, 100, 'spread')]
     return [w(first, 10, 'start'), w(progress, 80, 'spread'), w(last, 10, 'end')]
   }
-  return item.tasks.length ? [{ stage_id: progress.id, pct: 100, timing: 'spread', task_codes: null, on_date: null }] : []
+  return [{ stage_id: progress.id, pct: 100, timing: 'spread', task_codes: item.tasks.length ? null : [SITE], on_date: null }]
+}
+
+// Each works package's value for the cashflow: its cost from the office SoW lines plus its share
+// of each line's margin (OH&P, and anything else shown and omitted), shared in proportion to the
+// line's cost, so the packages add up to the price (Richard, 20 Nov: "all monies must be
+// allocated"). A line with margin but no cost (or the SoW lines not imported yet: budgets then
+// stand as they are) leaves "loose" margin, spread in line with everything else.
+export function packageValues(
+  packages: { name: string; kind: string; budget: number | null }[],
+  lines: { kind: string; amounts: Record<string, number> }[],
+): { values: Map<string, number>; loose: number; total: number; fromLines: boolean } {
+  const omitted = new Set(packages.filter((p) => p.kind === 'omit').map((p) => p.name))
+  const isMargin = (n: string) => omitted.has(n) || /^(oh&p|ohp|overh)/i.test(n)
+  const values = new Map<string, number>()
+  let total = 0
+  if (!lines.length) {
+    for (const p of packages) {
+      const v = Number(p.budget ?? 0)
+      total += v
+      if (!isMargin(p.name) && v) values.set(p.name, v)
+    }
+  } else {
+    // an item and the lines under it are one priced line of the SoW
+    const groups: Record<string, number>[] = []
+    let cur: Record<string, number> | null = null
+    for (const l of lines) {
+      if (l.kind !== 'line' || !cur) groups.push((cur = {}))
+      for (const [n, v] of Object.entries(l.amounts ?? {})) cur[n] = (cur[n] ?? 0) + Number(v)
+    }
+    for (const g of groups) {
+      const entries = Object.entries(g)
+      const costs = entries.filter(([n]) => !isMargin(n))
+      const margin = entries.filter(([n]) => isMargin(n)).reduce((s, [, v]) => s + v, 0)
+      const cost = costs.reduce((s, [, v]) => s + v, 0)
+      total += cost + margin
+      if (Math.abs(cost) < 0.005) continue // all margin: loose
+      for (const [n, v] of costs) values.set(n, (values.get(n) ?? 0) + v + (margin * v) / cost)
+    }
+  }
+  const out = new Map<string, number>()
+  for (const [n, v] of values) if (Math.abs(r2(v)) >= 0.01) out.set(n, r2(v))
+  total = r2(total)
+  // whatever isn't in a package (pennies included) is loose, so it all adds back to the price
+  const loose = r2(total - [...out.values()].reduce((s, v) => s + v, 0))
+  return { values: out, loose, total, fromLines: lines.length > 0 }
 }
 
 // activities that look like they belong to an item: a shared word in the name, trade or section
@@ -137,13 +188,20 @@ const words = (s: string) =>
   s
     .toLowerCase()
     .replace(/m\s*&\s*e\b/g, 'mechanical electrical') // programmes say M&E, SoWs spell it out
+    .replace(/\b(hvac|plumbing|ventilation|air conditioning)\b/g, '$1 mechanical')
+    .replace(/\blighting\b/g, 'lighting electrical')
     .split(/[^a-z]+/)
     .filter((w) => w.length >= 4 && !STOP.has(w))
     .map((w) => w.slice(0, 5))
+// (only construction activities: not design, pre-construction / procurement or the client's)
+const NOT_WORKS = /design|precon|pre-construction|procurement|client|internal pm/i
 export function suggestTasks(label: string, tasks: CfTask[]): string[] {
   const mine = new Set(words(label))
   if (!mine.size) return []
-  return tasks.filter((t) => words(`${t.name} ${t.trade ?? ''}`).some((w) => mine.has(w))).map((t) => t.code)
+  return tasks
+    .filter((t) => !NOT_WORKS.test(t.trade ?? '') && !NOT_WORKS.test(t.section ?? ''))
+    .filter((t) => words(`${t.name} ${t.trade ?? ''}`).some((w) => mine.has(w)))
+    .map((t) => t.code)
 }
 
 export function computeCashflow(i: CashflowInput): CashflowResult {
@@ -151,19 +209,23 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
   const site = i.siteStart && i.pc ? { code: SITE, name: SITE_LABEL, start_date: i.siteStart, finish_date: i.pc } : null
   const resolve = (code: string) => (code === SITE ? site : byCode.get(code))
 
-  // each item's amounts by month
+  // each item's amounts by month (the pro rata items follow once the rest are placed)
   const placed = i.items.map((item) => {
     const by = new Map<string, number>()
     const issues: string[] = []
     let unplaced = 0
     const add = (m: string, v: number) => by.set(m, (by.get(m) ?? 0) + v)
-    const pctTotal = item.weights.reduce((s, w) => s + Number(w.pct || 0), 0)
+    // a weighting by £ (fixed amounts) or by % of the value
+    const byAmount = item.weights.some((w) => w.amount != null)
+    const amountOf = (w: CfWeight) => (byAmount ? Number(w.amount ?? 0) : (item.value * Number(w.pct || 0)) / 100)
+    const weighted = r2(item.weights.reduce((s, w) => s + amountOf(w), 0))
+    if (item.kind === 'adjust') return { item, by, unplaced: 0, issues }
     if (!item.weights.length) {
       unplaced += item.value
       if (item.value) issues.push(item.tasks.length ? 'no weighting yet' : 'not linked to the programme yet')
     }
     for (const w of item.weights) {
-      const amount = (item.value * Number(w.pct || 0)) / 100
+      const amount = amountOf(w)
       if (!amount) continue
       if (w.timing === 'date') {
         if (w.on_date) add(monthOf(w.on_date), amount)
@@ -189,12 +251,27 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
         for (const [m, n] of days) add(m, (amount * n) / all)
       }
     }
-    if (item.weights.length && Math.abs(pctTotal - 100) > 0.001) {
-      unplaced += (item.value * (100 - pctTotal)) / 100
-      issues.push(`stages add up to ${r2(pctTotal)}%, not 100%`)
+    // the stages must come to the whole value: short is listed as not placed, over is flagged
+    const short = r2(item.value - weighted)
+    if (item.weights.length && Math.abs(short) >= 0.005) {
+      if (short > 0) unplaced += short
+      issues.push(byAmount ? `stages add up to £${weighted.toLocaleString('en-GB', { minimumFractionDigits: 2 })}, not the value` : `stages add up to ${r2((weighted / (item.value || 1)) * 100)}%, not 100%`)
     }
     return { item, by, unplaced: r2(unplaced), issues: [...new Set(issues)] }
   })
+  // margin not tied to a package and the difference to the contract sum: in line with the rest
+  const base = new Map<string, number>()
+  for (const p of placed) if (p.item.kind !== 'adjust' && p.item.kind !== 'vo_risk') for (const [m, v] of p.by) base.set(m, (base.get(m) ?? 0) + v)
+  const baseTotal = [...base.values()].reduce((s, v) => s + v, 0)
+  for (const p of placed) {
+    if (p.item.kind !== 'adjust' || !p.item.value) continue
+    if (!baseTotal) {
+      p.unplaced = p.item.value
+      p.issues.push('nothing else is placed yet to spread it with')
+      continue
+    }
+    for (const [m, v] of base) p.by.set(m, (p.item.value * v) / baseTotal)
+  }
 
   // the months: from the first to the last amount, and at least start on site to PC
   const keys = placed.flatMap((p) => [...p.by.keys()])
@@ -206,7 +283,9 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
   const rows: CfRow[] = placed.map(({ item, by, unplaced, issues }) => {
     const amounts = months.map((m) => r2(by.get(m) ?? 0))
     // pennies lost to rounding go to the biggest month, so the months add back to the value exactly
-    const diff = r2(item.value - unplaced - amounts.reduce((s, v) => s + v, 0))
+    // (not when stages come to more than the value: that's flagged instead)
+    const placedSum = r2([...by.values()].reduce((s, v) => s + v, 0))
+    const diff = r2(placedSum - amounts.reduce((s, v) => s + v, 0))
     if (diff && amounts.some((v) => v)) {
       const k = amounts.indexOf(Math.max(...amounts))
       amounts[k] = r2(amounts[k] + diff)
