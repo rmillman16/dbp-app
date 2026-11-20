@@ -6,7 +6,7 @@ import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseBudget, type ParsedBudget } from '../lib/cvrBudget'
 import { parseJobCosting, type ParsedCosts } from '../lib/cvrCosts'
-import { addPackage, createCvr, importBudget, linkOrder, loadCvrs, loadPackages, savePackage } from '../lib/cvr'
+import { addPackage, countBudgetLines, createCvr, importBudget, linkOrder, loadCvrs, loadPackages, savePackage } from '../lib/cvr'
 import { loadCompanies, loadOrders } from '../lib/subcontracts'
 import type { Cvr, CvrPackage, Job } from '../lib/types'
 import { useJob } from './JobLayout'
@@ -28,9 +28,11 @@ export default function CvrTab() {
   const [importing, setImporting] = useState(false)
   const [newCvr, setNewCvr] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lineCount, setLineCount] = useState<number | null>(null)
 
   const reload = () => {
     loadPackages(job.id).then(setPackages, (e: Error) => setError(e.message))
+    countBudgetLines(job.id).then(setLineCount, () => setLineCount(null))
     loadCvrs(job.id).then(setCvrs, () => {})
     Promise.all([loadOrders(job.id), loadCompanies()]).then(
       ([os, cs]) => setOrders(os.map((o) => ({ id: o.id, package_id: o.package_id, label: `${cs.find((c) => c.id === o.company_id)?.name ?? 'Order'}${o.trade ? ` (${o.trade})` : ''} ${money(o.order_value)}` }))),
@@ -105,6 +107,11 @@ export default function CvrTab() {
         {job.cvr_budget_file && !importing && (
           <p className="small">
             From <strong>{job.cvr_budget_file}</strong> · {money(job.cvr_budget_total)} · imported {ukDate(job.cvr_budget_imported_at)}
+            {lineCount === 0 ? (
+              <span className="late"> · its items aren't saved yet: import it again for the CVR's breakdown sheet</span>
+            ) : (
+              lineCount != null && <span> · {lineCount} SoW lines saved</span>
+            )}
             {job.contract_sum != null && job.cvr_budget_total != null && Math.abs(Number(job.contract_sum) - Number(job.cvr_budget_total)) > 1 ? (
               <span className="late"> · contract sum is {money(job.contract_sum)}</span>
             ) : (

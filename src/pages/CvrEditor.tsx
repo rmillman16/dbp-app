@@ -106,7 +106,10 @@ export default function CvrEditor() {
     setError(null)
     try {
       const { exportCvr } = await import('../lib/exportCvr')
-      const [lines, cvrs] = await Promise.all([loadBudgetLines(job.id).catch(() => []), loadCvrs(job.id)])
+      const [lines, cvrs] = await Promise.all([loadBudgetLines(job.id), loadCvrs(job.id)])
+      // the breakdown sheet lists the SoW's items, saved when the office SoW is imported (script 018)
+      if (!lines.length)
+        return setError("The office SoW's items aren't saved for this job yet, so the breakdown sheet would be empty. Go to the CVR tab › Budgets › Import a new SoW revision, import the office SoW again, then export.")
       const previous = cvrs.filter((c) => c.period_end < cvr!.period_end).pop()
       await exportCvr(job, cvr!, result!, costs, { packages: ctx!.packages, lines, previousDate: previous?.period_end ?? null })
     } catch (e) {

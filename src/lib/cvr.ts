@@ -73,8 +73,23 @@ export async function importBudget(job: Job, p: ParsedBudget, fileName: string, 
 }
 
 export type SavedBudgetLine = BudgetLine & { id: string; job_id: string; sort: number }
+// a SoW can run past the database's 1,000 rows a request (KOSH: 1,403), so read it in pages
 export function loadBudgetLines(jobId: string) {
-  return cached(`cvr-budget-lines:${jobId}`, () => must<SavedBudgetLine[]>(supabase.from('cvr_budget_lines').select('*').eq('job_id', jobId).order('sort')))
+  return cached(`cvr-budget-lines:${jobId}`, async () => {
+    const all: SavedBudgetLine[] = []
+    for (let from = 0; ; from += 1000) {
+      const page = await must<SavedBudgetLine[]>(supabase.from('cvr_budget_lines').select('*').eq('job_id', jobId).order('sort').range(from, from + 999))
+      all.push(...page)
+      if (page.length < 1000) return all
+    }
+  })
+}
+
+// how many SoW lines are saved for the job (shown on the CVR tab)
+export async function countBudgetLines(jobId: string) {
+  const r = await supabase.from('cvr_budget_lines').select('id', { count: 'exact', head: true }).eq('job_id', jobId)
+  if (r.error) throw new Error(r.error.message)
+  return r.count ?? 0
 }
 
 export async function savePackage(p: Pick<CvrPackage, 'id' | 'kind' | 'target' | 'target_note' | 'supplier_note' | 'cvr_group'>) {
