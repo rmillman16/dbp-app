@@ -306,6 +306,11 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
   - Typing a section's target makes it its own budget.
   - An overspend shows when the prelims group passes the whole prelims budget.
 
+**Splits and prelims management (Richard, 20 Nov, script 017):**
+- **A supplier's cost is split by % or by £.** A % split follows the cost each month.
+- **A £ split stays fixed.** If the supplier's total changes in a later report, the difference shows as not allocated (or too much), with a warning, until the split is updated. Switching between % and £ converts what's typed.
+- **Prelims in the dropdown come in two parts:** Preliminaries – Management (PM, site manager, commercial management, design coordination…), then Preliminaries – Site & general.
+
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).
 - **A letter won't generate until the clauses it needs are filled in.** The app says what's missing instead. The notice also needs the event's days claimed and the job's PC date.

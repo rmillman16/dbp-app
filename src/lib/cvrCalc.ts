@@ -77,6 +77,7 @@ export interface Allocation {
   supplier_name: string
   package_id: string
   share: number
+  amount?: number | null // set = split by £ (fixed), else by share (script 017)
 }
 export interface Forecast {
   package_id: string
@@ -129,8 +130,8 @@ export interface SupplierRow {
   total: number
   previous: number | null
   movement: number | null // this month less last (positive = cost went up)
-  packages: { id: string; name: string; share: number }[]
-  unallocated: number // the part not allocated to a package
+  packages: { id: string; name: string; share: number; amount?: number | null }[] // amount set = split by £
+  unallocated: number // the part not allocated to a package (minus if a £ split is more than the cost)
 }
 
 export interface CvrResult {
@@ -169,13 +170,25 @@ export function computeCvr(i: CalcInput): CvrResult {
   const suppliers: SupplierRow[] = i.costs.map((c) => {
     const key = supplierKey(c)
     const mine = i.allocations.filter((a) => supplierKey(a) === key && byId.has(a.package_id))
-    const shares = mine.reduce((s, a) => s + a.share, 0)
-    if (shares > 1.0001) warnings.push(`${c.supplier_name} is allocated ${Math.round(shares * 100)}% (more than 100%): check its split.`)
-    for (const a of mine) {
-      costOf.set(a.package_id, (costOf.get(a.package_id) ?? 0) + c.total_cost * a.share)
-      suppliersOf.set(a.package_id, [...(suppliersOf.get(a.package_id) ?? []), a.share < 1 ? `${c.supplier_name} (${Math.round(a.share * 100)}%)` : c.supplier_name])
+    // split by £ (fixed amounts) or by share of whatever the cost is this month
+    const byAmount = mine.some((a) => a.amount != null)
+    const part = (a: Allocation) => (byAmount ? Number(a.amount ?? 0) : c.total_cost * a.share)
+    let unallocated: number
+    if (byAmount) {
+      const split = r2(mine.reduce((s, a) => s + Number(a.amount ?? 0), 0))
+      unallocated = r2(c.total_cost - split)
+      if (unallocated < -0.005) warnings.push(`${c.supplier_name}'s split by £ (${gbp(split)}) is more than its cost (${gbp(c.total_cost)}): update its split.`)
+      else if (unallocated > 0.005) warnings.push(`${c.supplier_name}'s cost (${gbp(c.total_cost)}) has moved on from its split by £ (${gbp(split)}): ${gbp(unallocated)} isn't allocated. Update its split.`)
+    } else {
+      const shares = mine.reduce((s, a) => s + a.share, 0)
+      if (shares > 1.0001) warnings.push(`${c.supplier_name} is allocated ${Math.round(shares * 100)}% (more than 100%): check its split.`)
+      unallocated = r2(c.total_cost * Math.max(0, 1 - shares))
     }
-    const unallocated = r2(c.total_cost * Math.max(0, 1 - shares))
+    for (const a of mine) {
+      costOf.set(a.package_id, (costOf.get(a.package_id) ?? 0) + part(a))
+      const label = byAmount ? (mine.length > 1 ? `${c.supplier_name} (${gbp(part(a))})` : c.supplier_name) : a.share < 1 ? `${c.supplier_name} (${Math.round(a.share * 100)}%)` : c.supplier_name
+      suppliersOf.set(a.package_id, [...(suppliersOf.get(a.package_id) ?? []), label])
+    }
     unallocatedCost += unallocated
     const previous = prev ? (prev.get(key) ?? 0) : c.last_reported
     return {
@@ -185,7 +198,7 @@ export function computeCvr(i: CalcInput): CvrResult {
       total: c.total_cost,
       previous,
       movement: previous == null ? null : r2(c.total_cost - previous),
-      packages: mine.map((a) => ({ id: a.package_id, name: byId.get(a.package_id)!.name, share: a.share })),
+      packages: mine.map((a) => ({ id: a.package_id, name: byId.get(a.package_id)!.name, share: a.share, amount: byAmount ? Number(a.amount ?? 0) : null })),
       unallocated,
     }
   })
@@ -193,8 +206,12 @@ export function computeCvr(i: CalcInput): CvrResult {
   if (i.previousCosts)
     for (const c of i.previousCosts)
       if (c.total_cost && !i.costs.some((x) => supplierKey(x) === supplierKey(c))) warnings.push(`${c.supplier_name} (${gbp(c.total_cost)} last month) isn't on this month's report.`)
-  const notAllocated = suppliers.filter((s) => s.unallocated)
-  if (notAllocated.length) warnings.push(`${notAllocated.length} supplier${notAllocated.length === 1 ? '' : 's'} not allocated to a package yet (${gbp(r2(unallocatedCost))}): counted in the total cost, but allocate them so each package is right.`)
+  // (a £ split that no longer adds up has its own warning above)
+  const notAllocated = suppliers.filter((s) => s.unallocated && !s.packages.some((p) => p.amount != null))
+  if (notAllocated.length)
+    warnings.push(
+      `${notAllocated.length} supplier${notAllocated.length === 1 ? '' : 's'} not allocated to a package yet (${gbp(r2(notAllocated.reduce((s, x) => s + x.unallocated, 0)))}): counted in the total cost, but allocate them so each package is right.`,
+    )
 
   // ---- agreed VOs ----
   const voCostOf = new Map<string, number>()

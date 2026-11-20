@@ -4,27 +4,37 @@ import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseJobCosting } from '../lib/cvrCosts'
-import { addPackage, computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
+import { type Split, addPackage, computeCvr, finaliseCvr, linkVo, loadContext, loadCvr, reopenCvr, replaceCosts, saveAllocation, saveCvr, saveForecast, supplierKey, type CvrContext, type SavedCostLine } from '../lib/cvr'
 import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type CvrResult, type Forecast, type Group } from '../lib/cvrCalc'
 
 type PkgOption = { id: string; name: string; group: Group }
 
+// prelims are shown in two parts: management (people running the job) first, then site & general
+const isManagement = (name: string) => /manag|supervis|coordinat|design|commercial|\bqs\b|quantity surveyor|document controller/i.test(name)
+
 // the package list, in groups and alphabetical within each
 function PackageOptions({ packages }: { packages: PkgOption[] }) {
+  const sections = GROUP_ORDER.flatMap((g) => {
+    const mine = packages.filter((p) => p.group === g)
+    if (g !== 'prelims') return [{ key: g, label: GROUP_LABELS[g], items: mine }]
+    return [
+      { key: 'prelims-management', label: `${GROUP_LABELS.prelims} – Management`, items: mine.filter((p) => isManagement(p.name)) },
+      { key: 'prelims-site', label: `${GROUP_LABELS.prelims} – Site & general`, items: mine.filter((p) => !isManagement(p.name)) },
+    ]
+  })
   return (
     <>
-      {GROUP_ORDER.map((g) => {
-        const mine = packages.filter((p) => p.group === g)
-        return mine.length ? (
-          <optgroup key={g} label={GROUP_LABELS[g]}>
-            {mine.map((p) => (
+      {sections.map((s) =>
+        s.items.length ? (
+          <optgroup key={s.key} label={s.label}>
+            {s.items.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </optgroup>
-        ) : null
-      })}
+        ) : null,
+      )}
     </>
   )
 }
@@ -87,7 +97,7 @@ export default function CvrEditor() {
     }
   }
   // allocation changes recompute straight away without reloading everything
-  const allocate = (code: string, name: string, split: { package_id: string; share: number }[]) =>
+  const allocate = (code: string, name: string, split: Split) =>
     run(async () => {
       await saveAllocation(job.id, code, name, split)
       setCtx({
@@ -369,9 +379,9 @@ export default function CvrEditor() {
                 </td>
                 <td data-label="Package">
                   {final ? (
-                    s.packages.map((p) => `${p.name}${p.share < 1 ? ` ${Math.round(p.share * 100)}%` : ''}`).join(', ') || <span className="late">not allocated</span>
+                    s.packages.map((p) => `${p.name}${p.amount != null && s.packages.length > 1 ? ` ${money(p.amount)}` : p.share < 1 ? ` ${Math.round(p.share * 100)}%` : ''}`).join(', ') || <span className="late">not allocated</span>
                   ) : (
-                    <Allocate packages={pkgOptions} current={s.packages} onSave={(split) => allocate(s.code, s.name, split)} onAdd={addBespoke} />
+                    <Allocate packages={pkgOptions} current={s.packages} total={s.total} onSave={(split) => allocate(s.code, s.name, split)} onAdd={addBespoke} />
                   )}
                 </td>
               </tr>
@@ -536,20 +546,28 @@ function ForecastInput({ value, note, auto, onSave }: { value: number | null; no
 
 const ADD = '__add__'
 
-// one package, or a split by %; "+ Add a package…" makes a bespoke one
+// one package, or a split by % or £; "+ Add a package…" makes a bespoke one
 function Allocate({
   packages,
   current,
+  total,
   onSave,
   onAdd,
 }: {
   packages: PkgOption[]
-  current: { id: string; share: number }[]
-  onSave: (split: { package_id: string; share: number }[]) => void
+  current: { id: string; share: number; amount?: number | null }[]
+  total: number // the supplier's cost this month (a £ split must add up to it)
+  onSave: (split: Split) => void
   onAdd: (name: string, group: Group) => Promise<string>
 }) {
   const [splitting, setSplitting] = useState(current.length > 1)
-  const [rows, setRows] = useState(current.length ? current.map((c) => ({ id: c.id, pct: String(Math.round(c.share * 10000) / 100) })) : [{ id: '', pct: '100' }])
+  // split by % or by £ (agreed 20 Nov); val is the % or the £ for each row
+  const [mode, setMode] = useState<'pct' | 'gbp'>(current.some((c) => c.amount != null) ? 'gbp' : 'pct')
+  const [rows, setRows] = useState(
+    current.length
+      ? current.map((c) => ({ id: c.id, val: c.amount != null ? String(c.amount) : String(Math.round(c.share * 10000) / 100) }))
+      : [{ id: '', val: '100' }],
+  )
   const [adding, setAdding] = useState<number | null>(null) // which row is adding (0 when not splitting)
   const [newName, setNewName] = useState('')
   const [newGroup, setNewGroup] = useState<Group>('subcontract')
@@ -612,9 +630,40 @@ function Allocate({
         </button>
       </span>
     )
-  const total = rows.reduce((s, r) => s + Number(r.pct || 0), 0)
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  const sum = r2(rows.reduce((s, r) => s + Number(r.val || 0), 0))
+  const whole = mode === 'pct' ? 100 : r2(total)
+  const left = r2(whole - sum)
+  const ok = Math.abs(left) <= 0.01 && !rows.some((r) => !r.id)
+  const show = (n: number) => (mode === 'pct' ? `${n}%` : money(n))
+  // switching converts what's typed, so nothing has to be re-entered
+  const switchTo = (m: 'pct' | 'gbp') => {
+    if (m === mode) return
+    setRows(rows.map((r) => ({ ...r, val: String(m === 'gbp' ? r2((Number(r.val || 0) / 100) * total) : total ? r2((Number(r.val || 0) / total) * 100) : 0) })))
+    setMode(m)
+  }
+  const save = () =>
+    onSave(
+      rows.map((r) => {
+        const v = Number(r.val || 0)
+        if (mode === 'pct') return { package_id: r.id, share: v / 100, amount: null }
+        const share = total ? Math.min(1, Math.max(0.0001, v / total)) : 1 / rows.length
+        return { package_id: r.id, share, amount: r2(v) }
+      }),
+    )
   return (
     <div className="split">
+      <span className="small">
+        Split {money(total)} by{' '}
+        <span className="segmented">
+          <button className={mode === 'pct' ? 'on' : ''} onClick={() => switchTo('pct')}>
+            %
+          </button>
+          <button className={mode === 'gbp' ? 'on' : ''} onClick={() => switchTo('gbp')}>
+            £
+          </button>
+        </span>
+      </span>
       {rows.map((r, i) =>
         adding === i ? (
           <span key={i}>{addBox}</span>
@@ -624,20 +673,24 @@ function Allocate({
               <option value="">Package</option>
               {options}
             </select>
-            <input type="number" step="1" value={r.pct} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)))} />%
+            {mode === 'gbp' && '£'}
+            <input
+              type="number"
+              step={mode === 'pct' ? '1' : '0.01'}
+              className={mode === 'gbp' ? 'split-gbp' : ''}
+              value={r.val}
+              onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, val: e.target.value } : x)))}
+            />
+            {mode === 'pct' && '%'}
           </span>
         ),
       )}
       <span className="small">
-        <button className="link-button small" onClick={() => setRows([...rows, { id: '', pct: String(Math.max(0, 100 - total)) }])}>
+        <button className="link-button small" onClick={() => setRows([...rows, { id: '', val: String(Math.max(0, left)) }])}>
           + another package
         </button>{' '}
-        <span className={Math.abs(total - 100) > 0.01 ? 'late' : 'ok'}>{total}%</span>{' '}
-        <button
-          className="small-button"
-          disabled={Math.abs(total - 100) > 0.01 || rows.some((r) => !r.id)}
-          onClick={() => onSave(rows.map((r) => ({ package_id: r.id, share: Number(r.pct) / 100 })))}
-        >
+        <span className={ok ? 'ok' : 'late'}>{Math.abs(left) <= 0.01 ? `${show(sum)} ✓` : left > 0 ? `${show(left)} still to allocate` : `${show(-left)} too much`}</span>{' '}
+        <button className="small-button" disabled={!ok} onClick={save}>
           Save split
         </button>{' '}
         <button className="link-button small" onClick={() => setSplitting(false)}>

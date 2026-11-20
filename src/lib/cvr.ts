@@ -85,7 +85,9 @@ export async function linkVo(variationId: string, packageId: string | null) {
 }
 
 // ---------- suppliers to packages ----------
-export async function saveAllocation(jobId: string, code: string, name: string, split: { package_id: string; share: number }[]) {
+// split: by share (amount null), or by £ (amount set; share kept between 0 and 1 for reference)
+export type Split = { package_id: string; share: number; amount?: number | null }[]
+export async function saveAllocation(jobId: string, code: string, name: string, split: Split) {
   await must1(supabase.from('supplier_packages').delete().eq('job_id', jobId).eq('supplier_code', code).eq('supplier_name', name))
   if (split.length) await must1(supabase.from('supplier_packages').insert(split.map((s) => ({ job_id: jobId, supplier_code: code, supplier_name: name, ...s }))))
 }
@@ -208,7 +210,7 @@ export async function loadContext(job: Job, cvr: Cvr, costs: SavedCostLine[], fo
       packages: packages.map((p) => ({ ...p, budget: p.budget == null ? null : Number(p.budget), target: p.target == null ? null : Number(p.target) })),
       orders: orderRows,
       vos: voRows.filter((v) => v.status === 'agreed'),
-      allocations: allocations.map((a) => ({ ...a, share: Number(a.share) })),
+      allocations: allocations.map((a) => ({ ...a, share: Number(a.share), amount: a.amount == null ? null : Number(a.amount) })),
       costs: costs.map((c) => ({ ...c, total_cost: Number(c.total_cost ?? 0), last_reported: c.last_reported == null ? null : Number(c.last_reported) })),
       previousCosts: previousCosts?.map((c) => ({ ...c, total_cost: Number(c.total_cost ?? 0), last_reported: null })) ?? null,
       forecasts: forecasts.map((f) => ({ ...f, forecast: f.forecast == null ? null : Number(f.forecast) })),

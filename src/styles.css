@@ -335,6 +335,10 @@ td.late { color: var(--red); font-weight: 600; }
 select.unallocated { border-color: var(--red); }
 .split { display: flex; flex-direction: column; gap: 6px; }
 .split input[type='number'] { width: 64px; }
+.split input.split-gbp { width: 110px; text-align: right; }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; vertical-align: middle; }
+.segmented button { border: none; border-radius: 0; padding: 2px 12px; min-height: 0; background: #fff; }
+.segmented button.on { background: var(--navy); color: #fff; }
 .query-list { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); line-height: 1.6; max-height: 260px; overflow-y: auto; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .details.sums dd { text-align: right; }
