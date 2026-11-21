@@ -52,8 +52,8 @@ export default function ProcurementTab() {
       <thead>
         <tr>
           <th>{vo ? 'Variation' : 'Package'}</th>
-          <th className="num">{vo ? 'Value' : 'Budget'}</th>
           <th>Subcontractor</th>
+          <th className="num">{vo ? 'Value' : 'Budget'}</th>
           <th className="num">Order value</th>
           <th className="num">Lead time</th>
           <th>On site</th>
@@ -80,10 +80,10 @@ export default function ProcurementTab() {
                   {r.label}
                   {r.display_name && !vo && r.display_name !== r.description && <span className="muted small"> · SoW: {r.description}</span>}
                 </td>
+                <td data-label="Subcontractor">{company?.name ?? <span className="muted">–</span>}</td>
                 <td className="num" data-label={vo ? 'Value' : 'Budget'}>
                   {money(r.budget)}
                 </td>
-                <td data-label="Subcontractor">{company?.name ?? <span className="muted">–</span>}</td>
                 <td className="num" data-label="Order value">
                   {r.order_value != null ? money(r.order_value) : <span className="muted">–</span>}
                   {r.order_value != null && r.budget ? (

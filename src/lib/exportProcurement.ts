@@ -58,8 +58,8 @@ export async function exportProcurement({ job, contract, variations, tasks, comp
   const cols: Col[] = internal
     ? [
         { head: 'Package', width: 34, value: (r) => r.label, wrap: true },
-        { head: 'Budget (cost)', width: 13, value: (r) => (r.budget ? r.budget : null), fmt: GBP, align: 'right' },
         { head: 'Subcontractor', width: 24, value: company, wrap: true },
+        { head: 'Budget (cost)', width: 13, value: (r) => (r.budget ? r.budget : null), fmt: GBP, align: 'right' },
         { head: 'Order value', width: 13, value: (r) => r.order_value, fmt: GBP, align: 'right' },
         { head: '± budget', width: 11, value: (r) => (r.order_value != null && r.budget ? Math.round((r.order_value - r.budget) * 100) / 100 : null), fmt: GBP, align: 'right' },
         { head: 'Order no.', width: 14, value: (r) => r.order_no },
