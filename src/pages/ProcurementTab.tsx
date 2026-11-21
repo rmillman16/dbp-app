@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { addProcPackage, loadProcurement, rowDates, saveProcItem, saveSplit, type ProcItem, type ProcRow } from '../lib/procurement'
-import { STATUS_LABELS, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
+import { STATUS_LABELS, latestOrderDate, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
 import { suggestTasks } from '../lib/cashflowCalc'
 import type { ProgrammeTask } from '../lib/programme'
 import JobSowCard from '../components/JobSow'
@@ -198,8 +198,21 @@ export default function ProcurementTab() {
 
 // ---------- one package's (or VO's) details ----------
 function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boolean; data: Data; onSave: (i: ProcItem) => void; onCancel: () => void }) {
-  const [it, setIt] = useState<ProcItem>(row)
-  const set = (p: Partial<ProcItem>) => setIt({ ...it, ...p })
+  // the order date worked out (on site − lead time) once a package has both, and kept up to date
+  // as either changes until a date is typed in (Richard, 21 Nov)
+  const workedOut = (x: ProcItem) => {
+    if (x.lead_weeks == null) return null
+    const site = rowDates({ ...x, suggested: row.suggested }, data.tasks, today).onSite
+    return site ? latestOrderDate(site, x.lead_weeks, null) : null
+  }
+  // a saved date that's still the worked-out one carries on following the lead time / on-site date
+  const [typedDate, setTypedDate] = useState(row.order_date != null && row.order_date !== workedOut(row))
+  const [it, setIt] = useState<ProcItem>(() => (row.order_date == null ? { ...row, order_date: workedOut(row) } : row))
+  const set = (p: Partial<ProcItem>) => {
+    const next = { ...it, ...p }
+    if (!typedDate && !('order_date' in p)) next.order_date = workedOut(next)
+    setIt(next)
+  }
   const n = (v: string) => (v.trim() === '' ? null : Number(v))
   const suggested = useMemo(() => suggestTasks(row.label, data.tasks), [row.label, data.tasks])
   const { onSite, orderBy, flag } = rowDates({ ...it, suggested: row.suggested }, data.tasks, today)
@@ -253,7 +266,12 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
               value={it.order_id ?? ''}
               onChange={(e) => {
                 const o = data.orders.find((x) => x.id === e.target.value)
-                set(o ? { order_id: o.id, company_id: o.company_id, order_value: o.order_value, order_no: o.order_no, order_date: o.order_date } : { order_id: null })
+                if (o?.order_date) setTypedDate(true) // the order's own date stays
+                set(
+                  o
+                    ? { order_id: o.id, company_id: o.company_id, order_value: o.order_value, order_no: o.order_no, ...(o.order_date ? { order_date: o.order_date } : {}) }
+                    : { order_id: null },
+                )
               }}
             >
               <option value="">–</option>
@@ -276,7 +294,23 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
         </label>
         <label>
           Order date
-          <input type="date" value={it.order_date ?? ''} onChange={(e) => set({ order_date: e.target.value || null })} />
+          <input
+            type="date"
+            value={it.order_date ?? ''}
+            onChange={(e) => {
+              // typed: it stays; cleared: it's worked out again
+              const v = e.target.value || null
+              setTypedDate(v != null)
+              setIt({ ...it, order_date: v ?? workedOut(it) })
+            }}
+          />
+          <span className="hint">
+            {typedDate
+              ? 'Typed (clear it to work it out from the lead time)'
+              : it.order_date
+                ? 'Worked out: required on site − lead time. Type a date to change it'
+                : 'Fills in once there’s a lead time and a required on site date'}
+          </span>
         </label>
         <label>
           Lead time (weeks)
