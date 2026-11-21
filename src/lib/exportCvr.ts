@@ -438,7 +438,7 @@ export async function exportCvr(job: Job, cvr: Cvr, r: CvrResult, costs: SavedCo
   const fa = tot + 6
   big(fa, 'Final account projected')
   put(ws, `H${fa}`, r.value.agreedVos ? f(`H5+${r.value.agreedVos}`, r.value.contractSum + r.value.agreedVos) : f('H5', r.value.contractSum), { size: 16, bold: true, fmt: ACC })
-  if (r.value.agreedVos) note(fa, `Contract sum plus ${gbp(r.value.agreedVos)} agreed variations`)
+  if (r.value.agreedVos) note(fa, `SoW total plus ${gbp(r.value.agreedVos)} agreed variations`)
   big(fa + 1, 'Possible reduction / negotiations')
   put(ws, `H${fa + 1}`, r.value.possibleReduction, { size: 16, fmt: ACC, bg: GREY })
   const afv = tot + 9

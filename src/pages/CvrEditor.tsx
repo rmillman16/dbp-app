@@ -461,7 +461,7 @@ export default function CvrEditor() {
         <section className="card">
           <h3>Value and margin</h3>
           <dl className="details sums">
-            <dt>Contract sum</dt>
+            <dt>SoW total</dt>
             <dd>{money(result.value.contractSum)}</dd>
             <dt>Agreed variations</dt>
             <dd>{money(result.value.agreedVos)}</dd>

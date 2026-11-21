@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 import { cached, must } from './offline'
 import { todayIso } from './format'
 import { loadJobVariations } from './variations'
-import { frontSheet, latestRevisions, loadApplication, loadApplications, loadSowRevision, appName } from './applications'
+import { frontSheet, latestRevisions, loadApplication, loadApplications, loadCurrentSow, loadSowRevision, appName } from './applications'
 import { loadCompanies, loadOrders } from './subcontracts'
 import { loadEot, programme } from './eot'
 import { supplierKey, computeCvr, type Allocation, type CalcInput, type CvrResult, type Forecast, type Group } from './cvrCalc'
@@ -223,13 +223,21 @@ export async function loadContext(job: Job, cvr: Cvr, costs: SavedCostLine[], fo
     revisedPc = null
   }
 
+  // the value: always the SoW plus agreed variations (Richard, 21 Nov), not the contract sum typed on
+  // the job: the job's current SoW (Schedule of works), else the CVR budgets' SoW total
+  const sowRev = await loadCurrentSow(job.id)
+    .then((s) => s.rev)
+    .catch(() => null)
+  const sowTotal = sowRev?.total != null ? Number(sowRev.total) : job.cvr_budget_total != null ? Number(job.cvr_budget_total) : null
+
   return {
     packages,
     orders: orderRows.map(({ id, label, package_id }) => ({ id, label, package_id })),
     vos: voRows,
     input: {
-      contractSum: Number(job.contract_sum ?? job.cvr_budget_total ?? 0),
-      budgetTotal: job.cvr_budget_total,
+      contractSum: sowTotal ?? Number(job.contract_sum ?? 0),
+      budgetTotal: job.cvr_budget_total == null ? null : Number(job.cvr_budget_total),
+      enteredContractSum: job.contract_sum == null ? null : Number(job.contract_sum),
       epPct: Number(job.cvr_ep_pct ?? 4),
       packages: packages.map((p) => ({ ...p, budget: p.budget == null ? null : Number(p.budget), target: p.target == null ? null : Number(p.target) })),
       orders: orderRows,

@@ -8,7 +8,9 @@
 //              shows and reduces the margin (agreed 20 Nov; the KOSH sheet let it go negative)
 // OH&P, DuB management and DuB design are shown and omitted (forecast 0). Nothing is dropped:
 // costs not yet allocated, and agreed VOs not given a package, still count in the total cost.
-// Value = contract sum + agreed VOs (agreed only, 20 Nov) + possible reduction / negotiations.
+// Value = the SoW total + agreed VOs (agreed only, 20 Nov) + possible reduction / negotiations.
+// The SoW total, not the contract sum typed on the job (Richard, 21 Nov), which is only flagged
+// when it differs.
 // Preliminaries (agreed 20 Nov): the SoW prices prelims as one lump, kept as a "remainder"
 // package ("Preliminaries – not yet split"). The prelims sections (packages in the same group
 // with no budget of their own) draw it down: the lump's target is its budget less the sections'
@@ -88,8 +90,9 @@ export interface Forecast {
 }
 
 export interface CalcInput {
-  contractSum: number
+  contractSum: number // the SoW total (Richard, 21 Nov: "always on the SoW plus agreed variations")
   budgetTotal: number | null // office SoW total the budgets came from
+  enteredContractSum?: number | null // the contract sum typed on the job, only to flag a difference
   epPct: number
   packages: CalcPackage[]
   orders: CalcOrder[]
@@ -331,7 +334,11 @@ export function computeCvr(i: CalcInput): CvrResult {
   const ohp = sum((p) => (p.kind === 'omit' && /^(oh&p|ohp|overh)/i.test(p.name) ? p.budget : 0))
 
   if (i.budgetTotal != null && Math.abs(i.budgetTotal - i.contractSum) > 1)
-    warnings.push(`The contract sum (${gbp(i.contractSum)}) isn't the office SoW total the budgets came from (${gbp(i.budgetTotal)}): the budgets may be from a different revision.`)
+    warnings.push(`The SoW total (${gbp(i.contractSum)}) isn't the office SoW total the budgets came from (${gbp(i.budgetTotal)}): the budgets may be from a different revision.`)
+  if (i.enteredContractSum != null && Math.abs(i.enteredContractSum - i.contractSum) > 1)
+    warnings.push(
+      `The contract sum entered on the job (${gbp(i.enteredContractSum)}) isn't the SoW total (${gbp(i.contractSum)}): the CVR uses the SoW total plus agreed variations. Check the job's contract sum.`,
+    )
   if (!i.packages.length) warnings.push('No budgets yet: import the office SoW first.')
 
   return {

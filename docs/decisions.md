@@ -7,7 +7,6 @@
   - Cashflow: S-curve in the Excel (left out for now, 21 Nov).
 - **Open questions:**
   - Logo on the CVR sheets (top right clashes with Date prepared / Tender Values).
-  - Should the CVR's anticipated final value follow the SoW when it's above the contract sum?
   - Variations export colour key.
   - Payment notice contact check.
 - **With IT:** see `docs/questions-for-IT.md`.
@@ -358,6 +357,11 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **Costs:** the iPlicit Jobcost Report as Excel, read by its headings. Final Total Costs = invoiced + committed + unposted + provisions, so it includes committed POs. Each supplier (code + name, since CC04 covers several) is allocated to a package once and remembered for the job. A supplier can be split by % (e.g. Mudrak: tiles and timber floor). Unallocated costs still count in the total.
 - **Movement:** this month less last month's CVR, by supplier, so an increase shows as a plus. For the first CVR it uses the report's Last Reported column.
 - **Value and margin:** anticipated final value = contract sum + agreed VOs + possible reduction / negotiations. Margin = AFV − total cost.
+  - **Superseded (Richard, 21 Nov): "CVR should always be on the SoW plus agreed variations".**
+    - AFV = **the SoW total** (the job's current SoW, else the CVR budgets' SoW total) + agreed VOs + possible reduction.
+    - The contract sum typed on the job is only compared, with a warning when it differs.
+    - Shown as "SoW total" on the CVR. The export's Order Value / Final account projected follow it.
+    - On 2611 Micro this moves the AFV from £847,000 to £885,065.01.
 - **Interim position:** gross certified and retention from the latest assessed application. The programme block (start, original PC, duration, revised PC, weeks delay) comes from the job and the EOT tab.
 - **Status:** a CVR is a draft until finalised, then its figures are kept as issued.
 
