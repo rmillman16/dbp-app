@@ -25,6 +25,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `019_programme_and_cashflow.sql` | Programme import (DBP Timeline / P6 .xer: activities, sections, trades, dates) and the cashflow: the job's payment stages (Deposit, Progress, Delivery, Installation…, renamable) and each SoW section's / VO's linked activities and weighting | ✅ Run 20 Nov 2026 |
 | `020_cashflow_weight_by_amount.sql` | Cashflow: a package's stages weighted by £ as well as by % | ✅ Run 20 Nov 2026 |
 | `021_cashflow_trades.sql` | Cashflow by trade: the trade each package goes into (e.g. "Subbie – 9 Electrical installation" → Electrical), suggested and confirmed once per job | ✅ Run 21 Nov 2026 |
+| `022_cashflow_line_trades.sql` | Cashflow: each subcontract line's trade where it's overruled (the app picks it from the line's description) | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

@@ -38,6 +38,7 @@ export interface CfItem {
   value: number
   tasks: string[] // linked activities
   weights: CfWeight[]
+  curve?: number // adjust only: spread front-loaded over start on site to PC (the job's contract sum, for the front-load %), else pro rata
 }
 export interface CfTask {
   code: string
@@ -102,7 +103,7 @@ export function workingDaysByMonth(start: string, finish: string): Map<string, n
 export function addWorkingDays(start: string, n: number, shutdowns: { start: string; end: string }[] = []) {
   const shut = (d: Date) => shutdowns.some((s) => iso(d) >= s.start.slice(0, 10) && iso(d) <= s.end.slice(0, 10))
   const d = toDate(start)
-  for (let left = n; left > 0; ) {
+  for (let left = n; left > 0;) {
     d.setUTCDate(d.getUTCDate() + 1)
     if (isWeekday(d) && !shut(d)) left--
   }
@@ -116,7 +117,7 @@ const monthsBetween = (a: string, b: string) => {
   while (y < by || (y === by && m <= bm)) {
     out.push(`${y}-${String(m).padStart(2, '0')}`)
     m++
-    if (m > 12) (m = 1), y++
+    if (m > 12) ((m = 1), y++)
   }
   return out
 }
@@ -129,7 +130,11 @@ export function siteDates(tasks: CfTask[], job: { start: string | null; pc: stri
   const named = (re: RegExp) => tasks.find((t) => re.test(t.name))
   const works = tasks.filter((t) => !NOT_WORKS.test(t.trade ?? '') && !NOT_WORKS.test(t.section ?? ''))
   const first = works.map((t) => t.start_date).sort()[0] ?? null
-  const last = works.map((t) => t.finish_date).sort().pop() ?? null
+  const last =
+    works
+      .map((t) => t.finish_date)
+      .sort()
+      .pop() ?? null
   const start = named(/start\s+on\s+site|site\s+start|possession/i)?.start_date ?? job.start ?? first
   const pc = named(/practical\s+completion|^pc$|\bPC\b/i)?.finish_date ?? job.pc ?? last
   return { start, pc, fromProgramme: { start: !!named(/start\s+on\s+site|site\s+start|possession/i), pc: !!named(/practical\s+completion|^pc$|\bPC\b/i) } }
@@ -217,6 +222,114 @@ export function packageValues(
 // column is split by section in the CVR, "Subbie – 9 Electrical installation"; the cashflow is by
 // trade). Suggested from a shared word with the trade's name: "Electrical installation" →
 // Electrical, "Joinery, fixtures & fittings" → Joinery, "Floor finishes" → Flooring.
+// ---------- a subcontract line's trade (Richard, 21 Nov) ----------
+// The office SoW has one Subbie cost column; the CVR splits it by SoW section, and on some jobs
+// the sections are areas ("Basement 2 based on GPAD"), not trades. So each subcontract line gets
+// its trade from its description, which can be overruled per line. The trades on offer: the job's
+// own (its CVR packages) plus the usual fit-out trades.
+export const STANDARD_TRADES = [
+  'Strip out & demolition',
+  'Builderswork',
+  'Structural & steelwork',
+  'Fire stopping',
+  'Dry lining',
+  'Decorating',
+  'Joinery',
+  'Doors & ironmongery',
+  'Flooring',
+  'Screed',
+  'Tiling',
+  'Marble / Stone',
+  'Metalwork',
+  'Glass & mirrors',
+  'Electrical',
+  'Mechanical',
+  'Plumbing',
+  'Sanitaryware',
+  'Lift',
+  'Signage',
+  'External works',
+  'Cleaning',
+]
+// (in order: the first that matches wins; product names from the Micro and Corsham SoWs, 21 Nov)
+const LINE_HINTS: [RegExp, string][] = [
+  // the designer's finish codes say it first (WF01 wall finish, FF02 floor finish), unless it's glass
+  [/\bglass\b|glazing|mirror/i, 'Glass & mirrors'],
+  [/\bWF\s*-?\d/i, 'Decorating'],
+  [/\bFF\s*-?\d/i, 'Flooring'],
+  [/strip[\s-]*out|demoli|remov(e|al) (existing|of)|break out|soft strip/i, 'Strip out & demolition'],
+  [/fire\s*stop|fire barrier|intumescent|fire collar|firefly/i, 'Fire stopping'],
+  [/fire damper|\bdamper|\bac\b|a\/c|air[\s-]*con|mechanical|m\s*&\s*e|hvac|ventilat|ductwork|fan coil|\bfcu\b|extract|heating|chiller|vrf/i, 'Mechanical'],
+  [/builders?\s*work|bwic|core drill|forming opening|making good|make good|blockwork|brickwork|masonry/i, 'Builderswork'],
+  [/steel|structural|lintel|beam|padstone|\bslab\b|\brc\b|concrete|spreader|in[\s-]*situ/i, 'Structural & steelwork'],
+  [/clayworks|tadelakt|armourcoat|bauwerk|limewash|acoustic (plaster|spray)|sonaspray|polished plaster|venetian/i, 'Decorating'],
+  [/\bled\b|led tape|\bspot\b|pendant|sconce|wall light|lightbox|light box|downlight|luminaire|light feature|lighting|light fitting/i, 'Electrical'],
+  [/dry\s*lin|plasterboard|partition|stud wall|metal stud|ceiling|bulkhead|gypframe|gyproc|mf ceiling/i, 'Dry lining'],
+  [/paint|decorat|emulsion|wallpaper|wall covering|wall finish|eggshell/i, 'Decorating'],
+  [/door|ironmongery|\bframes?\b|\blocks?\b|handle/i, 'Doors & ironmongery'],
+  [/joinery|cupboard|vanity|cabinet|wardrobe|shelving|storage|worktop|refreshment point|timber panel|veneer|millwork|banquette/i, 'Joinery'],
+  [/screed|levelling/i, 'Screed'],
+  [/carpet|vinyl|lvt|flooring|floor finish|timber floor|parquet|matting|microcement|resin floor|nosing|\btreads?\b/i, 'Flooring'],
+  [/tile|tiling|grout/i, 'Tiling'],
+  [/marble|stone|terrazzo|granite|quartz/i, 'Marble / Stone'],
+  [/metalwork|balustrade|handrail|steel frame|bracket/i, 'Metalwork'],
+  [/glass|glazing|mirror|screen/i, 'Glass & mirrors'],
+  [/electric|power|socket|data|cabling|fire alarm|containment|distribution board/i, 'Electrical'],
+  [/plumb|drainage|soil|waste pipe|water|pipework|sprinkler/i, 'Plumbing'],
+  [/sanitary|wc\b|basin|shower|bath\b|urinal/i, 'Sanitaryware'],
+  [/\blift\b|elevator/i, 'Lift'],
+  [/sign(age)?\b|wayfinding/i, 'Signage'],
+  [/external|landscap|paving/i, 'External works'],
+  [/clean/i, 'Cleaning'],
+]
+// the trade for a subcontract line: a hint from its words, then the job's trade that matches it
+// (e.g. "Mechanical" → the job's "HVAC" package if that's what the CVR calls it), else the
+// standard trade. When the line doesn't say, its SoW section's name, where that's a trade
+// ("Electrical installation", "Builderswork (Northvale)"); an area ("Basement 2 based on GPAD")
+// never decides it. Null when nothing says.
+export function suggestLineTrade(description: string, jobTrades: string[], section?: string): string | null {
+  const own = readTrade(description, jobTrades)
+  if (own || !section) return own
+  const hint = LINE_HINTS.find(([re]) => re.test(section))?.[1]
+  return hint ? readTrade(section, jobTrades) : null
+}
+function readTrade(description: string, jobTrades: string[]): string | null {
+  const hint = LINE_HINTS.find(([re]) => re.test(description))?.[1]
+  const alias: Record<string, string> = {
+    Mechanical: 'mechanical hvac ventilation',
+    'Glass & mirrors': 'glass glazing mirrors',
+    'Doors & ironmongery': 'doors ironmongery joinery',
+  }
+  if (hint) {
+    const w = new Set(tradeWords(`${hint} ${alias[hint] ?? ''}`))
+    const own = jobTrades.find((t) => tradeWords(t).some((x) => w.has(x)))
+    return own ?? hint
+  }
+  const w = new Set(tradeWords(description))
+  return jobTrades.find((t) => tradeWords(t).some((x) => w.has(x))) ?? null
+}
+
+// ---------- the difference to the contract sum (Richard, 21 Nov) ----------
+// "split it across the timeline, front load by 10–20% depending on job size, then split and tail
+// off at the end": the first site month takes 20% on a job of £500k or less, falling to 10% at
+// £5m and over; the rest is even across the months, with the last two at ⅔ and ⅓ of a month.
+export function frontLoadPct(contractSum: number) {
+  const lo = 500_000
+  const hi = 5_000_000
+  if (contractSum <= lo) return 20
+  if (contractSum >= hi) return 10
+  return Math.round((20 - (10 * (contractSum - lo)) / (hi - lo)) * 10) / 10
+}
+export function curveWeights(n: number, contractSum: number): number[] {
+  if (n <= 0) return []
+  if (n === 1) return [1]
+  if (n === 2) return [0.6, 0.4]
+  const first = frontLoadPct(contractSum) / 100
+  const rest = Array.from({ length: n - 1 }, (_, i) => (i === n - 2 ? 1 / 3 : i === n - 3 && n > 3 ? 2 / 3 : 1))
+  const total = rest.reduce((s, w) => s + w, 0)
+  return [first, ...rest.map((w) => ((1 - first) * w) / total)]
+}
+
 // usual fit-out pairings for SoW section wording, as suggestions only (confirmed per job)
 const TRADE_HINTS: [RegExp, string][] = [
   [/ceiling/i, 'dry lining drylining'],
@@ -233,19 +346,45 @@ const tradeWords = (s: string) =>
     .map((w) => w.slice(0, 5))
 export function suggestTrade(name: string, trades: string[]): string | null {
   const own = name.replace(/^subbie\s*[–-]?\s*\d*\s*/i, '')
-  const mine = new Set(tradeWords(`${own} ${TRADE_HINTS.filter(([re]) => re.test(own)).map(([, w]) => w).join(' ')}`))
+  const mine = new Set(
+    tradeWords(
+      `${own} ${TRADE_HINTS.filter(([re]) => re.test(own))
+        .map(([, w]) => w)
+        .join(' ')}`,
+    ),
+  )
   let best: string | null = null
   let score = 0
   for (const t of trades) {
     if (t === name || /^subbie/i.test(t)) continue
     const s = tradeWords(t).filter((w) => mine.has(w)).length
-    if (s > score) (best = t), (score = s)
+    if (s > score) ((best = t), (score = s))
   }
   return best
 }
 
 // activities that look like they belong to an item: a shared word in the name, trade or section
-const STOP = new Set(['and', 'the', 'for', 'with', 'all', 'works', 'work', 'install', 'installation', 'supply', 'subbie', 'general', 'items', 'item', 'areas', 'area', 'level', 'floor', 'floors'])
+const STOP = new Set([
+  'and',
+  'the',
+  'for',
+  'with',
+  'all',
+  'works',
+  'work',
+  'install',
+  'installation',
+  'supply',
+  'subbie',
+  'general',
+  'items',
+  'item',
+  'areas',
+  'area',
+  'level',
+  'floor',
+  'floors',
+])
 const words = (s: string) =>
   s
     .toLowerCase()
@@ -291,7 +430,7 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
       if (!amount) continue
       if (w.timing === 'date') {
         if (w.on_date) add(monthOf(w.on_date), amount)
-        else (unplaced += amount), issues.push('a stage on a date has no date')
+        else ((unplaced += amount), issues.push('a stage on a date has no date'))
         continue
       }
       const codes = w.task_codes?.length ? w.task_codes : item.tasks
@@ -304,7 +443,16 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
         continue
       }
       if (w.timing === 'start') add(monthOf(found.map((t) => t.start_date).sort()[0]), amount)
-      else if (w.timing === 'end') add(monthOf(found.map((t) => t.finish_date).sort().pop()!), amount)
+      else if (w.timing === 'end')
+        add(
+          monthOf(
+            found
+              .map((t) => t.finish_date)
+              .sort()
+              .pop()!,
+          ),
+          amount,
+        )
       else {
         // by working day across every activity (overlapping activities each count)
         const days = new Map<string, number>()
@@ -317,7 +465,11 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
     const short = r2(item.value - weighted)
     if (item.weights.length && Math.abs(short) >= 0.005) {
       if (short > 0) unplaced += short
-      issues.push(byAmount ? `stages add up to £${weighted.toLocaleString('en-GB', { minimumFractionDigits: 2 })}, not the value` : `stages add up to ${r2((weighted / (item.value || 1)) * 100)}%, not 100%`)
+      issues.push(
+        byAmount
+          ? `stages add up to £${weighted.toLocaleString('en-GB', { minimumFractionDigits: 2 })}, not the value`
+          : `stages add up to ${r2((weighted / (item.value || 1)) * 100)}%, not 100%`,
+      )
     }
     return { item, by, unplaced: r2(unplaced), issues: [...new Set(issues)] }
   })
@@ -327,6 +479,12 @@ export function computeCashflow(i: CashflowInput): CashflowResult {
   const baseTotal = [...base.values()].reduce((s, v) => s + v, 0)
   for (const p of placed) {
     if (p.item.kind !== 'adjust' || !p.item.value) continue
+    // the difference to the contract sum: front-loaded across the site months, tailing off
+    if (p.item.curve != null && i.siteStart && i.pc) {
+      const site = monthsBetween(monthOf(i.siteStart), monthOf(i.pc))
+      curveWeights(site.length, p.item.curve).forEach((w, k) => p.by.set(site[k], p.item.value * w))
+      continue
+    }
     if (!baseTotal) {
       p.unplaced = p.item.value
       p.issues.push('nothing else is placed yet to spread it with')

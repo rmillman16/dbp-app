@@ -5,7 +5,19 @@ import { loadJobVariations, projectedValue } from './variations'
 import { loadProgramme } from './programme'
 import { loadBudgetLines, loadPackages } from './cvr'
 import { GROUP_LABELS, byGroupThenName, groupOf } from './cvrCalc'
-import { defaultWeights, packageValues, suggestTasks, suggestTrade, type CfItem, type CfStage, type CfWeight, type LineValue, type Timing } from './cashflowCalc'
+import {
+  STANDARD_TRADES,
+  defaultWeights,
+  packageValues,
+  suggestLineTrade,
+  suggestTasks,
+  suggestTrade,
+  type CfItem,
+  type CfStage,
+  type CfWeight,
+  type LineValue,
+  type Timing,
+} from './cashflowCalc'
 import type { Job } from './types'
 
 // the guide every job starts with (Richard, 20 Nov): renamed, added or removed per job.
@@ -90,6 +102,19 @@ export async function saveTrade(packageId: string, trade: string | null) {
 // a SoW line's own weighting is kept under this key (gone = it follows its trade)
 export const lineKey = (trade: string, line: string) => `line:${trade}::${line}`
 
+// a subcontract line and the trade it goes into (read from its description, or overruled)
+export interface LineTradeChoice extends LineValue {
+  section: string // the SoW section it's in (on some jobs an area)
+  trade: string
+  suggested: boolean // read from the description, not chosen
+}
+export const NO_TRADE = 'Subcontract – trade to choose'
+// null = back to the app's reading of the description (script 022)
+export async function saveLineTrade(jobId: string, line: string, trade: string | null) {
+  if (trade == null) await must1(supabase.from('cashflow_line_trades').delete().eq('job_id', jobId).eq('line_key', line))
+  else await must1(supabase.from('cashflow_line_trades').upsert({ job_id: jobId, line_key: line, trade }, { onConflict: 'job_id,line_key' }))
+}
+
 // the starting stages are made once per job: the page can load twice at the same moment, and
 // both used to see none and make a set each (found 20 Nov, everything doubled)
 const creating = new Map<string, Promise<void>>()
@@ -130,7 +155,9 @@ export async function loadCashflow(job: Job) {
     loadBudgetLines(job.id).catch(() => []),
     loadJobVariations(job),
     loadProgramme(job.id),
-    cached(`cashflow-items:${job.id}`, () => must<{ item_key: string; task_codes: string[] }[]>(supabase.from('cashflow_items').select('item_key, task_codes').eq('job_id', job.id))),
+    cached(`cashflow-items:${job.id}`, () =>
+      must<{ item_key: string; task_codes: string[] }[]>(supabase.from('cashflow_items').select('item_key, task_codes').eq('job_id', job.id)),
+    ),
     cached(`cashflow-weights:${job.id}`, () => must<SavedWeight[]>(supabase.from('cashflow_weights').select('*').eq('job_id', job.id))),
   ])
   const linked = new Map(items.map((i) => [i.item_key, i.task_codes ?? []]))
@@ -141,7 +168,14 @@ export async function loadCashflow(job: Job) {
     const tasks = chosen ?? inherit ?? (kind === 'package' ? suggestTasks(label, prog.tasks) : [])
     const saved = weights
       .filter((w) => w.item_key === key && stageIds.has(w.stage_id))
-      .map((w) => ({ stage_id: w.stage_id, pct: Number(w.pct), amount: w.amount == null ? null : Number(w.amount), timing: w.timing as Timing, task_codes: w.task_codes, on_date: w.on_date }))
+      .map((w) => ({
+        stage_id: w.stage_id,
+        pct: Number(w.pct),
+        amount: w.amount == null ? null : Number(w.amount),
+        timing: w.timing as Timing,
+        task_codes: w.task_codes,
+        on_date: w.on_date,
+      }))
     const defaulted = !saved.length
     return { key, label, kind, value, group, tasks, weights: defaulted ? defaultWeights({ kind, tasks }, stages) : saved, defaulted, suggested: !chosen && tasks.length > 0 }
   }
@@ -151,9 +185,19 @@ export async function loadCashflow(job: Job) {
     lines,
   )
   const byName = new Map(packages.map((p) => [p.name, p]))
-  const names = [...pv.values.keys()]
+  // the CVR's Subbie-by-section packages ("Subbie – 4 Basement 2 based on GPAD"): their lines go
+  // to trades one by one (below), as a section can be an area, not a trade (Richard, 21 Nov)
+  const bySection = (name: string) => /^subbie\s*[–-]\s*\d/i.test(name) && (pv.items.get(name)?.length ?? 0) > 0
+  const names = [...pv.values.keys()].filter((n) => !bySection(n))
+  const lineTrades = new Map(
+    (
+      await cached(`cashflow-line-trades:${job.id}`, () =>
+        must<{ line_key: string; trade: string }[]>(supabase.from('cashflow_line_trades').select('line_key, trade').eq('job_id', job.id)),
+      ).catch(() => [])
+    ).map((r) => [r.line_key, r.trade]),
+  )
 
-  // ---- packages into trades (Richard, 21 Nov): "Subbie – 9 Electrical installation" → Electrical ----
+  // ---- packages into trades (Richard, 21 Nov): e.g. Subbie Prelims → Preliminaries ----
   const choice = (name: string) => {
     const set = byName.get(name)?.cashflow_trade
     if (set === '') return { trade: name, suggested: false }
@@ -167,21 +211,36 @@ export async function loadCashflow(job: Job) {
     return t
   }
   const trades = new Map<string, { value: number; sources: string[]; lines: LineValue[] }>()
-  const choices: TradeChoice[] = []
-  for (const [name, value] of pv.values) {
-    const t = tradeOf(name)
-    const c = choice(name)
-    const p = byName.get(name)
-    if (p && (/^subbie/i.test(name) || p.cashflow_trade != null)) choices.push({ id: p.id, name, value, trade: t, suggested: c.suggested })
+  const addTo = (t: string, value: number, source: string, ls: LineValue[]) => {
     const tr = trades.get(t) ?? { value: 0, sources: [], lines: [] }
     tr.value += value
-    tr.sources.push(name)
-    for (const l of pv.items.get(name) ?? []) {
+    if (!tr.sources.includes(source)) tr.sources.push(source)
+    for (const l of ls) {
       const same = tr.lines.find((x) => x.key === l.key)
       if (same) same.value = Math.round((same.value + l.value) * 100) / 100
       else tr.lines.push({ ...l })
     }
     trades.set(t, tr)
+  }
+  const choices: TradeChoice[] = []
+  const lineChoices: LineTradeChoice[] = []
+  for (const [name, value] of pv.values) {
+    if (bySection(name)) {
+      // each subcontract line: its overruled trade, else read from its description
+      for (const l of pv.items.get(name) ?? []) {
+        const set = lineTrades.get(l.key)
+        const guess = suggestLineTrade(l.description, names, name.replace(/^subbie\s*[–-]\s*\d*\s*/i, ''))
+        const t = set ?? guess ?? NO_TRADE
+        lineChoices.push({ ...l, section: name.replace(/^subbie\s*[–-]\s*/i, ''), trade: t, suggested: !set })
+        addTo(t, l.value, name, [l])
+      }
+      continue
+    }
+    const t = tradeOf(name)
+    const c = choice(name)
+    const p = byName.get(name)
+    if (p && (/^subbie/i.test(name) || p.cashflow_trade != null)) choices.push({ id: p.id, name, value, trade: t, suggested: c.suggested })
+    addTo(t, value, name, pv.items.get(name) ?? [])
   }
 
   // ---- each trade, then its SoW lines that have their own weighting ----
@@ -190,7 +249,8 @@ export async function loadCashflow(job: Job) {
   const sorted = [...trades]
     .map(([name, t]) => {
       const p = byName.get(name)
-      return { name, t, group: groupOf({ kind: p?.kind ?? 'cost', name, cvr_group: p?.cvr_group ?? null }) }
+      // a standard trade made up of subcontract lines (not a CVR package of its own) is a subcontract
+      return { name, t, group: p ? groupOf({ kind: p.kind, name, cvr_group: p.cvr_group ?? null }) : ('subcontract' as const) }
     })
     .sort((a, b) => byGroupThenName({ group: a.group, name: a.name }, { group: b.group, name: b.name }))
   for (const { name, t, group } of sorted) {
@@ -206,17 +266,24 @@ export async function loadCashflow(job: Job) {
   }
   // priced lines with no cost in a package: VE omissions (Micro: −£29,459.81), OH&P-only lines
   if (pv.loose) list.push(make('adjust:margin', 'Omissions and OH&P not tied to a package', 'adjust', pv.loose, GROUP_LABELS.other))
+  // the difference to the contract sum: front-loaded across the site months, tailing off (21 Nov)
   const contract = job.contract_sum == null ? 0 : Math.round((Number(job.contract_sum) - pv.total) * 100) / 100
-  if (pv.total && contract) list.push(make('adjust:contract', 'Difference to the contract sum', 'adjust', contract, GROUP_LABELS.other))
+  if (pv.total && contract) list.push({ ...make('adjust:contract', 'Difference to the contract sum', 'adjust', contract, GROUP_LABELS.other), curve: Number(job.contract_sum) })
   for (const v of vos) {
     if (v.vo.status !== 'agreed' && v.vo.status !== 'issued') continue
-    list.push(make(`vo:${v.vo.id}`, `VO ${v.vo.vo_no} – ${v.vo.title}`, v.vo.status === 'agreed' ? 'vo' : 'vo_risk', Math.round(projectedValue(v.vo, v.build) * 100) / 100, 'Variations'))
+    list.push(
+      make(`vo:${v.vo.id}`, `VO ${v.vo.vo_no} – ${v.vo.title}`, v.vo.status === 'agreed' ? 'vo' : 'vo_risk', Math.round(projectedValue(v.vo, v.build) * 100) / 100, 'Variations'),
+    )
   }
   return {
     stages,
     items: list,
     choices,
+    lineChoices,
+    // what a line can go into: the job's trades and the usual fit-out trades
+    tradeOptions: [...new Set([...names.filter((n) => byName.get(n)?.kind !== 'omit'), ...STANDARD_TRADES])].sort((a, b) => a.localeCompare(b, 'en-GB')),
     trades: sorted.map((s) => s.name),
+    contractDiff: contract,
     programme: prog.programme,
     tasks: prog.tasks,
     sowTotal: pv.total,

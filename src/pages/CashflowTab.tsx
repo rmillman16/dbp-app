@@ -2,8 +2,33 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseProgramme, saveProgramme, type ParsedProgramme, type ProgrammeTask } from '../lib/programme'
-import { addStage, deleteStage, loadCashflow, moveStage, renameStage, saveItem, saveTrade, type CashflowItem, type TradeChoice } from '../lib/cashflow'
-import { SITE, SITE_LABEL, TIMING_LABELS, computeCashflow, siteDates, suggestTasks, type CashflowResult, type CfStage, type CfWeight, type Timing } from '../lib/cashflowCalc'
+import {
+  NO_TRADE,
+  addStage,
+  deleteStage,
+  loadCashflow,
+  moveStage,
+  renameStage,
+  saveItem,
+  saveLineTrade,
+  saveTrade,
+  type CashflowItem,
+  type LineTradeChoice,
+  type TradeChoice,
+} from '../lib/cashflow'
+import {
+  SITE,
+  SITE_LABEL,
+  TIMING_LABELS,
+  computeCashflow,
+  frontLoadPct,
+  siteDates,
+  suggestTasks,
+  type CashflowResult,
+  type CfStage,
+  type CfWeight,
+  type Timing,
+} from '../lib/cashflowCalc'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
@@ -83,11 +108,14 @@ export default function CashflowTab() {
         onDelete={(s) => confirm(`Remove the "${s.name}" stage? Any % given to it on a section goes too.`) && run(() => deleteStage(s.id))}
         onMove={(a, b) => run(() => moveStage(a, b))}
       />
-      {data.choices.length > 0 && (
+      {(data.choices.length > 0 || data.lineChoices.length > 0) && (
         <TradesCard
           choices={data.choices}
+          lineChoices={data.lineChoices}
           trades={data.trades}
+          options={data.tradeOptions}
           onChoose={(c, trade) => run(() => saveTrade(c.id, trade))}
+          onChooseLine={(l, trade) => run(() => saveLineTrade(job.id, l.key, trade))}
           onConfirmAll={() => run(() => Promise.all(data.choices.filter((c) => c.suggested).map((c) => saveTrade(c.id, c.trade))), 'Trades confirmed.')}
         />
       )}
@@ -212,6 +240,14 @@ export default function CashflowTab() {
           {result.atRiskTotal ? <span className="muted"> · issued VOs at risk {money(result.atRiskTotal)}</span> : null}
           {result.unplaced ? <span className="late"> · {money(result.unplaced)} not placed</span> : <span className="ok"> · all placed ✓</span>}
         </p>
+        {/* a big difference means the SoW isn't the whole contract (2701: 47%, found 21 Nov) */}
+        {job.contract_sum != null && Number(job.contract_sum) !== 0 && Math.abs(data.contractDiff) > Math.abs(Number(job.contract_sum)) * 0.03 ? (
+          <p className="warning">
+            The office SoW ({money(data.sowTotal)}) is {money(Math.abs(data.contractDiff))} {data.contractDiff > 0 ? 'less' : 'more'} than the contract sum (
+            {money(job.contract_sum)}), {Math.round((Math.abs(data.contractDiff) / Number(job.contract_sum)) * 100)}% of it: check the contract sum, or import the full office SoW.
+            Until then the difference is spread across start on site to PC, {frontLoadPct(Number(job.contract_sum))}% in the first month, then evenly, tailing off at the end.
+          </p>
+        ) : null}
       </section>
 
       <Forecast result={result} retentionPct={Number(job.retention_pct ?? 0)} siteStart={siteStart} pc={pc} />
@@ -395,57 +431,115 @@ function StagesCard({
   )
 }
 
-// ---------- packages into trades ----------
-// The CVR's "Subbie – 9 Electrical installation" style packages (the Micro SoW's one Subbie column
-// split by section) each go into a trade, suggested and confirmed once per job (Richard, 21 Nov).
+// ---------- subcontract items into trades ----------
+// The SoW's subcontract lines (one Subbie column, split by SoW section in the CVR, and on some jobs
+// the sections are areas) each go into a trade read from the line's description, with a dropdown
+// to overrule it; other packages such as Subbie Prelims go in whole (Richard, 21 Nov).
 function TradesCard({
   choices,
+  lineChoices,
   trades,
+  options,
   onChoose,
+  onChooseLine,
   onConfirmAll,
 }: {
   choices: TradeChoice[]
+  lineChoices: LineTradeChoice[]
   trades: string[]
+  options: string[]
   onChoose: (c: TradeChoice, trade: string | null) => void
+  onChooseLine: (l: LineTradeChoice, trade: string | null) => void
   onConfirmAll: () => void
 }) {
   const unconfirmed = choices.filter((c) => c.suggested).length
+  const noTrade = lineChoices.filter((l) => l.trade === NO_TRADE).length
+  const sections = [...new Set(lineChoices.map((l) => l.section))]
   return (
     <section className="card">
-      <details className="fold" open={unconfirmed > 0}>
+      <details className="fold" open={unconfirmed > 0 || noTrade > 0}>
         <summary>
           <h2>Subcontract items into trades</h2>
-          <span className={unconfirmed ? 'late small' : 'muted small'}>{unconfirmed ? `${unconfirmed} suggested, not yet confirmed` : `${choices.length} placed in trades`}</span>
+          <span className={unconfirmed || noTrade ? 'late small' : 'muted small'}>
+            {[
+              lineChoices.length ? `${lineChoices.length} subcontract lines` : '',
+              noTrade ? `${noTrade} with no trade yet` : '',
+              unconfirmed ? `${unconfirmed} package${unconfirmed === 1 ? '' : 's'} suggested, not yet confirmed` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
         </summary>
-        <p className="muted small">
-          The CVR keeps the SoW's subcontract items by SoW section; the cashflow weights them with the trade they belong to. Check each one goes into the right trade (or keep it as
-          a row of its own).
-        </p>
-        <table className="table stack">
-          <tbody>
-            {choices.map((c) => (
-              <tr key={c.id}>
-                <td className="stack-title">{c.name}</td>
-                <td className="num" data-label="Value">
-                  {money(c.value)}
-                </td>
-                <td data-label="Goes into">
-                  <select value={c.trade === c.name ? '' : c.trade} onChange={(e) => onChoose(c, e.target.value)}>
-                    <option value="">its own row</option>
-                    {trades
-                      .filter((t) => t !== c.name)
-                      .map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
+        {lineChoices.length > 0 && (
+          <>
+            <p className="muted small">
+              The SoW's subcontract lines are grouped by SoW section, which can be an area rather than a trade. Each line's trade is read from its description: change any that are
+              wrong (the choice is kept); a line with no trade yet is spread with the rest until you choose one.
+            </p>
+            <table className="table stack cf-line-trades">
+              <tbody>
+                {sections.map((s) => (
+                  <Fragment key={s}>
+                    <tr className="group-head">
+                      <td colSpan={3}>{s}</td>
+                    </tr>
+                    {lineChoices
+                      .filter((l) => l.section === s)
+                      .map((l) => (
+                        <tr key={`${s}|${l.key}`} className={l.trade === NO_TRADE ? 'overrun' : ''}>
+                          <td className="stack-title">
+                            <span className="muted">{l.ref}</span> {l.description}
+                          </td>
+                          <td className="num" data-label="Value">
+                            {money(l.value)}
+                          </td>
+                          <td data-label="Trade">
+                            <select value={l.trade === NO_TRADE ? '' : l.trade} onChange={(e) => onChooseLine(l, e.target.value || null)}>
+                              <option value="">– choose a trade –</option>
+                              {[...new Set([...options, ...(l.trade !== NO_TRADE ? [l.trade] : [])])].map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                            {l.suggested && l.trade !== NO_TRADE && <span className="muted small"> from the description</span>}
+                          </td>
+                        </tr>
                       ))}
-                  </select>
-                  {c.suggested && <span className="muted small"> suggested</span>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+        {choices.length > 0 && <p className="muted small">Other subcontract packages go into a trade whole: check each one (or keep it as a row of its own).</p>}
+        {choices.length > 0 && (
+          <table className="table stack">
+            <tbody>
+              {choices.map((c) => (
+                <tr key={c.id}>
+                  <td className="stack-title">{c.name}</td>
+                  <td className="num" data-label="Value">
+                    {money(c.value)}
+                  </td>
+                  <td data-label="Goes into">
+                    <select value={c.trade === c.name ? '' : c.trade} onChange={(e) => onChoose(c, e.target.value)}>
+                      <option value="">its own row</option>
+                      {trades
+                        .filter((t) => t !== c.name)
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                    </select>
+                    {c.suggested && <span className="muted small"> suggested</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
         {unconfirmed > 0 && (
           <div className="form-actions">
             <button className="primary" onClick={onConfirmAll}>
