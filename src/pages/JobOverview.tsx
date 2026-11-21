@@ -4,6 +4,7 @@ import { money, ukDate } from '../lib/format'
 import { useNotifications } from '../lib/notifications'
 import { loadJobVariations, projectedValue, type VoWithLines } from '../lib/variations'
 import NotificationList from '../components/NotificationList'
+import JobSowCard from '../components/JobSow'
 import { downloadValuationCalendar, valuationDates } from '../lib/calendar'
 import { useJob } from './JobLayout'
 
@@ -25,6 +26,9 @@ export default function JobOverview() {
 
   return (
     <div className="overview-grid">
+      {/* the job's one SoW: Valuations, CVR and Cashflow all use it (Richard, 21 Nov) */}
+      <JobSowCard className="span-all" />
+
       <section className="card">
         <h2>Job details</h2>
         <dl className="details">
@@ -52,8 +56,8 @@ export default function JobOverview() {
         ) : (
           <>
             <p className="muted small">
-              Valuation starts one week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. The reminder
-              shows on the bell in that last week.
+              Valuation starts one week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. The reminder shows on
+              the bell in that last week.
             </p>
             <ul className="date-list">
               {valuationDates(job)

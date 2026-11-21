@@ -75,6 +75,8 @@ export async function exportCashflow({ job, items, result, actuals, siteStart, p
     ['Job no', `${job.job_no} ${job.code}`],
     ['Prepared', excelDate(`${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`), 'dd/mm/yyyy'],
     ['Contract sum', Number(job.contract_sum ?? 0), '£#,##0.00'],
+    // the SoW's total where that's higher than the contract sum entered (21 Nov)
+    ['Forecast total', result.total, '£#,##0.00'],
     ['Start on site / PC', `${siteStart ? siteStart.split('-').reverse().join('/') : '–'} to ${pc ? pc.split('-').reverse().join('/') : '–'}`],
     ['Retention', `${Number(job.retention_pct ?? 0)}%, halved from PC`],
   ]
@@ -82,7 +84,7 @@ export async function exportCashflow({ job, items, result, actuals, siteStart, p
     put(ws, 3 + i, 1, k, { bold: true })
     put(ws, 3 + i, 2, v, { fmt, align: 'left' })
   })
-  put(ws, 9, 1, `Excl. VAT. Valuations at month end.${programmeName ? ` From the programme "${programmeName}".` : ''}`, { italic: true, size: 9 })
+  put(ws, 10, 1, `Excl. VAT. Valuations at month end.${programmeName ? ` From the programme "${programmeName}".` : ''}`, { italic: true, size: 9 })
 
   // ---- the trades by month ----
   const H = 11

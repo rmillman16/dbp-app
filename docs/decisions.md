@@ -378,6 +378,15 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
   - The summary's order values link to the target row, and OH&P to the OH&P total, as on the KOSH sheet.
 - **The SoW lines are now kept** (script 018, table `cvr_budget_lines`). Re-import the office SoW once to fill them for a job.
 - **One import for both (Richard, 21 Nov):** importing the **office SoW on the Applications tab** also updates the CVR budgets and their lines from its cost columns. It's a tick box, on by default, and typed targets, notes, orders and allocations are kept. A client SoW (no cost columns) leaves the CVR as it is.
+- **One SoW for the whole job (Richard, 21 Nov):** "the overview page should also be where you upload the SoW which filters through for valuations, cashflow and CVR, but have the ability to swap it within any tab and it updates across the board".
+  - A shared **Schedule of works** card sits on the job **Overview**, and the same card is on **Applications**, **CVR** and **Cashflow**.
+  - It shows what each side is using: Valuations (revision, lines, total, file) and CVR / Cashflow (total, file). It warns when the two came from different files.
+  - One import reads both sides of the file:
+    - the priced lines go to Valuations;
+    - the cost columns go to the CVR budgets, their lines and the Cashflow, with targets, notes, orders, allocations and cashflow weightings kept.
+    - A client SoW updates Valuations only. A CVR breakdown tab (KOSH layout) updates the CVR and Cashflow only.
+  - The CVR tab's separate budget import is gone; its Budgets card now points to the shared card.
+- **Cashflow total (Richard, 21 Nov):** "needs to be based off the SoW, not the entered contract sum, when the SoW figure is higher". Where the SoW comes to more than the contract sum entered, the cashflow totals the SoW (no negative difference row; a note says so). Where the contract sum is higher, the difference is still warned about and spread, as above. The Excel shows a "Forecast total" line under the contract sum.
 - **Tested:**
   - Excel recalculates both files with no errors. Total Cost, AFV and margin equal the app to the penny (KOSH with an order, VOs and a 50/50 split; Micro with a prelims section and an overspend).
   - The KOSH lines rebuild every package budget and the £947,680.16 SoW total. OH&P is £113,978.56, 1p from the sheet's £113,978.57 because lines are kept to the penny.

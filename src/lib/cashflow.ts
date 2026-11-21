@@ -312,8 +312,11 @@ export async function loadCashflow(job: Job) {
   }
   // priced lines with no cost in a package: VE omissions (Micro: −£29,459.81), OH&P-only lines
   if (pv.loose) list.push(make('adjust:margin', 'Omissions and OH&P not tied to a package', 'adjust', pv.loose, GROUP_LABELS.other))
-  // the difference to the contract sum: front-loaded across the site months, tailing off (21 Nov)
-  const contract = job.contract_sum == null ? 0 : Math.round((Number(job.contract_sum) - pv.total) * 100) / 100
+  // the difference to the contract sum: front-loaded across the site months, tailing off (21 Nov).
+  // Only when the contract sum is higher: where the SoW comes to more than the contract sum
+  // entered, the cashflow is the SoW's (Richard, 21 Nov), with no negative difference.
+  const gap = job.contract_sum == null ? 0 : Math.round((Number(job.contract_sum) - pv.total) * 100) / 100
+  const contract = Math.max(0, gap)
   if (pv.total && contract) list.push({ ...make('adjust:contract', 'Difference to the contract sum', 'adjust', contract, GROUP_LABELS.other), curve: Number(job.contract_sum) })
   for (const v of vos) {
     if (v.vo.status !== 'agreed' && v.vo.status !== 'issued') continue
@@ -330,6 +333,7 @@ export async function loadCashflow(job: Job) {
     tradeOptions: [...new Set([...names.filter((n) => byName.get(n)?.kind !== 'omit'), ...STANDARD_TRADES])].sort((a, b) => a.localeCompare(b, 'en-GB')),
     trades: sorted.map((s) => s.name),
     contractDiff: contract,
+    sowAbove: Math.max(0, -gap), // the SoW is this much more than the contract sum entered
     programme: prog.programme,
     tasks: prog.tasks,
     sowTotal: pv.total,

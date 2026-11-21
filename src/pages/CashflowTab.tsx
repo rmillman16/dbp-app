@@ -31,6 +31,7 @@ import {
   type CfWeight,
   type Timing,
 } from '../lib/cashflowCalc'
+import JobSowCard from '../components/JobSow'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
@@ -104,6 +105,8 @@ export default function CashflowTab() {
 
   return (
     <>
+      {/* the job's one SoW: the trades come from its cost columns (swapping it updates Valuations and CVR too) */}
+      <JobSowCard onChanged={reload} />
       <ProgrammeCard data={data} onSave={(p, name) => run(() => saveProgramme(job.id, p, name), `Programme imported: ${p.tasks.length} activities.`)} />
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
@@ -247,13 +250,19 @@ export default function CashflowTab() {
           {result.unplaced ? <span className="late"> · {money(result.unplaced)} not placed</span> : <span className="ok"> · all placed ✓</span>}
         </p>
         {/* a big difference means the SoW isn't the whole contract (2701: 47%, found 21 Nov) */}
-        {job.contract_sum != null && Number(job.contract_sum) !== 0 && Math.abs(data.contractDiff) > Math.abs(Number(job.contract_sum)) * 0.03 ? (
+        {job.contract_sum != null && Number(job.contract_sum) !== 0 && data.contractDiff > Number(job.contract_sum) * 0.03 ? (
           <p className="warning">
-            The office SoW ({money(data.sowTotal)}) is {money(Math.abs(data.contractDiff))} {data.contractDiff > 0 ? 'less' : 'more'} than the contract sum (
-            {money(job.contract_sum)}), {Math.round((Math.abs(data.contractDiff) / Number(job.contract_sum)) * 100)}% of it: check the contract sum, or import the full office SoW.
-            Until then the difference is spread across start on site to PC, {frontLoadPct(Number(job.contract_sum))}% in the first month, then evenly, tailing off at the end.
+            The office SoW ({money(data.sowTotal)}) is {money(data.contractDiff)} less than the contract sum ({money(job.contract_sum)}),{' '}
+            {Math.round((data.contractDiff / Number(job.contract_sum)) * 100)}% of it: check the contract sum, or import the full office SoW. Until then the difference is spread
+            across start on site to PC, {frontLoadPct(Number(job.contract_sum))}% in the first month, then evenly, tailing off at the end.
           </p>
         ) : null}
+        {/* the SoW comes to more than the contract sum entered: the cashflow follows the SoW (21 Nov) */}
+        {data.sowAbove >= 0.01 && (
+          <p className="muted small">
+            The office SoW ({money(data.sowTotal)}) is {money(data.sowAbove)} more than the contract sum entered ({money(job.contract_sum)}): the cashflow follows the SoW.
+          </p>
+        )}
       </section>
 
       <Forecast
