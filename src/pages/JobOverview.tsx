@@ -26,9 +26,6 @@ export default function JobOverview() {
 
   return (
     <div className="overview-grid">
-      {/* the job's one SoW: Valuations, CVR and Cashflow all use it (Richard, 21 Nov) */}
-      <JobSowCard className="span-all" />
-
       <section className="card">
         <h2>Job details</h2>
         <dl className="details">
@@ -74,6 +71,14 @@ export default function JobOverview() {
             {calMsg && <p className="small">{calMsg}</p>}
           </>
         )}
+      </section>
+
+      {/* the job's one SoW (Valuations, CVR and Cashflow all use it), small, with the to-do list beside it (21 Nov) */}
+      <JobSowCard compact />
+
+      <section className="card">
+        <h2>To do</h2>
+        <p className="muted small">The job's to-do list will go here (to build).</p>
       </section>
 
       <section className="card">

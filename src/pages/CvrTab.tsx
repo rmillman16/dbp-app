@@ -9,6 +9,7 @@ import { addPackage, countBudgetLines, createCvr, linkOrder, loadCvrs, loadPacka
 import { loadCompanies, loadOrders } from '../lib/subcontracts'
 import type { Cvr, CvrPackage, Job } from '../lib/types'
 import JobSowCard from '../components/JobSow'
+import { parseOldCvr, removeOldCvr, saveOldCvr } from '../lib/cvrUpload'
 import { useJob } from './JobLayout'
 
 const KIND_LABELS: Record<CvrPackage['kind'], string> = { cost: 'Cost', omit: 'Shown and omitted', ep: 'EP / contingency' }
@@ -52,16 +53,53 @@ export default function CvrTab() {
     if (!r.error) setJob(r.data as Job)
   }
 
+  // a CVR done the old way in Excel (Richard, 21 Nov): read, confirmed, kept as a final CVR
+  const [msg, setMsg] = useState<string | null>(null)
+  async function upload(f: File) {
+    setError(null)
+    setMsg(null)
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    try {
+      const p = await parseOldCvr(await f.arrayBuffer())
+      if (!p.periodEnd) throw new Error('The "Cost as at" date wasn’t found on the CVR sheet, so it can’t be filed by month.')
+      const same = cvrs.find((c) => c.period_end === p.periodEnd)
+      const lines = [
+        `Upload this CVR done in Excel (sheet "${p.sheet}")?`,
+        '',
+        `Cost as at ${ukDate(p.periodEnd)}${p.prepared ? `, prepared ${ukDate(p.prepared)}` : ''}`,
+        `Anticipated final value ${money(p.afv)}`,
+        `Total cost ${money(p.totalCost)}`,
+        `Margin ${money(p.margin)}${p.marginPct != null ? ` (${(p.marginPct * 100).toFixed(2)}%)` : ''}`,
+        `${p.suppliers.length} suppliers' costs (${money(p.suppliers.reduce((s, l) => s + l.total_cost, 0))}), kept so next month's CVR shows the movement`,
+        same ? `\nThere's already a CVR as at ${ukDate(p.periodEnd)}: this is added alongside it.` : '',
+      ]
+      if (!confirm(lines.join('\n'))) return
+      await saveOldCvr(job, p, f.name)
+      setMsg(`CVR as at ${ukDate(p.periodEnd)} uploaded.`)
+      reload()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const uploaded = (c: Cvr) => !!(c.summary as { uploaded?: boolean } | null)?.uploaded
+
   return (
     <>
       <section className="card">
         <div className="pane-head">
           <h2>CVRs</h2>
-          <button className="primary" onClick={() => setNewCvr(true)} disabled={!packages?.length} title={packages?.length ? '' : 'Import the budgets first'}>
-            + New CVR
-          </button>
+          <div className="form-actions">
+            <label className="file-button" title="A CVR done in Excel the old way (the KOSH layout): its figures and supplier costs are kept">
+              <input type="file" accept=".xlsx,.xlsm" onChange={(e) => (e.target.files?.[0] && upload(e.target.files[0]), (e.target.value = ''))} />
+              <span className="button">Upload a CVR (Excel)…</span>
+            </label>
+            <button className="primary" onClick={() => setNewCvr(true)} disabled={!packages?.length} title={packages?.length ? '' : 'Import the budgets first'}>
+              + New CVR
+            </button>
+          </div>
         </div>
         {error && <p className="error">{error}</p>}
+        {msg && <p className="saved">{msg}</p>}
         {newCvr && <NewCvr job={job} after={cvrs[cvrs.length - 1]?.period_end ?? null} onDone={(id) => navigate(id)} onCancel={() => setNewCvr(false)} />}
         {cvrs.length === 0 && !newCvr && <p className="muted small">No CVRs yet. Each month: run the job costing report in iPlicit, save it as Excel, then + New CVR.</p>}
         {cvrs.length > 0 && (
@@ -77,11 +115,27 @@ export default function CvrTab() {
             </thead>
             <tbody>
               {[...cvrs].reverse().map((c) => (
-                <tr key={c.id} className="clickable" onClick={() => navigate(c.id)}>
+                <tr key={c.id} className={uploaded(c) ? '' : 'clickable'} onClick={() => !uploaded(c) && navigate(c.id)}>
                   <td className="stack-title">
                     <strong>{ukDate(c.period_end)}</strong>
                   </td>
-                  <td data-label="Status">{c.status === 'final' ? 'Final' : 'Draft'}</td>
+                  <td data-label="Status">
+                    {uploaded(c) ? (
+                      <>
+                        Done in Excel{' '}
+                        <button
+                          className="link-button small"
+                          onClick={() => confirm(`Remove the uploaded CVR as at ${ukDate(c.period_end)}?`) && removeOldCvr(c.id, c.cost_import_id).then(reload, (e: Error) => setError(e.message))}
+                        >
+                          remove
+                        </button>
+                      </>
+                    ) : c.status === 'final' ? (
+                      'Final'
+                    ) : (
+                      'Draft'
+                    )}
+                  </td>
                   <td className="num" data-label="Anticipated final value">
                     {c.summary ? money(c.summary.value.afv) : '–'}
                   </td>

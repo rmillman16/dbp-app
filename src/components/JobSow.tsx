@@ -14,7 +14,8 @@ import { createApplicationFromImport, importSow, loadApplications, loadCurrentSo
 import type { Job, SowLine, SowRevision } from '../lib/types'
 import { useJob } from '../pages/JobLayout'
 
-export default function JobSowCard({ onChanged, note, className = '' }: { onChanged?: () => void; note?: string; className?: string }) {
+// compact: the small Overview box (file, revision and total only); it widens while importing
+export default function JobSowCard({ onChanged, note, className = '', compact = false }: { onChanged?: () => void; note?: string; className?: string; compact?: boolean }) {
   const { job, setJob } = useJob()
   const [sow, setSow] = useState<{ rev: SowRevision | null; lines: SowLine[] } | null>(null)
   const [hasApps, setHasApps] = useState(false)
@@ -43,7 +44,7 @@ export default function JobSowCard({ onChanged, note, className = '' }: { onChan
   // the two halves came from different files: say so (it usually means one wasn't re-imported)
   const differ = rev?.file_name && job.cvr_budget_file && rev.file_name !== job.cvr_budget_file
   return (
-    <section className={`card ${className}`}>
+    <section className={`card ${className} ${compact && importing ? 'span-all' : ''}`}>
       <div className="pane-head">
         <h2>Schedule of works</h2>
         {!importing && (
@@ -52,12 +53,35 @@ export default function JobSowCard({ onChanged, note, className = '' }: { onChan
           </button>
         )}
       </div>
-      <p className="muted small">
-        {note ??
-          'One SoW for the whole job: Valuations use its priced lines; the CVR and Cashflow use the office SoW’s cost columns. Swapping it here or on any of those tabs updates them all.'}
-      </p>
+      {(!compact || importing) && (
+        <p className="muted small">
+          {note ??
+            'One SoW for the whole job: Valuations use its priced lines; the CVR and Cashflow use the office SoW’s cost columns. Swapping it here or on any of those tabs updates them all.'}
+        </p>
+      )}
       {error && <p className="error">{error}</p>}
-      {!importing && (
+      {compact && !importing && (
+        <p className="small">
+          {rev ? (
+            <>
+              <strong>{rev.revision}</strong> · {money(rev.total)} · {rev.file_name}
+            </>
+          ) : job.cvr_budget_file ? (
+            <>
+              {money(job.cvr_budget_total)} · {job.cvr_budget_file}
+            </>
+          ) : (
+            <span className="muted">Not imported yet. Valuations, the CVR and the Cashflow all use it.</span>
+          )}
+          {(rev || job.cvr_budget_file) && (
+            <span className="muted small">
+              {' '}
+              · used by Valuations{rev ? ' ✓' : ' (not yet)'}, CVR and Cashflow{job.cvr_budget_file ? ' ✓' : ' (needs the office SoW)'}
+            </span>
+          )}
+        </p>
+      )}
+      {!compact && !importing && (
         <dl className="details sow-status">
           <dt>Valuations</dt>
           <dd>

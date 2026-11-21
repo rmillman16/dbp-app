@@ -1,4 +1,17 @@
 
+## Still to build (the list, kept up to date)
+- **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
+- **Modules still to come (build order):** procurement schedule, sampling tracker, progress reports, O&M / H&S file.
+- **To revisit after use:**
+  - CVR Excel export (KOSH layout): Richard will come back with changes.
+  - Cashflow: S-curve in the Excel (left out for now, 21 Nov).
+- **Open questions:**
+  - Logo on the CVR sheets (top right clashes with Date prepared / Tender Values).
+  - Should the CVR's anticipated final value follow the SoW when it's above the contract sum?
+  - Variations export colour key.
+  - Payment notice contact check.
+- **With IT:** see `docs/questions-for-IT.md`.
+
 ## Web app direction (19 Nov) — supersedes the Excel-macro route
 - Commercial tools become a section of the DBP super app (web app, Supabase). Excel is import/export only; no macros. The restyled templates are the export layouts.
 - Build order: **Variations first**, then applications, then subcontract payment notices.
@@ -386,6 +399,12 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
     - the cost columns go to the CVR budgets, their lines and the Cashflow, with targets, notes, orders, allocations and cashflow weightings kept.
     - A client SoW updates Valuations only. A CVR breakdown tab (KOSH layout) updates the CVR and Cashflow only.
   - The CVR tab's separate budget import is gone; its Budgets card now points to the shared card.
+- **Upload a CVR done in Excel (Richard, 21 Nov):** "next to New CVR have a button for upload CVR so you can upload one you've done in Excel for the old-school ways".
+  - The CVR tab has **"Upload a CVR (Excel)…"**. It reads the KOSH-layout summary sheet ("Interim Cost Value Reconciliation"; the app's export has the same layout) by its labels: Cost as at, Date prepared, Order Value, Jobcost Report, Total Cost, Final account projected, Possible reduction, Anticipated Final Value, Gross margin, Gross margin %, Gross Certified. It also reads the suppliers under "Name / Company" (code, name, "Included in cost from JC").
+  - After a confirm showing the figures, it's kept as a **final CVR marked "Done in Excel"** (shown in the list, not opened in the editor, removable). Its supplier costs are saved as that month's job costing report, so the next CVR made in the app shows the movement from it.
+  - Tested on the 2609 KOSH June CVR: cost as at 03/07/2026, prepared 03/08/2026, JC £89,474.38 over 22 suppliers, total cost £762,391.24, AFV £947,680.16, margin £185,288.92 (19.55%).
+  - A file never saved in Excel (e.g. the app's export uploaded straight back) is refused with "open it in Excel and save it".
+- **Overview layout (Richard, 21 Nov):** Job details and Valuation dates on top. Below them, a small Schedule of works box on the left (revision, total, file, what uses it) and a **To do** box on the right, still to build (see "Still to build"). Then Variations and notifications.
 - **Cashflow total (Richard, 21 Nov):** "needs to be based off the SoW, not the entered contract sum, when the SoW figure is higher". Where the SoW comes to more than the contract sum entered, the cashflow totals the SoW (no negative difference row; a note says so). Where the contract sum is higher, the difference is still warned about and spread, as above. The Excel shows a "Forecast total" line under the contract sum.
 - **Tested:**
   - Excel recalculates both files with no errors. Total Cost, AFV and margin equal the app to the penny (KOSH with an order, VOs and a 50/50 split; Micro with a prelims section and an overspend).
