@@ -21,6 +21,7 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
   const [hasApps, setHasApps] = useState(false)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<string | null>(null) // what the last import updated, and what it didn't
 
   const reload = () => {
     loadCurrentSow(job.id).then(setSow, (e: Error) => setError(e.message))
@@ -31,8 +32,9 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
   }
   useEffect(reload, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const done = async () => {
+  const done = async (what: string) => {
     setImporting(false)
+    setResult(what)
     const r = await supabase.from('jobs').select('*').eq('id', job.id).single()
     if (!r.error) setJob(r.data as Job)
     reload()
@@ -41,8 +43,10 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
 
   const rev = sow?.rev
   const items = sow?.lines.filter((l) => l.kind === 'item').length ?? 0
-  // the two halves came from different files: say so (it usually means one wasn't re-imported)
-  const differ = rev?.file_name && job.cvr_budget_file && rev.file_name !== job.cvr_budget_file
+  // the two halves are on different SoW figures: say so (it usually means the office SoW of the new
+  // revision wasn't imported). Different file names alone are fine: a client SoW and the office
+  // SoW of the same revision always have different names (found 21 Nov).
+  const differ = rev?.total != null && job.cvr_budget_total != null && Math.abs(Number(rev.total) - Number(job.cvr_budget_total)) > 1
   return (
     <section className={`card ${className} ${compact && importing ? 'span-all' : ''}`}>
       <div className="pane-head">
@@ -56,7 +60,7 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
       {(!compact || importing) && (
         <p className="muted small">
           {note ??
-            'One SoW for the whole job: Valuations use its priced lines; the CVR and Cashflow use the office SoW’s cost columns. Swapping it here or on any of those tabs updates them all.'}
+            'One SoW for the whole job: Valuations use its priced lines; the CVR, Cashflow and Procurement use the office SoW’s cost columns (so they need the office SoW, not a client SoW or application). Swapping it here or on any of those tabs updates them all.'}
         </p>
       )}
       {error && <p className="error">{error}</p>}
@@ -76,7 +80,7 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
           {(rev || job.cvr_budget_file) && (
             <span className="muted small">
               {' '}
-              · used by Valuations{rev ? ' ✓' : ' (not yet)'}, CVR and Cashflow{job.cvr_budget_file ? ' ✓' : ' (needs the office SoW)'}
+              · used by Valuations{rev ? ' ✓' : ' (not yet)'}, CVR, Cashflow and Procurement{job.cvr_budget_file ? ' ✓' : ' (needs the office SoW)'}
             </span>
           )}
         </p>
@@ -96,7 +100,7 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
               <span className="muted">not imported yet</span>
             )}
           </dd>
-          <dt>CVR and Cashflow</dt>
+          <dt>CVR, Cashflow, Procurement</dt>
           <dd>
             {job.cvr_budget_file ? (
               <>
@@ -108,14 +112,27 @@ export default function JobSowCard({ onChanged, note, className = '', compact = 
           </dd>
         </dl>
       )}
-      {!importing && differ && <p className="warning">Valuations and the CVR / Cashflow are from different files. Import the current office SoW to bring them together.</p>}
+      {!importing && result && (
+        <p className={/still use/.test(result) ? 'warning' : 'saved'}>
+          {result}{' '}
+          <button className="link-button small" onClick={() => setResult(null)}>
+            OK
+          </button>
+        </p>
+      )}
+      {!importing && differ && !result && (
+        <p className="warning">
+          Valuations ({money(rev?.total)}, {rev?.file_name}) and the CVR / Cashflow / Procurement ({money(job.cvr_budget_total)}, {job.cvr_budget_file}) are on different SoW
+          totals. Import the office SoW of the current revision (the one with the cost columns) to bring them together.
+        </p>
+      )}
       {importing && <SowImport hasApps={hasApps} onDone={done} onCancel={() => setImporting(false)} />}
     </section>
   )
 }
 
 // Choose the Excel file, check what was read from each side, then save.
-function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel: () => void; hasApps: boolean }) {
+function SowImport({ onDone, onCancel, hasApps }: { onDone: (what: string) => void; onCancel: () => void; hasApps: boolean }) {
   const { job } = useJob()
   const [file, setFile] = useState<File | null>(null)
   const [parsed, setParsed] = useState<ParsedSow | null>(null)
@@ -161,7 +178,15 @@ function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel
         if (parsed.app_no && withApp && !hasApps) await createApplicationFromImport(job, rev.id, parsed, lines, Number(prevPaid || 0))
       }
       if (budget && withBudget) await importBudget(job, budget, file.name, await loadPackages(job.id))
-      onDone()
+      // say what was updated, and plainly what wasn't
+      const costs = budget && withBudget
+      onDone(
+        parsed && costs
+          ? `${file.name} is now the job's SoW: Valuations, the CVR, Cashflow and Procurement all updated.`
+          : parsed
+            ? `Valuations updated from ${file.name}. It has no cost columns (a client SoW or application), so the CVR, Cashflow and Procurement still use ${job.cvr_budget_file ?? 'no SoW yet'}: import the office SoW (the one with the cost columns) to update them.`
+            : `The CVR, Cashflow and Procurement updated from ${file.name}. It has no priced SoW lines (a CVR breakdown), so Valuations are unchanged.`,
+      )
     } catch (e) {
       setError(saveError(e))
       setBusy(false)
