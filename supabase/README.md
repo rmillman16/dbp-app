@@ -26,8 +26,8 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `020_cashflow_weight_by_amount.sql` | Cashflow: a package's stages weighted by £ as well as by % | ✅ Run 20 Nov 2026 |
 | `021_cashflow_trades.sql` | Cashflow by trade: the trade each package goes into (e.g. "Subbie – 9 Electrical installation" → Electrical), suggested and confirmed once per job | ✅ Run 21 Nov 2026 |
 | `022_cashflow_line_trades.sql` | Cashflow: each subcontract line's trade where it's overruled (the app picks it from the line's description) | ✅ Run 21 Nov 2026 |
-| `023_procurement.sql` | Procurement schedule: appointed subcontractor and order details on each package; SoW lines moved or split by £ across packages | ⬜ Not yet |
-| `024_procurement_names.sql` | Procurement: a package's own name (e.g. "Electrical (install)", "Tiles (supply)"); lead time now includes design | ⬜ Not yet |
+| `023_procurement.sql` | Procurement schedule: appointed subcontractor and order details on each package; SoW lines moved or split by £ across packages | ✅ Run 21 Nov 2026 |
+| `024_procurement_names.sql` | Procurement: a package's own name (e.g. "Electrical (install)", "Tiles (supply)"); lead time now includes design | ✅ Run 21 Nov 2026 |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
