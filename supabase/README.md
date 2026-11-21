@@ -24,6 +24,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `018_cvr_budget_lines.sql` | CVR: keeps the office SoW's lines (each item's cost and OH&P by package) for the breakdown sheet of the CVR export; re-import the SoW afterwards | ✅ Run 20 Nov 2026 |
 | `019_programme_and_cashflow.sql` | Programme import (DBP Timeline / P6 .xer: activities, sections, trades, dates) and the cashflow: the job's payment stages (Deposit, Progress, Delivery, Installation…, renamable) and each SoW section's / VO's linked activities and weighting | ✅ Run 20 Nov 2026 |
 | `020_cashflow_weight_by_amount.sql` | Cashflow: a package's stages weighted by £ as well as by % | ✅ Run 20 Nov 2026 |
+| `021_cashflow_trades.sql` | Cashflow by trade: the trade each package goes into (e.g. "Subbie – 9 Electrical installation" → Electrical), suggested and confirmed once per job | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

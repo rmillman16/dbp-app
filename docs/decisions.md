@@ -78,6 +78,11 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
   - **"All monies must be allocated."** Each package is valued at its cost plus its share of each SoW line's OH&P (in proportion to the line's cost), so the packages make up the SoW price.
   - Priced lines with no cost in a package (Micro's VE omissions, −£29,459.81) and any **difference to the contract sum** are spread **in line with everything else** (pro rata each month).
   - Until a package is set, it's spread across the activities matching its name, else start on site to PC. **Nothing is ever left out.** Tested on Micro (office SoW) against the Corsham programme: the months come to exactly the £847,000 contract sum.
+- **By trade, with optional per-line weighting (Richard, 21 Nov, script 021):** "packages are the joinery, metalwork, mirrors, stone, labour, materials from the CVR… each individual line item will have a separate weighting but we need to group by trade otherwise it would take too long".
+  - The CVR's Subbie-by-section packages ("Subbie – 9 Electrical installation") each go into a trade.
+    - The app suggests one. On Micro: Floor finishes → Flooring, Wall finishes → Decorating, Ceiling finishes → Dry lining, Doors & frames / Joinery fixtures → Joinery, Electrical installation → Electrical, Subbie Prelims → Preliminaries; Special items stays its own row.
+    - It's confirmed or changed once per job on "Subcontract items into trades".
+  - The weighting is set per trade. Opening a trade lists its SoW line items (each valued at its cost in that trade plus its share of OH&P). Any line can be given **its own weighting**: it's then shown under its trade, and the trade carries the rest. "Follow the trade again" undoes it.
 - **Weighting by % or £ (Richard, 20 Nov, script 020):** a toggle per package. Switching converts what's typed, and Save is only allowed once the stages come to the whole value.
 - **Each package**, **agreed VO** and **issued VO (at risk, shown separately)** is linked to programme activities. The app suggests them from shared words in the names and trades:
   - M&E is read as mechanical / electrical, and HVAC / plumbing as mechanical;

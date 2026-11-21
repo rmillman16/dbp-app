@@ -52,6 +52,7 @@ export interface CvrPackage {
   sort: number
   cvr_group: import('./cvrCalc').Group | null // blank = worked out from the name (script 016)
   is_remainder: boolean // the prelims lump that the prelims sections draw down
+  cashflow_trade?: string | null // the trade it goes into in the cashflow: null = suggested, '' = its own row (script 021)
 }
 
 export interface Cvr {

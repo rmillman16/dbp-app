@@ -142,13 +142,20 @@ export function defaultWeights(item: Pick<CfItem, 'kind' | 'tasks'>, stages: CfS
 // line's cost, so the packages add up to the price (Richard, 20 Nov: "all monies must be
 // allocated"). A line with margin but no cost (or the SoW lines not imported yet: budgets then
 // stand as they are) leaves "loose" margin, spread in line with everything else.
+export interface LineValue {
+  key: string // the SoW item number (or its description), stable across re-imports
+  ref: string | null
+  description: string
+  value: number // its cost in this package plus its share of the line's margin
+}
 export function packageValues(
   packages: { name: string; kind: string; budget: number | null }[],
-  lines: { kind: string; amounts: Record<string, number> }[],
-): { values: Map<string, number>; loose: number; total: number; fromLines: boolean } {
+  lines: { kind: string; ref?: string | null; description?: string; amounts: Record<string, number> }[],
+): { values: Map<string, number>; items: Map<string, LineValue[]>; loose: number; total: number; fromLines: boolean } {
   const omitted = new Set(packages.filter((p) => p.kind === 'omit').map((p) => p.name))
   const isMargin = (n: string) => omitted.has(n) || /^(oh&p|ohp|overh)/i.test(n)
   const values = new Map<string, number>()
+  const items = new Map<string, LineValue[]>() // each package's SoW line items
   let total = 0
   if (!lines.length) {
     for (const p of packages) {
@@ -158,28 +165,69 @@ export function packageValues(
     }
   } else {
     // an item and the lines under it are one priced line of the SoW
-    const groups: Record<string, number>[] = []
-    let cur: Record<string, number> | null = null
+    const groups: { ref: string | null; description: string; amounts: Record<string, number> }[] = []
+    let cur: (typeof groups)[number] | null = null
     for (const l of lines) {
-      if (l.kind !== 'line' || !cur) groups.push((cur = {}))
-      for (const [n, v] of Object.entries(l.amounts ?? {})) cur[n] = (cur[n] ?? 0) + Number(v)
+      if (l.kind !== 'line' || !cur) groups.push((cur = { ref: l.ref ?? null, description: l.description ?? '', amounts: {} }))
+      for (const [n, v] of Object.entries(l.amounts ?? {})) cur.amounts[n] = (cur.amounts[n] ?? 0) + Number(v)
     }
     for (const g of groups) {
-      const entries = Object.entries(g)
+      const entries = Object.entries(g.amounts)
       const costs = entries.filter(([n]) => !isMargin(n))
       const margin = entries.filter(([n]) => isMargin(n)).reduce((s, [, v]) => s + v, 0)
       const cost = costs.reduce((s, [, v]) => s + v, 0)
       total += cost + margin
       if (Math.abs(cost) < 0.005) continue // all margin: loose
-      for (const [n, v] of costs) values.set(n, (values.get(n) ?? 0) + v + (margin * v) / cost)
+      for (const [n, v] of costs) {
+        const share = v + (margin * v) / cost
+        values.set(n, (values.get(n) ?? 0) + share)
+        const list = items.get(n) ?? []
+        const key = g.ref || g.description || `line ${groups.indexOf(g) + 1}`
+        const same = list.find((x) => x.key === key)
+        if (same) same.value += share
+        else list.push({ key, ref: g.ref, description: g.description, value: share })
+        items.set(n, list)
+      }
     }
+    for (const list of items.values()) for (const x of list) x.value = r2(x.value)
   }
   const out = new Map<string, number>()
   for (const [n, v] of values) if (Math.abs(r2(v)) >= 0.01) out.set(n, r2(v))
   total = r2(total)
   // whatever isn't in a package (pennies included) is loose, so it all adds back to the price
   const loose = r2(total - [...out.values()].reduce((s, v) => s + v, 0))
-  return { values: out, loose, total, fromLines: lines.length > 0 }
+  return { values: out, items, loose, total, fromLines: lines.length > 0 }
+}
+
+// The trade a package goes into in the cashflow (Richard, 21 Nov: the Micro SoW's single Subbie
+// column is split by section in the CVR, "Subbie – 9 Electrical installation"; the cashflow is by
+// trade). Suggested from a shared word with the trade's name: "Electrical installation" →
+// Electrical, "Joinery, fixtures & fittings" → Joinery, "Floor finishes" → Flooring.
+// usual fit-out pairings for SoW section wording, as suggestions only (confirmed per job)
+const TRADE_HINTS: [RegExp, string][] = [
+  [/ceiling/i, 'dry lining drylining'],
+  [/wall finish/i, 'decorating decorations'],
+  [/\bdoors?\b/i, 'joinery'],
+]
+// here "floor" is a trade (flooring), not a level, so only the plain stop words are left out
+const tradeWords = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/m\s*&\s*e\b/g, 'mechanical electrical')
+    .split(/[^a-z]+/)
+    .filter((w) => w.length >= 4 && !['and', 'the', 'with', 'works', 'work', 'items', 'item', 'subbie', 'finishes', 'finish', 'installation', 'supply'].includes(w))
+    .map((w) => w.slice(0, 5))
+export function suggestTrade(name: string, trades: string[]): string | null {
+  const own = name.replace(/^subbie\s*[–-]?\s*\d*\s*/i, '')
+  const mine = new Set(tradeWords(`${own} ${TRADE_HINTS.filter(([re]) => re.test(own)).map(([, w]) => w).join(' ')}`))
+  let best: string | null = null
+  let score = 0
+  for (const t of trades) {
+    if (t === name || /^subbie/i.test(t)) continue
+    const s = tradeWords(t).filter((w) => mine.has(w)).length
+    if (s > score) (best = t), (score = s)
+  }
+  return best
 }
 
 // activities that look like they belong to an item: a shared word in the name, trade or section

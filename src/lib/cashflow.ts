@@ -5,7 +5,7 @@ import { loadJobVariations, projectedValue } from './variations'
 import { loadProgramme } from './programme'
 import { loadBudgetLines, loadPackages } from './cvr'
 import { GROUP_LABELS, byGroupThenName, groupOf } from './cvrCalc'
-import { defaultWeights, packageValues, suggestTasks, type CfItem, type CfStage, type CfWeight, type Timing } from './cashflowCalc'
+import { defaultWeights, packageValues, suggestTasks, suggestTrade, type CfItem, type CfStage, type CfWeight, type LineValue, type Timing } from './cashflowCalc'
 import type { Job } from './types'
 
 // the guide every job starts with (Richard, 20 Nov): renamed, added or removed per job.
@@ -69,7 +69,26 @@ export interface CashflowItem extends CfItem {
   group: string // works group, as the CVR (Labour & materials, Subcontractors, Preliminaries, Other), or Variations
   defaulted: boolean // no weighting saved: the starting weighting is used
   suggested: boolean // its activities are suggested from its name, not yet chosen
+  parent?: string // a SoW line with its own weighting: the trade it belongs to
+  sources?: string[] // the CVR packages that make up this trade (itself plus e.g. "Subbie – 9 Electrical installation")
+  lines?: (LineValue & { itemKey: string; own: boolean })[] // the trade's SoW line items; own = has its own weighting
 }
+
+// a CVR package and the trade it goes into in the cashflow (shown so it can be changed)
+export interface TradeChoice {
+  id: string
+  name: string
+  value: number
+  trade: string // where it goes now (its own name = its own row)
+  suggested: boolean // the app's suggestion, not yet confirmed
+}
+
+// where a package goes: null = the suggestion, '' = its own row, a name = that trade (script 021)
+export async function saveTrade(packageId: string, trade: string | null) {
+  await must1(supabase.from('packages').update({ cashflow_trade: trade }).eq('id', packageId))
+}
+// a SoW line's own weighting is kept under this key (gone = it follows its trade)
+export const lineKey = (trade: string, line: string) => `line:${trade}::${line}`
 
 // the starting stages are made once per job: the page can load twice at the same moment, and
 // both used to see none and make a set each (found 20 Nov, everything doubled)
@@ -116,10 +135,10 @@ export async function loadCashflow(job: Job) {
   ])
   const linked = new Map(items.map((i) => [i.item_key, i.task_codes ?? []]))
   const stageIds = new Set(stages.map((s) => s.id))
-  const make = (key: string, label: string, kind: CfItem['kind'], value: number, group: string): CashflowItem => {
-    // not chosen yet: the activities that match its name
+  const make = (key: string, label: string, kind: CfItem['kind'], value: number, group: string, inherit?: string[]): CashflowItem => {
+    // not chosen yet: a line takes its trade's activities, a trade those that match its name
     const chosen = linked.get(key)
-    const tasks = chosen ?? (kind === 'package' ? suggestTasks(label, prog.tasks) : [])
+    const tasks = chosen ?? inherit ?? (kind === 'package' ? suggestTasks(label, prog.tasks) : [])
     const saved = weights
       .filter((w) => w.item_key === key && stageIds.has(w.stage_id))
       .map((w) => ({ stage_id: w.stage_id, pct: Number(w.pct), amount: w.amount == null ? null : Number(w.amount), timing: w.timing as Timing, task_codes: w.task_codes, on_date: w.on_date }))
@@ -132,15 +151,59 @@ export async function loadCashflow(job: Job) {
     lines,
   )
   const byName = new Map(packages.map((p) => [p.name, p]))
-  const list: CashflowItem[] = [...pv.values]
-    .map(([name, value]) => {
+  const names = [...pv.values.keys()]
+
+  // ---- packages into trades (Richard, 21 Nov): "Subbie – 9 Electrical installation" → Electrical ----
+  const choice = (name: string) => {
+    const set = byName.get(name)?.cashflow_trade
+    if (set === '') return { trade: name, suggested: false }
+    if (set && set !== name && pv.values.has(set)) return { trade: set, suggested: false }
+    const s = /^subbie/i.test(name) ? suggestTrade(name, names) : null
+    return s ? { trade: s, suggested: true } : { trade: name, suggested: false }
+  }
+  const tradeOf = (name: string) => {
+    let t = name
+    for (let i = 0; i < 5 && choice(t).trade !== t; i++) t = choice(t).trade // A → B → C
+    return t
+  }
+  const trades = new Map<string, { value: number; sources: string[]; lines: LineValue[] }>()
+  const choices: TradeChoice[] = []
+  for (const [name, value] of pv.values) {
+    const t = tradeOf(name)
+    const c = choice(name)
+    const p = byName.get(name)
+    if (p && (/^subbie/i.test(name) || p.cashflow_trade != null)) choices.push({ id: p.id, name, value, trade: t, suggested: c.suggested })
+    const tr = trades.get(t) ?? { value: 0, sources: [], lines: [] }
+    tr.value += value
+    tr.sources.push(name)
+    for (const l of pv.items.get(name) ?? []) {
+      const same = tr.lines.find((x) => x.key === l.key)
+      if (same) same.value = Math.round((same.value + l.value) * 100) / 100
+      else tr.lines.push({ ...l })
+    }
+    trades.set(t, tr)
+  }
+
+  // ---- each trade, then its SoW lines that have their own weighting ----
+  const own = new Set(weights.filter((w) => w.item_key.startsWith('line:')).map((w) => w.item_key))
+  const list: CashflowItem[] = []
+  const sorted = [...trades]
+    .map(([name, t]) => {
       const p = byName.get(name)
-      const group = groupOf({ kind: p?.kind ?? 'cost', name, cvr_group: p?.cvr_group ?? null })
-      return { name, value, group }
+      return { name, t, group: groupOf({ kind: p?.kind ?? 'cost', name, cvr_group: p?.cvr_group ?? null }) }
     })
     .sort((a, b) => byGroupThenName({ group: a.group, name: a.name }, { group: b.group, name: b.name }))
+  for (const { name, t, group } of sorted) {
+    const key = `pkg:${name}`
+    const lines = t.lines.map((l) => ({ ...l, itemKey: lineKey(name, l.key), own: own.has(lineKey(name, l.key)) }))
+    const ownValue = lines.filter((l) => l.own).reduce((s, l) => s + l.value, 0)
     // the CVR's prelims lump ("Preliminaries – not yet split") is simply Preliminaries here
-    .map(({ name, value, group }) => make(`pkg:${name}`, byName.get(name)?.is_remainder ? 'Preliminaries' : name, group === 'prelims' ? 'prelims' : 'package', value, GROUP_LABELS[group]))
+    const label = byName.get(name)?.is_remainder ? 'Preliminaries' : name
+    const item = make(key, label, group === 'prelims' ? 'prelims' : 'package', Math.round((t.value - ownValue) * 100) / 100, GROUP_LABELS[group])
+    list.push({ ...item, sources: t.sources, lines })
+    for (const l of lines.filter((x) => x.own))
+      list.push({ ...make(l.itemKey, `${l.ref ? `${l.ref} ` : ''}${l.description}`, 'package', l.value, GROUP_LABELS[group], item.tasks), parent: key })
+  }
   // priced lines with no cost in a package: VE omissions (Micro: −£29,459.81), OH&P-only lines
   if (pv.loose) list.push(make('adjust:margin', 'Omissions and OH&P not tied to a package', 'adjust', pv.loose, GROUP_LABELS.other))
   const contract = job.contract_sum == null ? 0 : Math.round((Number(job.contract_sum) - pv.total) * 100) / 100
@@ -149,5 +212,15 @@ export async function loadCashflow(job: Job) {
     if (v.vo.status !== 'agreed' && v.vo.status !== 'issued') continue
     list.push(make(`vo:${v.vo.id}`, `VO ${v.vo.vo_no} – ${v.vo.title}`, v.vo.status === 'agreed' ? 'vo' : 'vo_risk', Math.round(projectedValue(v.vo, v.build) * 100) / 100, 'Variations'))
   }
-  return { stages, items: list, programme: prog.programme, tasks: prog.tasks, sowTotal: pv.total, fromLines: pv.fromLines, budgetFile: job.cvr_budget_file }
+  return {
+    stages,
+    items: list,
+    choices,
+    trades: sorted.map((s) => s.name),
+    programme: prog.programme,
+    tasks: prog.tasks,
+    sowTotal: pv.total,
+    fromLines: pv.fromLines,
+    budgetFile: job.cvr_budget_file,
+  }
 }

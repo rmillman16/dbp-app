@@ -394,6 +394,11 @@ details.fold[open] > summary { margin-bottom: 10px; }
 .cf-weights input.pct { width: 80px; text-align: right; }
 .cf-weights input.gbp { width: 130px; text-align: right; }
 .cf-weight-head { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+.cf-items tr.child td:first-child { padding-left: 28px; }
+.cf-items tr.child td { font-size: 14px; }
+.cf-lines summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+.cf-lines table { margin-top: 8px; }
+.cf-lines .table td { padding: 6px 8px; }
 .cf-weight-head h3 { margin: 0; }
 .cf-weights select { max-width: 100%; }
 .cf-weights input[type='date'] { margin-top: 6px; display: block; }
