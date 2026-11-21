@@ -127,6 +127,12 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
     - **Client copy:** certified and paid only, and those three rows as one **"Allowances and adjustments"** row, so no OH&P or contingency reaches the client.
     - Tested: both recalculate in Excel with no errors and total the contract sum (Micro £847,000).
 
+- **No programme yet: a simple one from the SoW (Richard, 21 Nov):** "if there is not one made, can you generate a simple one based on the uploaded SoW for procurement and cashflow to be made from".
+  - On the Cashflow tab's Programme card, and on Procurement when there's no programme: **"Make a simple programme from the SoW…"**. You choose start on site and PC (the job's dates to start with), see it, then use it.
+  - One or two activities per SoW trade, named after the trade, on a typical fit-out sequence as a share of the working days: strip out 0–15%; structure / builderswork 5–25%; M&E first fix 12–45% and second fix 62–90%; dry lining 22–60%; joinery 55–90%; flooring, tiling, stone 55–85%; decorating 65–95%; signage 85–95%; commissioning 88–97%; snags and cleans 93–100%. It also has Start on site / Practical Completion milestones; prelims, labour, materials, skips and provisions are left off.
+  - Saved as the job's programme (marked as made from the SoW). Importing the real one replaces it.
+  - Tested on Micro (30/11/2026–14/09/2027): 25 activities, and every trade gets a provisional on-site date (e.g. Dry lining 01/02/2027, Joinery 06/05/2027, Decorating 04/06/2027).
+
 ## Timeline and Minutes merge — parked (19 Nov)
 - Parked until the developer (who holds the Minutes Firebase project) and the IT manager (Supabase hosting) are available. Fresh copies of both apps to be taken from the live sites when work starts.
 

@@ -32,6 +32,9 @@ import {
   type Timing,
 } from '../lib/cashflowCalc'
 import JobSowCard from '../components/JobSow'
+import GenerateProgramme from '../components/GenerateProgramme'
+import { GENERATED_FILE } from '../lib/programmeGen'
+import type { Job } from '../lib/types'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
@@ -107,7 +110,12 @@ export default function CashflowTab() {
     <>
       {/* the job's one SoW: the trades come from its cost columns (swapping it updates Valuations and CVR too) */}
       <JobSowCard onChanged={reload} />
-      <ProgrammeCard data={data} onSave={(p, name) => run(() => saveProgramme(job.id, p, name), `Programme imported: ${p.tasks.length} activities.`)} />
+      <ProgrammeCard
+        job={job}
+        data={data}
+        onSave={(p, name) => run(() => saveProgramme(job.id, p, name), `Programme imported: ${p.tasks.length} activities.`)}
+        onGenerated={() => run(async () => {}, 'Simple programme made from the SoW.')}
+      />
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
       <StagesCard
@@ -305,7 +313,7 @@ function weightingText(it: CashflowItem, stages: CfStage[]) {
 }
 
 // ---------- programme ----------
-function ProgrammeCard({ data, onSave }: { data: Data; onSave: (p: ParsedProgramme, fileName: string) => Promise<void> }) {
+function ProgrammeCard({ job, data, onSave, onGenerated }: { job: Job; data: Data; onSave: (p: ParsedProgramme, fileName: string) => Promise<void>; onGenerated: () => void }) {
   const [pending, setPending] = useState<{
     p: ParsedProgramme
     name: string
@@ -341,8 +349,15 @@ function ProgrammeCard({ data, onSave }: { data: Data; onSave: (p: ParsedProgram
       ) : (
         <p className="muted small">
           Import the programme: a P6 .xer from DBP Timeline, or MS Project saved as XML (File › Save As › XML Format; a .mpp itself can't be read in the browser). Import it again
-          whenever it's revised: links to activities are kept by their ID.
+          whenever it's revised: links to activities are kept by their ID. No programme yet? Make a simple one from the SoW to work from in the meantime.
         </p>
+      )}
+      {programme?.file_name === GENERATED_FILE && (
+        <p className="warning small">This is a simple programme made from the SoW. Import the real programme when there is one: it replaces this.</p>
+      )}
+      {/* no programme yet, or only the generated one: make (or remake) the simple one from the SoW's trades */}
+      {(!programme || programme.file_name === GENERATED_FILE) && !pending && (
+        <GenerateProgramme job={job} trades={data.items.filter((i) => i.kind === 'package' && !i.parent).map((i) => i.label)} onSaved={onGenerated} />
       )}
       {error && <p className="error">{error}</p>}
       {pending && (

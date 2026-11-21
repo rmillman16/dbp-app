@@ -138,7 +138,7 @@ export async function loadProcurement(job: Job) {
       }
     })
 
-  return { contract, variations, lines, tasks: prog.tasks, companies, orders, hasLines: budgetLines.length > 0 }
+  return { contract, variations, lines, tasks: prog.tasks, programme: prog.programme, companies, orders, hasLines: budgetLines.length > 0 }
 }
 
 const FIELDS = [

@@ -7,6 +7,8 @@ import { suggestTasks } from '../lib/cashflowCalc'
 import type { ProgrammeTask } from '../lib/programme'
 import JobSowCard from '../components/JobSow'
 import ContractorPicker from '../components/ContractorPicker'
+import GenerateProgramme from '../components/GenerateProgramme'
+import { GENERATED_FILE } from '../lib/programmeGen'
 import { addCompany } from '../lib/subcontracts'
 import type { Company } from '../lib/types'
 import { useJob } from './JobLayout'
@@ -149,6 +151,19 @@ export default function ProcurementTab() {
       <JobSowCard onChanged={reload} />
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
+
+      {/* no programme yet (or only the simple one): the on-site dates need one (21 Nov) */}
+      {(!data.programme || data.programme.file_name === GENERATED_FILE) && (
+        <section className="card">
+          <h2>Programme</h2>
+          <p className="muted small">
+            {data.programme
+              ? `Required on site dates come from a simple programme made from the SoW (${ukDate(data.programme.start_date)} to ${ukDate(data.programme.finish_date)}). Import the real programme on the Cashflow tab when there is one: it replaces this.`
+              : 'No programme on this job yet, so there are no required on site dates. Import it on the Cashflow tab, or make a simple one from the SoW to work from in the meantime.'}
+          </p>
+          <GenerateProgramme job={job} trades={data.contract.map((r) => r.label)} onSaved={() => run(async () => {}, 'Simple programme made from the SoW.')} />
+        </section>
+      )}
 
       <section className="card">
         <div className="pane-head">
