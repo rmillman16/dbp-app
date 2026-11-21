@@ -1,11 +1,14 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
-import { addProcPackage, loadProcurement, rowDates, saveProcItem, saveSplit, SUPPLY_LABELS, type ProcItem, type ProcRow, type SupplyInstall } from '../lib/procurement'
+import { addProcPackage, loadProcurement, rowDates, saveProcItem, saveSplit, type ProcItem, type ProcRow } from '../lib/procurement'
 import { STATUS_LABELS, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
 import { suggestTasks } from '../lib/cashflowCalc'
 import type { ProgrammeTask } from '../lib/programme'
 import JobSowCard from '../components/JobSow'
+import ContractorPicker from '../components/ContractorPicker'
+import { addCompany } from '../lib/subcontracts'
+import type { Company } from '../lib/types'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadProcurement>>
@@ -76,7 +79,7 @@ export default function ProcurementTab() {
                 <td className="stack-title">
                   {r.label}
                   {r.cdp && <span className="tag small-tag">CDP</span>}
-                  {r.supply_install && <span className="muted small"> · {SUPPLY_LABELS[r.supply_install]}</span>}
+                  {r.display_name && !vo && r.display_name !== r.description && <span className="muted small"> · SoW: {r.description}</span>}
                 </td>
                 <td className="num" data-label={vo ? 'Value' : 'Budget'}>
                   {money(r.budget)}
@@ -93,7 +96,6 @@ export default function ProcurementTab() {
                 </td>
                 <td className="num" data-label="Lead time">
                   {r.lead_weeks != null ? `${r.lead_weeks} wk${r.lead_weeks === 1 ? '' : 's'}` : <span className="muted">–</span>}
-                  {r.design_weeks ? <span className="muted small"> +{r.design_weeks} design</span> : null}
                 </td>
                 <td data-label="On site">
                   {ukDate(onSite) || <span className="muted">–</span>}
@@ -179,7 +181,12 @@ export default function ProcurementTab() {
         </div>
       </section>
 
-      <LinesCard lines={data.lines} packages={packageNames} onSave={(key, rows) => run(() => saveSplit(job.id, key, rows), 'Line saved.')} />
+      <LinesCard
+        lines={data.lines}
+        packages={packageNames}
+        labelOf={(p) => data.contract.find((r) => r.description === p)?.label ?? p}
+        onSave={(key, rows) => run(() => saveSplit(job.id, key, rows), 'Line saved.')}
+      />
 
       <section className="card">
         <h2>B · Variations</h2>
@@ -199,25 +206,22 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
   const { onSite, orderBy, flag } = rowDates({ ...it, suggested: row.suggested }, data.tasks, today)
   // what the programme gives without a typed date: its linked activities, else provisional
   const programmeDate = rowDates({ ...it, required_on_site: null, suggested: row.suggested }, data.tasks, today)
-  const companies = [...data.companies].sort(
-    (a, b) => Number(b.type === 'subcontractor' || b.type === 'supplier') - Number(a.type === 'subcontractor' || a.type === 'supplier') || a.name.localeCompare(b.name),
-  )
+  // contractors added from here join the list straight away
+  const [added, setAdded] = useState<Company[]>([])
+  const companies = [...data.companies, ...added]
   const toggle = (c: string) => set({ timeline_task_refs: it.timeline_task_refs.includes(c) ? it.timeline_task_refs.filter((x) => x !== c) : [...it.timeline_task_refs, c] })
   const sections = [...new Set(data.tasks.map((t) => t.section ?? 'No section'))]
 
   return (
     <div className="cf-editor">
       <div className="form-grid">
-        <label>
-          Supply / install
-          <select value={it.supply_install ?? ''} onChange={(e) => set({ supply_install: (e.target.value || null) as SupplyInstall | null })}>
-            <option value="">–</option>
-            {(Object.keys(SUPPLY_LABELS) as SupplyInstall[]).map((s) => (
-              <option key={s} value={s}>
-                {SUPPLY_LABELS[s]}
-              </option>
-            ))}
-          </select>
+        {/* its own name: what's ordered, e.g. "Electrical (install)", "Tiles (supply)" (21 Nov) */}
+        <label className="span-2">
+          Name
+          <input value={it.display_name ?? ''} onChange={(e) => set({ display_name: e.target.value || null })} placeholder={row.description} />
+          <span className="hint">
+            {vo ? 'Leave blank for the VO’s own title.' : `e.g. "${row.description} (install)" or "(supply)". Its budget still comes from the SoW's ${row.description}.`}
+          </span>
         </label>
         <label className="check">
           <span>
@@ -236,15 +240,17 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
         </label>
         <label>
           Subcontractor / supplier
-          <select value={it.company_id ?? ''} onChange={(e) => set({ company_id: e.target.value || null })}>
-            <option value="">– not appointed –</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-                {c.trade ? ` (${c.trade})` : ''}
-              </option>
-            ))}
-          </select>
+          {/* type to find one, or choose from the list; a new name can be added to the contractor list */}
+          <ContractorPicker
+            companies={companies}
+            value={it.company_id}
+            onChange={(id) => set({ company_id: id })}
+            onAdd={async (name) => {
+              const c = await addCompany(name, 'subcontractor', row.description)
+              setAdded([...added, c])
+              return c
+            }}
+          />
         </label>
         {data.orders.length > 0 && (
           <label>
@@ -279,12 +285,9 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
           <input type="date" value={it.order_date ?? ''} onChange={(e) => set({ order_date: e.target.value || null })} />
         </label>
         <label>
-          Design / approval (weeks)
-          <input type="number" inputMode="decimal" step="0.5" value={it.design_weeks ?? ''} onChange={(e) => set({ design_weeks: n(e.target.value) })} />
-        </label>
-        <label>
           Lead time (weeks)
           <input type="number" inputMode="decimal" step="0.5" value={it.lead_weeks ?? ''} onChange={(e) => set({ lead_weeks: n(e.target.value) })} />
+          <span className="hint">Including design and approval</span>
         </label>
         <label>
           Required on site
@@ -302,7 +305,7 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
       </div>
       <p className={`small ${flag === 'late' ? 'late' : ''}`}>
         Order by: <strong>{ukDate(orderBy) || '–'}</strong>
-        {orderBy && ` (on site ${ukDate(onSite)} − ${Number(it.lead_weeks ?? 0)} weeks lead − ${Number(it.design_weeks ?? 0)} weeks design)`}
+        {orderBy && ` (on site ${ukDate(onSite)} − ${Number(it.lead_weeks ?? 0)} weeks lead time, including design)`}
       </p>
 
       {data.tasks.length > 0 && (
@@ -391,10 +394,12 @@ function TaskPick({
 function LinesCard({
   lines,
   packages,
+  labelOf,
   onSave,
 }: {
   lines: ProcLine[]
   packages: string[]
+  labelOf: (p: string) => string // a package's own name where it's been renamed
   onSave: (key: string, rows: { package: string; amount: number }[] | null) => Promise<unknown>
 }) {
   const [filter, setFilter] = useState('')
@@ -439,7 +444,7 @@ function LinesCard({
                           <td data-label="Packages">
                             {Object.entries(l.alloc)
                               .filter(([, v]) => Math.abs(v) >= 0.005)
-                              .map(([p, v]) => (Object.keys(l.alloc).length > 1 ? `${p} ${money(v)}` : p))
+                              .map(([p, v]) => (Object.keys(l.alloc).length > 1 ? `${labelOf(p)} ${money(v)}` : labelOf(p)))
                               .join(' · ')}
                             {l.split && <span className="muted small"> (changed)</span>}
                           </td>
@@ -452,7 +457,7 @@ function LinesCard({
                         {open === l.key && (
                           <tr className="editor-row">
                             <td colSpan={4}>
-                              <SplitEditor line={l} packages={packages} onSave={(rows) => onSave(l.key, rows).then(() => setOpen(null))} />
+                              <SplitEditor line={l} packages={packages} labelOf={labelOf} onSave={(rows) => onSave(l.key, rows).then(() => setOpen(null))} />
                             </td>
                           </tr>
                         )}
@@ -468,7 +473,17 @@ function LinesCard({
   )
 }
 
-function SplitEditor({ line, packages, onSave }: { line: ProcLine; packages: string[]; onSave: (rows: { package: string; amount: number }[] | null) => void }) {
+function SplitEditor({
+  line,
+  packages,
+  labelOf,
+  onSave,
+}: {
+  line: ProcLine
+  packages: string[]
+  labelOf: (p: string) => string
+  onSave: (rows: { package: string; amount: number }[] | null) => void
+}) {
   // starts as the line is now (its own split, or the SoW's)
   const [rows, setRows] = useState<{ package: string; amount: string }[]>(() =>
     Object.entries(line.alloc)
@@ -477,7 +492,7 @@ function SplitEditor({ line, packages, onSave }: { line: ProcLine; packages: str
   )
   const total = Math.round(rows.reduce((s, r) => s + Number(r.amount || 0), 0) * 100) / 100
   const left = Math.round((line.value - total) * 100) / 100
-  const options = [...new Set([...packages, ...Object.keys(line.parts)])].sort((a, b) => a.localeCompare(b, 'en-GB'))
+  const options = [...new Set([...packages, ...Object.keys(line.parts)])].sort((a, b) => labelOf(a).localeCompare(labelOf(b), 'en-GB'))
   const set = (k: number, p: Partial<(typeof rows)[number]>) => setRows(rows.map((r, i) => (i === k ? { ...r, ...p } : r)))
   const valid = rows.every((r) => r.package.trim()) && left > -0.005
   return (
@@ -485,7 +500,7 @@ function SplitEditor({ line, packages, onSave }: { line: ProcLine; packages: str
       <p className="small">
         <strong>{money(line.value)}</strong> across packages. The SoW's own split:{' '}
         {Object.entries(line.parts)
-          .map(([p, v]) => `${p} ${money(v)}`)
+          .map(([p, v]) => `${labelOf(p)} ${money(v)}`)
           .join(' · ')}
       </p>
       {rows.map((r, k) => (
@@ -494,7 +509,7 @@ function SplitEditor({ line, packages, onSave }: { line: ProcLine; packages: str
             <option value="">– package –</option>
             {options.map((p) => (
               <option key={p} value={p}>
-                {p}
+                {labelOf(p)}
               </option>
             ))}
           </select>

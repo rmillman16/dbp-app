@@ -18,6 +18,13 @@ export function loadCompanies() {
   return cached('companies', () => must<Company[]>(supabase.from('companies').select('*').order('name')))
 }
 
+// a contractor typed in that isn't on the list yet (the rest of its details on the Contractors page)
+export async function addCompany(name: string, type: Company['type'] = 'subcontractor', trade: string | null = null) {
+  const r = await supabase.from('companies').insert({ name: name.trim(), type, trade }).select('*').single()
+  if (r.error) throw new Error(r.error.message)
+  return r.data as Company
+}
+
 export function loadOrders(jobId: string) {
   return cached(`orders:${jobId}`, () => must<Order[]>(supabase.from('orders').select('*').eq('job_id', jobId).order('folder_no', { nullsFirst: false })))
 }

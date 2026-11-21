@@ -17,7 +17,8 @@ export { SUPPLY_LABELS, rowDates, type SupplyInstall } from './procurementCalc'
 export interface ProcItem {
   id: string | null // null until first saved
   section: 'contract' | 'variation'
-  description: string // the package's name (or the VO's)
+  description: string // the package's SoW name (or the VO's): its budget comes by this
+  display_name: string | null // its own name, e.g. "Electrical (install)" (script 024)
   variation_id: string | null
   supply_install: SupplyInstall | null
   cdp: boolean
@@ -26,8 +27,8 @@ export interface ProcItem {
   order_value: number | null
   order_no: string | null
   order_date: string | null
-  design_weeks: number | null
-  lead_weeks: number | null
+  design_weeks: number | null // no longer used: lead time includes design (21 Nov)
+  lead_weeks: number | null // including design / approval
   required_on_site: string | null // typed; else from the linked activities
   timeline_task_refs: string[]
   status: ProcStatus
@@ -51,6 +52,7 @@ const blank = (section: ProcItem['section'], description: string, variation_id: 
   id: null,
   section,
   description,
+  display_name: null,
   variation_id,
   supply_install: null,
   cdp: false,
@@ -86,11 +88,13 @@ export async function loadProcurement(job: Job) {
   )
   const budgets = packageBudgets(lines)
   const byName = new Map(packages.map((p) => [p.name, p]))
+  // lead time includes the design period now (21 Nov): design weeks entered before are added in
   const saved = (i: ProcItem & { id: string }) => ({
     ...i,
+    display_name: i.display_name ?? null,
     order_value: num(i.order_value),
-    design_weeks: num(i.design_weeks),
-    lead_weeks: num(i.lead_weeks),
+    design_weeks: null,
+    lead_weeks: i.lead_weeks == null && i.design_weeks == null ? null : Number(i.lead_weeks ?? 0) + Number(i.design_weeks ?? 0),
     timeline_task_refs: i.timeline_task_refs ?? [],
   })
 
@@ -104,14 +108,16 @@ export async function loadProcurement(job: Job) {
     .sort(byGroupThenName)
     .map(({ name, group }) => {
       const item = items.find((i) => i.section === 'contract' && i.description === name)
+      // its own name where given ("Electrical (install)"), else the SoW's
+      const label = item?.display_name || (byName.get(name)?.is_remainder ? 'Preliminaries' : name)
       return {
         ...(item ? saved(item) : blank('contract', name)),
         key: `pkg:${name}`,
-        label: byName.get(name)?.is_remainder ? 'Preliminaries' : name,
+        label,
         group: GROUP_LABELS[group],
         budget: budgets.get(name) ?? 0,
         lines: lines.filter((l) => l.alloc[name]).map((l) => ({ key: l.key, ref: l.ref, description: l.description, amount: l.alloc[name] })),
-        suggested: onSiteActivities(suggestTasks(name, prog.tasks), prog.tasks),
+        suggested: onSiteActivities(suggestTasks(label, prog.tasks), prog.tasks),
       }
     })
 
@@ -124,7 +130,7 @@ export async function loadProcurement(job: Job) {
       return {
         ...(item ? saved(item) : blank('variation', label, v.vo.id)),
         key: `vo:${v.vo.id}`,
-        label: `${label}${v.vo.status === 'issued' ? ' (issued)' : ''}`,
+        label: `${item?.display_name || label}${v.vo.status === 'issued' ? ' (issued)' : ''}`,
         group: 'Variations',
         budget: Math.round(projectedValue(v.vo, v.build) * 100) / 100,
         lines: [],
@@ -135,9 +141,8 @@ export async function loadProcurement(job: Job) {
   return { contract, variations, lines, tasks: prog.tasks, companies, orders, hasLines: budgetLines.length > 0 }
 }
 
-// a package's dates, as shown and exported: required on site (typed, from its linked activities,
-// or provisional from the programme), order by, and red / amber
 const FIELDS = [
+  'display_name',
   'supply_install',
   'cdp',
   'company_id',

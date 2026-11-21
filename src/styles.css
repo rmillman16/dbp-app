@@ -397,6 +397,9 @@ details.fold[open] > summary { margin-bottom: 10px; }
 .cf-items tr.child td:first-child { padding-left: 28px; }
 .cf-items tr.child td { font-size: 14px; }
 .cf-lines summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+/* a contractor chosen by typing, with the add-to-list button under it */
+.contractor-picker { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.contractor-picker input { width: 100%; }
 /* procurement: red when the order date has passed without an order, amber within 2 weeks */
 .proc-table tr.proc-late td { background: #fdecea; }
 .proc-table tr.proc-soon td { background: #fff4d6; }

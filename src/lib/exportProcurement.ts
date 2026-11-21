@@ -9,7 +9,7 @@
 import type { Cell, Worksheet } from 'exceljs'
 import { download, excelDate, fill, newWorkbook, placeLogo, safeName, setupPage } from './excel'
 import type { ProcRow } from './procurement'
-import { rowDates, STATUS_LABELS, SUPPLY_LABELS } from './procurementCalc'
+import { rowDates, STATUS_LABELS } from './procurementCalc'
 import type { ProgrammeTask } from './programme'
 import type { Company, Job } from './types'
 
@@ -58,7 +58,6 @@ export async function exportProcurement({ job, contract, variations, tasks, comp
   const cols: Col[] = internal
     ? [
         { head: 'Package', width: 34, value: (r) => r.label, wrap: true },
-        { head: 'Supply / install', width: 13, value: (r) => (r.supply_install ? SUPPLY_LABELS[r.supply_install] : null) },
         { head: 'CDP', width: 6, value: (r) => (r.cdp ? 'Yes' : null), align: 'center' },
         { head: 'Budget (cost)', width: 13, value: (r) => (r.budget ? r.budget : null), fmt: GBP, align: 'right' },
         { head: 'Subcontractor', width: 24, value: company, wrap: true },
@@ -66,8 +65,7 @@ export async function exportProcurement({ job, contract, variations, tasks, comp
         { head: '± budget', width: 11, value: (r) => (r.order_value != null && r.budget ? Math.round((r.order_value - r.budget) * 100) / 100 : null), fmt: GBP, align: 'right' },
         { head: 'Order no.', width: 14, value: (r) => r.order_no },
         { head: 'Order date', width: 11, value: (r) => excelDate(r.order_date), fmt: DATE },
-        { head: 'Design (wks)', width: 9, value: (r) => r.design_weeks, align: 'center' },
-        { head: 'Lead time (wks)', width: 9, value: (r) => r.lead_weeks, align: 'center' },
+        { head: 'Lead time incl. design (wks)', width: 11, value: (r) => r.lead_weeks, align: 'center' },
         { head: 'Required on site', width: 12, value: (r) => excelDate(dates(r).onSite), fmt: DATE, italic: (r) => dates(r).from === 'provisional' },
         { head: 'Order by', width: 11, value: (r) => excelDate(dates(r).orderBy), fmt: DATE },
         { head: 'Status', width: 16, value: (r) => STATUS_LABELS[r.status], wrap: true },
@@ -75,7 +73,7 @@ export async function exportProcurement({ job, contract, variations, tasks, comp
       ]
     : [
         { head: 'Package', width: 40, value: (r) => r.label, wrap: true },
-        { head: 'Lead time (weeks)', width: 14, value: (r) => r.lead_weeks, align: 'center' },
+        { head: 'Lead time incl. design (weeks)', width: 16, value: (r) => r.lead_weeks, align: 'center' },
         { head: 'Status', width: 24, value: (r) => STATUS_LABELS[r.status], wrap: true },
       ]
   const widths = cols.map((c) => c.width)
