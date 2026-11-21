@@ -1,6 +1,7 @@
 
 ## Still to build (the list, kept up to date)
 - **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
+- **Programme (Timeline), next versions:** links between tasks, critical path, progress %, revisions / baselines, print / PDF (version 1, the Gantt chart and editing, built 21 Nov).
 - **Modules still to come (build order):** sampling tracker, progress reports, O&M / H&S file.
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
@@ -135,6 +136,25 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 
 ## Timeline and Minutes merge — parked (19 Nov)
 - Parked until the developer (who holds the Minutes Firebase project) and the IT manager (Supabase hosting) are available. Fresh copies of both apps to be taken from the live sites when work starts.
+- **Superseded for Timeline (21 Nov):** Richard: "I forgot we haven't implemented Timeline, I think it's time". It is now built into the app (below) rather than waiting to merge the old Timeline app. Minutes stays parked.
+
+## Programme (Timeline) in the app: built (21 Nov, script 025), version 1
+- **A Programme tab on every job, next to Overview.** It shows the job's programme as a Gantt chart. This is the same programme the cashflow and procurement already read, so an edit here flows into both straight away.
+- **Starting one:** import it (DBP Timeline .json / P6 .xer / MS Project .xml), make the simple one from the SoW, or start a blank one. A blank programme has just two milestones, Start on site and Practical Completion, from the dates entered. Importing a new revision replaces the programme (as before).
+- **The chart:**
+  - Sections in the programme's order, their tasks under them, with codes and names in a column that stays put while the chart scrolls sideways. Month and week-commencing headings stay at the top.
+  - Bars are coloured by trade; milestones are ◆. Weekends are shaded, shutdowns are hatched, and a red line marks today.
+  - Zoom: days, weeks or months. The chart scrolls inside its own box, so it works on a phone (narrower name column) and a tablet as well as a laptop.
+- **Editing:**
+  - Drag a bar to move it. It keeps its length in working days and lands on a working day.
+  - Drag a bar's right-hand end to make it longer or shorter.
+  - Click a bar or its name to edit: name, section, trade, start, duration in working days (the finish is worked out), milestone, delete.
+  - **+ Add task** numbers it in the programme's own style (A1420 → A1430). Click a section heading to rename it.
+  - The programme's overall start and finish follow its tasks.
+- **Working days** are Monday to Friday, less the programme's **shutdowns** (e.g. Christmas 24/12 to 01/01), set in the Shutdowns box. Durations and dragging skip them.
+- **Trade colours:** each trade gets a colour of its own automatically (the same each time). The Trades box lets you choose your own, saved with the programme.
+- **Script 025** adds the trade colours and shutdowns to the programme, plus room on each task for links and progress (next version). The chart works before 025 is run; only saving colours and shutdowns needs it.
+- **Next versions (on the list):** links between tasks (finish-to-start etc.) and moving followers with them, the critical path, progress %, revisions / baselines to compare against, and print / PDF.
 
 ## Quotations module — scope (agreed 19 Nov)
 Format based on the 2611 waterproofing quotation (`7. Variations/VO 9 - Waterproofing/dbp Quotation - MICRO - Waterproofing - 30.10.2026`):

@@ -14,6 +14,8 @@ import { cached, must } from './offline'
 import { addWorkingDays } from './cashflowCalc'
 
 export interface ProgrammeTask {
+  id?: string // once saved
+  sort?: number
   code: string
   name: string
   section: string | null
@@ -21,6 +23,17 @@ export interface ProgrammeTask {
   start_date: string // YYYY-MM-DD
   finish_date: string
   milestone: boolean
+}
+
+// a programme's trade colours and its shutdowns (e.g. Christmas), edited in the app (script 025)
+export interface Trade {
+  name: string
+  color: string
+}
+export interface Shutdown {
+  name: string
+  start: string
+  end: string
 }
 
 export interface ParsedProgramme {
@@ -38,6 +51,8 @@ export interface SavedProgramme {
   start_date: string | null
   finish_date: string | null
   imported_at: string
+  trades?: Trade[] // script 025
+  shutdowns?: Shutdown[]
 }
 
 const day = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null)
@@ -66,7 +81,7 @@ function parseXer(text: string): ParsedProgramme {
     }
   }
   const tasksIn = tables.get('TASK') ?? []
-  if (!tasksIn.length) throw new Error("This .xer file has no activities (no TASK table). Save the programme from Timeline again and try once more.")
+  if (!tasksIn.length) throw new Error('This .xer file has no activities (no TASK table). Save the programme from Timeline again and try once more.')
   const project = (tables.get('PROJECT') ?? [])[0]
 
   // sections: the WBS path below the project's own node
@@ -115,7 +130,7 @@ interface TimelineFile {
 }
 function parseTimeline(json: TimelineFile): ParsedProgramme {
   const d = json.data
-  if (!d?.tasks?.length) throw new Error("This file has no programme tasks. Save the programme from Timeline again and try once more.")
+  if (!d?.tasks?.length) throw new Error('This file has no programme tasks. Save the programme from Timeline again and try once more.')
   const groups = new Map((d.groups ?? []).map((g) => [String(g.id), g.name]))
   const shut = d.shutdowns ?? []
   const tasks: ProgrammeTask[] = d.tasks
@@ -138,7 +153,10 @@ function parseTimeline(json: TimelineFile): ParsedProgramme {
 
 // ---------- MS Project XML ----------
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
-const unescape = (s: string) => s.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, e: string) => (e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITIES[e.toLowerCase()]))
+const unescape = (s: string) =>
+  s.replace(/&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-f]+);/gi, (_, e: string) =>
+    e[0] === '#' ? String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : Number(e.slice(1))) : ENTITIES[e.toLowerCase()],
+  )
 const tag = (block: string, name: string) => {
   const m = new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(block)
   return m ? unescape(m[1].trim()) : null
@@ -164,7 +182,11 @@ function parseMsProjectXml(text: string): ParsedProgramme {
     tasks.push({
       code: tag(r, 'UID') ?? tag(r, 'ID') ?? String(tasks.length + 1),
       name,
-      section: heads.slice(0, level - 1).filter(Boolean).join(' / ') || null,
+      section:
+        heads
+          .slice(0, level - 1)
+          .filter(Boolean)
+          .join(' / ') || null,
       trade: null,
       start_date: start,
       finish_date: finish < start ? start : finish,
@@ -219,11 +241,56 @@ export function loadProgramme(jobId: string) {
     if (programme)
       for (let from = 0; ; from += 1000) {
         const page = await must<ProgrammeTask[]>(
-          supabase.from('programme_tasks').select('code, name, section, trade, start_date, finish_date, milestone').eq('programme_id', programme.id).order('sort').range(from, from + 999),
+          supabase
+            .from('programme_tasks')
+            .select('id, sort, code, name, section, trade, start_date, finish_date, milestone')
+            .eq('programme_id', programme.id)
+            .order('sort')
+            .range(from, from + 999),
         )
         tasks.push(...page)
         if (page.length < 1000) break
       }
     return { programme, tasks }
   })
+}
+
+// ---------- editing in the app (Programme tab, 21 Nov) ----------
+const ok = async (p: PromiseLike<{ error: { message: string } | null }>) => {
+  const r = await p
+  if (r.error) throw new Error(r.error.message)
+}
+// a programme started from nothing: the job's start on site and PC as milestones
+export async function startBlankProgramme(jobId: string, name: string, start: string, pc: string) {
+  await saveProgramme(
+    jobId,
+    {
+      project_name: name,
+      start_date: start,
+      finish_date: pc,
+      tasks: [
+        { code: 'A1010', name: 'Start on site', section: 'Milestones', trade: null, start_date: start, finish_date: start, milestone: true },
+        { code: 'A1020', name: 'Practical Completion', section: 'Milestones', trade: null, start_date: pc, finish_date: pc, milestone: true },
+      ],
+    },
+    'Started in the app',
+  )
+}
+export async function updateTask(id: string, fields: Partial<Omit<ProgrammeTask, 'id'>>) {
+  await ok(supabase.from('programme_tasks').update(fields).eq('id', id))
+}
+export async function addTask(programmeId: string, task: ProgrammeTask) {
+  const { id: _id, ...row } = task
+  await ok(supabase.from('programme_tasks').insert({ ...row, programme_id: programmeId }))
+}
+export async function deleteTask(id: string) {
+  await ok(supabase.from('programme_tasks').delete().eq('id', id))
+}
+export async function renameSection(programmeId: string, from: string | null, to: string) {
+  const q = supabase.from('programme_tasks').update({ section: to }).eq('programme_id', programmeId)
+  await ok(from == null ? q.is('section', null) : q.eq('section', from))
+}
+// its name, overall dates, trade colours and shutdowns
+export async function updateProgramme(id: string, fields: Partial<Pick<SavedProgramme, 'project_name' | 'start_date' | 'finish_date' | 'trades' | 'shutdowns'>>) {
+  await ok(supabase.from('programmes').update(fields).eq('id', id))
 }

@@ -19,6 +19,7 @@ import PaymentNoticeEditor from './pages/PaymentNoticeEditor'
 import Contractors from './pages/Contractors'
 import EotTab from './pages/EotTab'
 import CashflowTab from './pages/CashflowTab'
+import ProgrammeTab from './pages/ProgrammeTab'
 import ProcurementTab from './pages/ProcurementTab'
 import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="payment-notices" element={<SubcontractsTab />} />
           <Route path="payment-notices/:orderId" element={<OrderPage />} />
           <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
+          <Route path="programme" element={<ProgrammeTab />} />
           <Route path="cashflow" element={<CashflowTab />} />
           <Route path="procurement" element={<ProcurementTab />} />
           <Route path="eot" element={<EotTab />} />

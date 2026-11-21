@@ -8,6 +8,7 @@ import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 // Each module is a tab inside the job; new modules are added here.
 const TABS: { to: string; label: string; soon?: boolean }[] = [
   { to: '', label: 'Overview' },
+  { to: 'programme', label: 'Programme' },
   { to: 'variations', label: 'Variations' },
   { to: 'quotations', label: 'Quotations' },
   { to: 'applications', label: 'Applications' },
