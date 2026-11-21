@@ -356,6 +356,7 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
   - Underneath: SoW totals, % of total, targets (yellow), Return £ / %, and who each package is with.
   - The summary's order values link to the target row, and OH&P to the OH&P total, as on the KOSH sheet.
 - **The SoW lines are now kept** (script 018, table `cvr_budget_lines`). Re-import the office SoW once to fill them for a job.
+- **One import for both (Richard, 21 Nov):** importing the **office SoW on the Applications tab** also updates the CVR budgets and their lines from its cost columns. It's a tick box, on by default, and typed targets, notes, orders and allocations are kept. A client SoW (no cost columns) leaves the CVR as it is.
 - **Tested:**
   - Excel recalculates both files with no errors. Total Cost, AFV and margin equal the app to the penny (KOSH with an order, VOs and a 50/50 split; Micro with a prelims section and an overspend).
   - The KOSH lines rebuild every package budget and the £947,680.16 SoW total. OH&P is £113,978.56, 1p from the sheet's £113,978.57 because lines are kept to the penny.

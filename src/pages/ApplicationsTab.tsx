@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseSow, type ParsedSow } from '../lib/sowImport'
+import { parseBudget, type ParsedBudget } from '../lib/cvrBudget'
+import { importBudget, loadPackages } from '../lib/cvr'
+import { supabase } from '../lib/supabase'
 import { appName, createApplication, createApplicationFromImport, importSow, loadApplications, loadCurrentSow } from '../lib/applications'
-import { APP_STATUS_LABELS, type Application, type SowLine, type SowRevision } from '../lib/types'
+import { APP_STATUS_LABELS, type Application, type Job, type SowLine, type SowRevision } from '../lib/types'
 import { useJob } from './JobLayout'
 
 export default function ApplicationsTab() {
@@ -122,13 +125,16 @@ export default function ApplicationsTab() {
   )
 }
 
-// Choose the Excel file, check what was read, then save it.
+// Choose the Excel file, check what was read, then save it. The office SoW also updates the
+// CVR budgets (its cost columns, by package) in the same step (Richard, 21 Nov).
 function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel: () => void; hasApps: boolean }) {
-  const { job } = useJob()
+  const { job, setJob } = useJob()
   const [file, setFile] = useState<File | null>(null)
   const [parsed, setParsed] = useState<ParsedSow | null>(null)
+  const [budget, setBudget] = useState<ParsedBudget | null>(null)
   const [kind, setKind] = useState<'client' | 'office'>('client')
   const [withApp, setWithApp] = useState(true)
+  const [withBudget, setWithBudget] = useState(true)
   const [prevPaid, setPrevPaid] = useState('0')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -136,10 +142,14 @@ function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel
   async function read(f: File) {
     setFile(f)
     setParsed(null)
+    setBudget(null)
     setError(null)
     if (/office/i.test(f.name)) setKind('office')
     try {
-      setParsed(await parseSow(await f.arrayBuffer()))
+      const data = await f.arrayBuffer()
+      setParsed(await parseSow(data))
+      // the cost columns, if it has them (a client SoW doesn't)
+      setBudget(await parseBudget(data).catch(() => null))
     } catch (e) {
       setError((e as Error).message)
     }
@@ -153,6 +163,11 @@ function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel
     try {
       const { rev, lines } = await importSow(job, parsed, file.name, kind)
       if (parsed.app_no && withApp) await createApplicationFromImport(job, rev.id, parsed, lines, Number(prevPaid || 0))
+      if (kind === 'office' && budget && withBudget) {
+        await importBudget(job, budget, file.name, await loadPackages(job.id))
+        const r = await supabase.from('jobs').select('*').eq('id', job.id).single()
+        if (!r.error) setJob(r.data as Job)
+      }
       onDone()
     } catch (e) {
       setError(saveError(e))
@@ -193,6 +208,19 @@ function SowImport({ onDone, onCancel, hasApps }: { onDone: () => void; onCancel
               <option value="office">office SoW</option>
             </select>
           </label>
+          {kind === 'office' &&
+            (budget ? (
+              <label className="check">
+                <span>
+                  <input type="checkbox" checked={withBudget} onChange={(e) => setWithBudget(e.target.checked)} /> Also update the <strong>CVR budgets</strong> from it:{' '}
+                  {budget.packages.length} packages, {money(budget.total)}
+                  {budget.sow_total != null && Math.abs(budget.sow_total - budget.total) <= 0.01 && <span className="ok"> ✓ equals the SoW total</span>}
+                  <span className="hint">Typed targets, notes, orders and supplier allocations on the CVR tab are kept.</span>
+                </span>
+              </label>
+            ) : (
+              <p className="muted small">No cost columns found in this file, so the CVR budgets aren't changed (import the office SoW with its cost columns for that).</p>
+            ))}
           {parsed.app_no && !hasApps && (
             <div className="import-app">
               <label className="check">
