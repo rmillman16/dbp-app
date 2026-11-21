@@ -1,6 +1,6 @@
 // The procurement schedule to Excel (docs/decisions.md "Procurement: built"). Two copies:
-// - internal (full): package, supply / install, CDP, budget (cost), subcontractor, order value and
-//   its difference to budget, order no. / date, design weeks, lead time, required on site (marked
+// - internal (full): package, budget (cost), subcontractor, order value and its difference to
+//   budget, order no. / date, lead time (including design), required on site (marked
 //   provisional where it's from the programme activities matching the package), order by, status,
 //   comments; red when the order date has passed without an order, amber within 2 weeks
 // - client (decided 19 Nov, for progress reports): package, lead time and status only, with no
@@ -58,7 +58,6 @@ export async function exportProcurement({ job, contract, variations, tasks, comp
   const cols: Col[] = internal
     ? [
         { head: 'Package', width: 34, value: (r) => r.label, wrap: true },
-        { head: 'CDP', width: 6, value: (r) => (r.cdp ? 'Yes' : null), align: 'center' },
         { head: 'Budget (cost)', width: 13, value: (r) => (r.budget ? r.budget : null), fmt: GBP, align: 'right' },
         { head: 'Subcontractor', width: 24, value: company, wrap: true },
         { head: 'Order value', width: 13, value: (r) => r.order_value, fmt: GBP, align: 'right' },

@@ -78,7 +78,6 @@ export default function ProcurementTab() {
               >
                 <td className="stack-title">
                   {r.label}
-                  {r.cdp && <span className="tag small-tag">CDP</span>}
                   {r.display_name && !vo && r.display_name !== r.description && <span className="muted small"> · SoW: {r.description}</span>}
                 </td>
                 <td className="num" data-label={vo ? 'Value' : 'Budget'}>
@@ -155,8 +154,8 @@ export default function ProcurementTab() {
         <div className="pane-head">
           <h2>A · Contract packages {late > 0 && <span className="late small">{late} late</span>}</h2>
           <div className="form-actions">
-            <button className="primary" onClick={() => exportExcel('internal')}>
-              Excel
+            <button className="primary" onClick={() => exportExcel('internal')} title="Everything: subcontractors, budgets, order values, dates and comments">
+              Excel: internal
             </button>
             <button onClick={() => exportExcel('client')} title="Package, status and lead time only: for the client / progress reports (no subcontractors, budgets or values)">
               Excel: client copy
@@ -165,8 +164,8 @@ export default function ProcurementTab() {
         </div>
         <p className="muted small">
           From the office SoW: each priced package column, with the general columns (Subbie, Labour, Materials) read line by line into their trades. Budgets are cost. Move or split
-          any SoW line between packages in "SoW lines into packages" below. Required on site comes from the linked programme activities (or a typed date); order by = on site − lead
-          time − design / approval. Red when it's passed without an order, amber within 2 weeks.
+          any SoW line between packages in "SoW lines into packages" below. Required on site comes from the programme (provisionally from the activities matching the package, or
+          those you link, or a typed date); order by = on site − lead time (including design). Red when it's passed without an order, amber within 2 weeks.
         </p>
         {!data.hasLines && <p className="warning">The office SoW's lines aren't saved for this job yet: import it in Schedule of works above.</p>}
         {data.contract.length > 0 && table(data.contract, false)}
@@ -221,11 +220,6 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
           <input value={it.display_name ?? ''} onChange={(e) => set({ display_name: e.target.value || null })} placeholder={row.description} />
           <span className="hint">
             {vo ? 'Leave blank for the VO’s own title.' : `e.g. "${row.description} (install)" or "(supply)". Its budget still comes from the SoW's ${row.description}.`}
-          </span>
-        </label>
-        <label className="check">
-          <span>
-            <input type="checkbox" checked={it.cdp} onChange={(e) => set({ cdp: e.target.checked })} /> Contractor's design portion (CDP)
           </span>
         </label>
         <label>

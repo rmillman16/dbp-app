@@ -258,6 +258,7 @@ Reference: `Contracts/24XX/2415LHMA - The Mall/6. Reports/1 Client Team Report/P
 - **Simplified (Richard, 21 Nov, script 024):**
   - **"Package needs to be editable so I can say electrical (install) or tile (supply) or any number of other items."** Each package has its own **name**, a label only: its budget still comes from the SoW by its SoW name, shown underneath as "SoW: Electrical" where it differs. Renamed packages show their names in the lines list and split choices, and in the Excel. With that, Supply / install is taken out.
   - **"Lead time should encompass design period."** One **lead time, including design and approval**; order by = on site − lead time. Design weeks entered before are added into the lead time, so no dates change.
+  - **CDP taken out** (Richard, 21 Nov), from the screen and the Excel. The buttons read "Excel: internal" and "Excel: client copy".
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
