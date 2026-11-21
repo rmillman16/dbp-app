@@ -97,8 +97,8 @@ export default function CashflowTab() {
         <p className="muted small">
           Weighted by trade (the CVR's packages: joinery, metalwork, stone, labour, materials…), each valued at its cost plus its share of OH&P, so together they make up the price.
           Every pound is placed: until you set a trade, it's spread across the activities that match its name (else start on site to PC); prelims 10% at start on site, 80% spread,
-          10% at PC. Click a trade to choose its activities and weight its stages by % or £; its SoW line items are listed there, and any one line can have its own weighting. Agreed
-          VOs are in the forecast; issued VOs are shown separately, at risk.
+          10% at PC. Click a trade to choose its activities and weight its stages by % or £; its SoW line items are listed there, and any one line can have its own weighting.
+          Agreed VOs are in the forecast; issued VOs are shown separately, at risk.
         </p>
         {!data.items.some((i) => i.kind === 'package' || i.kind === 'prelims') && (
           <p className="warning">No packages yet: import the office SoW on the CVR tab (Budgets) first. The cashflow uses the same packages.</p>
@@ -214,7 +214,7 @@ export default function CashflowTab() {
         </p>
       </section>
 
-      <Forecast result={result} retentionPct={Number(job.retention_pct ?? 0)} pc={pc} />
+      <Forecast result={result} retentionPct={Number(job.retention_pct ?? 0)} siteStart={siteStart} pc={pc} />
     </>
   )
 }
@@ -415,13 +415,11 @@ function TradesCard({
       <details className="fold" open={unconfirmed > 0}>
         <summary>
           <h2>Subcontract items into trades</h2>
-          <span className={unconfirmed ? 'late small' : 'muted small'}>
-            {unconfirmed ? `${unconfirmed} suggested, not yet confirmed` : `${choices.length} placed in trades`}
-          </span>
+          <span className={unconfirmed ? 'late small' : 'muted small'}>{unconfirmed ? `${unconfirmed} suggested, not yet confirmed` : `${choices.length} placed in trades`}</span>
         </summary>
         <p className="muted small">
-          The CVR keeps the SoW's subcontract items by SoW section; the cashflow weights them with the trade they belong to. Check each one goes into the right trade (or keep it as a
-          row of its own).
+          The CVR keeps the SoW's subcontract items by SoW section; the cashflow weights them with the trade they belong to. Check each one goes into the right trade (or keep it as
+          a row of its own).
         </p>
         <table className="table stack">
           <tbody>
@@ -754,14 +752,16 @@ function ItemEditor({
 }
 
 // ---------- the forecast ----------
-function Forecast({ result, retentionPct, pc }: { result: CashflowResult; retentionPct: number; pc: string | null }) {
+function Forecast({ result, retentionPct, siteStart, pc }: { result: CashflowResult; retentionPct: number; siteStart: string | null; pc: string | null }) {
   const { monthly } = result
   const notPlaced = result.rows.filter((r) => r.unplaced && r.kind !== 'vo_risk')
+  const [shown, setShown] = useState<string | null>(null) // the month opened to see what makes it up
   return (
     <section className="card">
       <h2>Forecast</h2>
       <p className="muted small">
-        What we'll apply for each month, excl. VAT, valuations at month end. Retention at {retentionPct}%{pc ? `, halved from PC (${ukDate(pc)})` : ''}.
+        What we'll apply for each month, excl. VAT, valuations at month end. Start on site {ukDate(siteStart) || 'not set'}, PC {ukDate(pc) || 'not set'} (from the programme's
+        milestones, else the job's dates). Retention at {retentionPct}%{pc ? ', halved from PC' : ''}. Click a month to see what makes it up.
       </p>
       {notPlaced.length > 0 && (
         <details className="warning">
@@ -792,30 +792,55 @@ function Forecast({ result, retentionPct, pc }: { result: CashflowResult; retent
             </tr>
           </thead>
           <tbody>
-            {monthly.map((m) => (
-              <tr key={m.month}>
-                <td className="stack-title">{monthLabel(m.month)}</td>
-                <td className="num" data-label="This month">
-                  {money(m.value)}
-                </td>
-                <td className="num" data-label="Cumulative">
-                  {money(m.cumulative)}
-                </td>
-                <td className="num" data-label="Cum. %">
-                  {pct(m.cumPct)}
-                </td>
-                <td className="num" data-label="Retention held">
-                  {money(m.retention)}
-                </td>
-                <td className="num" data-label="Payment after retention">
-                  {money(m.netMonth)}
-                </td>
-                {result.atRiskTotal ? (
-                  <td className="num" data-label="Issued VOs (at risk)">
-                    {m.atRisk ? money(m.atRisk) : ''}
+            {monthly.map((m, k) => (
+              <Fragment key={m.month}>
+                <tr className={`clickable ${shown === m.month ? 'selected' : ''}`} onClick={() => setShown(shown === m.month ? null : m.month)}>
+                  <td className="stack-title">{monthLabel(m.month)}</td>
+                  <td className="num" data-label="This month">
+                    {money(m.value)}
                   </td>
-                ) : null}
-              </tr>
+                  <td className="num" data-label="Cumulative">
+                    {money(m.cumulative)}
+                  </td>
+                  <td className="num" data-label="Cum. %">
+                    {pct(m.cumPct)}
+                  </td>
+                  <td className="num" data-label="Retention held">
+                    {money(m.retention)}
+                  </td>
+                  <td className="num" data-label="Payment after retention">
+                    {money(m.netMonth)}
+                  </td>
+                  {result.atRiskTotal ? (
+                    <td className="num" data-label="Issued VOs (at risk)">
+                      {m.atRisk ? money(m.atRisk) : ''}
+                    </td>
+                  ) : null}
+                </tr>
+                {shown === m.month && (
+                  <tr className="editor-row">
+                    <td colSpan={result.atRiskTotal ? 7 : 6}>
+                      <strong>What makes up {monthLabel(m.month)}</strong>
+                      <ul className="month-parts">
+                        {result.rows
+                          .filter((r) => r.months[k])
+                          .sort((a, b) => Math.abs(b.months[k]) - Math.abs(a.months[k]))
+                          .map((r) => (
+                            <li key={r.key}>
+                              <span>
+                                {r.label}
+                                {r.kind === 'vo_risk' && <span className="muted"> (at risk)</span>}
+                              </span>
+                              <span className="num">
+                                {money(r.months[k])} <span className="muted small">({r.value ? `${Math.round((r.months[k] / r.value) * 1000) / 10}% of it` : ''})</span>
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
           <tfoot>

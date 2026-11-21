@@ -397,6 +397,8 @@ details.fold[open] > summary { margin-bottom: 10px; }
 .cf-items tr.child td:first-child { padding-left: 28px; }
 .cf-items tr.child td { font-size: 14px; }
 .cf-lines summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+.month-parts { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-width: 640px; }
+.month-parts li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 3px 0; }
 .cf-lines table { margin-top: 8px; }
 .cf-lines .table td { padding: 6px 8px; }
 .cf-weight-head h3 { margin: 0; }
