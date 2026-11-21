@@ -3,7 +3,7 @@ import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { parseProgramme, saveProgramme, type ParsedProgramme, type ProgrammeTask } from '../lib/programme'
 import { addStage, deleteStage, loadCashflow, moveStage, renameStage, saveItem, saveTrade, type CashflowItem, type TradeChoice } from '../lib/cashflow'
-import { SITE, SITE_LABEL, TIMING_LABELS, computeCashflow, suggestTasks, type CashflowResult, type CfStage, type CfWeight, type Timing } from '../lib/cashflowCalc'
+import { SITE, SITE_LABEL, TIMING_LABELS, computeCashflow, siteDates, suggestTasks, type CashflowResult, type CfStage, type CfWeight, type Timing } from '../lib/cashflowCalc'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
@@ -37,8 +37,10 @@ export default function CashflowTab() {
     reload()
   }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const siteStart = job.start_date ?? data?.programme?.start_date ?? null
-  const pc = job.pc_date ?? data?.programme?.finish_date ?? null
+  // the programme's own Start on site / PC milestones first, then the job's dates
+  const dates = siteDates(data?.tasks ?? [], { start: job.start_date, pc: job.pc_date })
+  const siteStart = dates.start
+  const pc = dates.pc
   const result = useMemo(
     () =>
       data

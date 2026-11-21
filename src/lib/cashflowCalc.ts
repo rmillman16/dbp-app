@@ -121,6 +121,20 @@ const monthsBetween = (a: string, b: string) => {
   return out
 }
 
+// Start on site and PC for the cashflow: the programme's own milestones ("Start on site",
+// "Practical Completion") where it has them, as the most up-to-date dates; else the job's dates;
+// else the programme's first and last construction activities (not design or pre-construction,
+// which on Corsham start 10 weeks before site, found 21 Nov).
+export function siteDates(tasks: CfTask[], job: { start: string | null; pc: string | null }) {
+  const named = (re: RegExp) => tasks.find((t) => re.test(t.name))
+  const works = tasks.filter((t) => !NOT_WORKS.test(t.trade ?? '') && !NOT_WORKS.test(t.section ?? ''))
+  const first = works.map((t) => t.start_date).sort()[0] ?? null
+  const last = works.map((t) => t.finish_date).sort().pop() ?? null
+  const start = named(/start\s+on\s+site|site\s+start|possession/i)?.start_date ?? job.start ?? first
+  const pc = named(/practical\s+completion|^pc$|\bPC\b/i)?.finish_date ?? job.pc ?? last
+  return { start, pc, fromProgramme: { start: !!named(/start\s+on\s+site|site\s+start|possession/i), pc: !!named(/practical\s+completion|^pc$|\bPC\b/i) } }
+}
+
 // the starting weighting for an item that hasn't been set (agreed 20 Nov), so every pound is placed:
 // prelims 10% set-up at start on site, 80% spread to PC, 10% at PC; anything else 100% Progress
 // spread across its activities, or start on site to PC when it has none

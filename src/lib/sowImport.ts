@@ -5,6 +5,7 @@
 // If the sheet has "dbp Application N %" / "… Assessment N %" columns, those
 // percentages are read too, so an existing application can be brought in.
 import type { Worksheet } from 'exceljs'
+import { loadXlsx } from './xlsxLoad'
 
 export interface ParsedLine {
   kind: 'section' | 'item'
@@ -81,9 +82,8 @@ function findHeader(ws: Worksheet) {
 }
 
 export async function parseSow(data: ArrayBuffer | Uint8Array): Promise<ParsedSow> {
-  const ExcelJS = (await import('exceljs')).default
-  const wb = new ExcelJS.Workbook()
-  await wb.xlsx.load(data as ArrayBuffer)
+  // (refuses a file never calculated in Excel: its formulas would all read as blank)
+  const wb = await loadXlsx(data)
 
   // the first visible sheet with SoW headings
   let ws: Worksheet | undefined
