@@ -1,7 +1,7 @@
 
 ## Still to build (the list, kept up to date)
 - **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
-- **Modules still to come (build order):** procurement schedule, sampling tracker, progress reports, O&M / H&S file.
+- **Modules still to come (build order):** procurement schedule step 2 (Excel / client copy), sampling tracker, progress reports, O&M / H&S file.
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
   - Cashflow: S-curve in the Excel (left out for now, 21 Nov).
@@ -227,6 +227,26 @@ Reference: `Contracts/24XX/2415LHMA - The Mall/6. Reports/1 Client Team Report/P
   - **Until Timeline is merged:** import the programme file exported from the current Timeline site (format already mapped: groups, trades, tasks with start, duration, predecessors) and re-import on each revision; switches to the live link after the merge.
 - **Client copy (decided 19 Nov):** progress report section 3 shows **package, status and lead time only** — no subcontractor, budgets or values.
 - Export: Excel (internal, full) and PDF (client copy).
+
+## Procurement: built (21 Nov, script 023), step 1 of 2
+**Packages (Richard, 21 Nov):** "based on SoW but group by package, not just from the pricing elements on the right-hand side under the packages, but read the line items in the SoW to determine how these should be grouped as well; like other packages have an override and a split section so a £ value can be apportioned to another package. This will be useful for, like, a bar which might have mirrors, joinery, metalwork, install etc. which might all be separate orders on some jobs."
+- **From the office SoW's lines** (the job's one SoW):
+  - each line's cost goes to the package column it's priced in;
+  - the specific columns (Joinery, Metalwork, Electrical…) are their package;
+  - the general columns (Subbie, Subbie Prelims, Labour, Materials) are read line by line from the description, with the same reading as the cashflow (e.g. strip out, structural, builderswork, mechanical).
+- **Budgets are cost**, to compare with the order values. OH&P, DuB management / design and EP (contingency) aren't ordered, so they're left out.
+- Tested:
+  - Micro: 161 lines into 23 packages, £811,443.18 (the SoW's cost less EP).
+  - Corsham: 26 lines into 10 packages, £427,377.97 (Strip out £99,530, Structural £75,642, Builderswork £61,791, Mechanical £58,347…).
+- **Move / split any line** ("SoW lines into packages"): give its £ to one package or several (a bar into Mirrors, Joinery, Metalwork, Install). What's not given follows the SoW's own split, and a split can't come to more than the line. "Back to the SoW's split" undoes it. **"+ Add package"** adds one that isn't in the SoW (e.g. Mirrors) to split into.
+- **Each package:**
+  - supply / install, CDP, status (Not started · Enquiry out · Quotes in · Recommended · Ordered · On site · Complete);
+  - the appointed subcontractor (from the contractor list) and order value / no. / date, typed or taken from an order on Payment notices; the order value is shown against the budget (+/−);
+  - design / approval weeks, lead time, programme activities linked (suggested from the name), required on site (the earliest linked activity's start, or a typed date);
+  - **order by** = on site − lead − design, **red** when passed without an order, **amber** within 2 weeks;
+  - comments, and its SoW lines.
+- **Section B, variations:** issued and agreed VOs, each with the same details plus "Covered by an existing order" / "Nothing to order".
+- **Step 2 (next):** Excel (internal, full) and the client copy (package, status and lead time only, for progress reports). Placing an order still to link to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
 ## Sampling module — scope (agreed 19 Nov)
 Purpose: track **physical samples** per job. SubmittalLink covers technical submissions and drawings but not physical samples, so there is no overlap.

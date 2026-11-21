@@ -1,0 +1,509 @@
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { money, todayIso, ukDate } from '../lib/format'
+import { saveError } from '../lib/offline'
+import { addProcPackage, loadProcurement, saveProcItem, saveSplit, SUPPLY_LABELS, type ProcItem, type ProcRow, type SupplyInstall } from '../lib/procurement'
+import { STATUS_LABELS, latestOrderDate, onSiteDate, urgency, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
+import { suggestTasks } from '../lib/cashflowCalc'
+import type { ProgrammeTask } from '../lib/programme'
+import JobSowCard from '../components/JobSow'
+import { useJob } from './JobLayout'
+
+type Data = Awaited<ReturnType<typeof loadProcurement>>
+const today = todayIso()
+const CONTRACT_STATUSES: ProcStatus[] = ['not_started', 'enquiry_out', 'quotes_in', 'recommended', 'ordered', 'on_site', 'complete']
+const VO_STATUSES: ProcStatus[] = ['not_started', 'enquiry_out', 'quotes_in', 'recommended', 'ordered', 'on_site', 'complete', 'covered', 'nothing_to_order']
+
+// Job › Procurement: what needs ordering, from whom and by when (docs/decisions.md "Procurement: built").
+export default function ProcurementTab() {
+  const { job } = useJob()
+  const [data, setData] = useState<Data | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
+  const [adding, setAdding] = useState('')
+
+  const reload = () => loadProcurement(job).then(setData, (e: Error) => setError(e.message))
+  useEffect(() => {
+    reload()
+  }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (error && !data) return <p className="error">{error}</p>
+  if (!data) return <p className="muted">Loading…</p>
+
+  const run = async (f: () => Promise<unknown>, done?: string) => {
+    setError(null)
+    setMsg(null)
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    try {
+      await f()
+      if (done) setMsg(done)
+      await reload()
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
+  const packageNames = data.contract.map((r) => r.description)
+
+  const table = (rows: ProcRow[], vo: boolean) => (
+    <table className="table stack proc-table">
+      <thead>
+        <tr>
+          <th>{vo ? 'Variation' : 'Package'}</th>
+          <th className="num">{vo ? 'Value' : 'Budget'}</th>
+          <th>Subcontractor</th>
+          <th className="num">Order value</th>
+          <th>On site</th>
+          <th>Order by</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r, n) => {
+          const onSite = onSiteDate(r.required_on_site, r.timeline_task_refs, data.tasks)
+          const orderBy = latestOrderDate(onSite, r.lead_weeks, r.design_weeks)
+          const flag = urgency(orderBy, r.status, today)
+          const company = data.companies.find((c) => c.id === r.company_id)
+          return (
+            <Fragment key={r.key}>
+              {!vo && r.group !== rows[n - 1]?.group && (
+                <tr className="group-head">
+                  <td colSpan={7}>{r.group}</td>
+                </tr>
+              )}
+              <tr
+                className={`clickable ${flag === 'late' ? 'proc-late' : flag === 'soon' ? 'proc-soon' : ''} ${open === r.key ? 'selected' : ''}`}
+                onClick={() => setOpen(open === r.key ? null : r.key)}
+              >
+                <td className="stack-title">
+                  {r.label}
+                  {r.cdp && <span className="tag small-tag">CDP</span>}
+                  {r.supply_install && <span className="muted small"> · {SUPPLY_LABELS[r.supply_install]}</span>}
+                </td>
+                <td className="num" data-label={vo ? 'Value' : 'Budget'}>
+                  {money(r.budget)}
+                </td>
+                <td data-label="Subcontractor">{company?.name ?? <span className="muted">–</span>}</td>
+                <td className="num" data-label="Order value">
+                  {r.order_value != null ? money(r.order_value) : <span className="muted">–</span>}
+                  {r.order_value != null && r.budget ? (
+                    <span className={`small ${r.order_value > r.budget ? 'late' : 'ok'}`}>
+                      {' '}
+                      {r.order_value > r.budget ? `+${money(r.order_value - r.budget)}` : `−${money(r.budget - r.order_value)}`}
+                    </span>
+                  ) : null}
+                </td>
+                <td data-label="On site">{ukDate(onSite) || <span className="muted">–</span>}</td>
+                <td data-label="Order by">
+                  {ukDate(orderBy) || <span className="muted">–</span>}
+                  {flag === 'late' && <span className="late small"> late</span>}
+                  {flag === 'soon' && <span className="soon small"> due soon</span>}
+                </td>
+                <td data-label="Status">{STATUS_LABELS[r.status]}</td>
+              </tr>
+              {open === r.key && (
+                <tr className="editor-row">
+                  <td colSpan={7}>
+                    <ItemEditor
+                      row={r}
+                      vo={vo}
+                      data={data}
+                      onCancel={() => setOpen(null)}
+                      onSave={(item) => run(() => saveProcItem(job.id, item), `${r.label} saved.`).then(() => setOpen(null))}
+                    />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+
+  const late = [...data.contract, ...data.variations].filter(
+    (r) => urgency(latestOrderDate(onSiteDate(r.required_on_site, r.timeline_task_refs, data.tasks), r.lead_weeks, r.design_weeks), r.status, today) === 'late',
+  ).length
+
+  return (
+    <>
+      {/* the job's one SoW: the packages come from its cost columns and line items */}
+      <JobSowCard onChanged={reload} />
+      {error && <p className="error">{error}</p>}
+      {msg && <p className="saved">{msg}</p>}
+
+      <section className="card">
+        <div className="pane-head">
+          <h2>A · Contract packages</h2>
+          {late > 0 && <span className="late small">{late} late</span>}
+        </div>
+        <p className="muted small">
+          From the office SoW: each priced package column, with the general columns (Subbie, Labour, Materials) read line by line into their trades. Budgets are cost. Move or split
+          any SoW line between packages in "SoW lines into packages" below. Required on site comes from the linked programme activities (or a typed date); order by = on site − lead
+          time − design / approval. Red when it's passed without an order, amber within 2 weeks.
+        </p>
+        {!data.hasLines && <p className="warning">The office SoW's lines aren't saved for this job yet: import it in Schedule of works above.</p>}
+        {data.contract.length > 0 && table(data.contract, false)}
+        <div className="stage-add">
+          <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a package, e.g. Mirrors" aria-label="New package" />
+          <button
+            disabled={!adding.trim() || packageNames.some((p) => p.toLowerCase() === adding.trim().toLowerCase())}
+            onClick={() => run(() => addProcPackage(job.id, adding.trim()), `${adding.trim()} added: split SoW lines into it below.`).then(() => setAdding(''))}
+          >
+            + Add package
+          </button>
+        </div>
+      </section>
+
+      <LinesCard lines={data.lines} packages={packageNames} onSave={(key, rows) => run(() => saveSplit(job.id, key, rows), 'Line saved.')} />
+
+      <section className="card">
+        <h2>B · Variations</h2>
+        <p className="muted small">Issued and agreed VOs, each with what needs ordering: an order of its own, covered by an existing order, or nothing to order.</p>
+        {data.variations.length ? table(data.variations, true) : <p className="muted small">No issued or agreed VOs on this job yet.</p>}
+      </section>
+    </>
+  )
+}
+
+// ---------- one package's (or VO's) details ----------
+function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boolean; data: Data; onSave: (i: ProcItem) => void; onCancel: () => void }) {
+  const [it, setIt] = useState<ProcItem>(row)
+  const set = (p: Partial<ProcItem>) => setIt({ ...it, ...p })
+  const n = (v: string) => (v.trim() === '' ? null : Number(v))
+  const suggested = useMemo(() => suggestTasks(row.label, data.tasks), [row.label, data.tasks])
+  const onSite = onSiteDate(it.required_on_site, it.timeline_task_refs, data.tasks)
+  const fromTasks = onSiteDate(null, it.timeline_task_refs, data.tasks)
+  const orderBy = latestOrderDate(onSite, it.lead_weeks, it.design_weeks)
+  const companies = [...data.companies].sort(
+    (a, b) => Number(b.type === 'subcontractor' || b.type === 'supplier') - Number(a.type === 'subcontractor' || a.type === 'supplier') || a.name.localeCompare(b.name),
+  )
+  const toggle = (c: string) => set({ timeline_task_refs: it.timeline_task_refs.includes(c) ? it.timeline_task_refs.filter((x) => x !== c) : [...it.timeline_task_refs, c] })
+  const sections = [...new Set(data.tasks.map((t) => t.section ?? 'No section'))]
+
+  return (
+    <div className="cf-editor">
+      <div className="form-grid">
+        <label>
+          Supply / install
+          <select value={it.supply_install ?? ''} onChange={(e) => set({ supply_install: (e.target.value || null) as SupplyInstall | null })}>
+            <option value="">–</option>
+            {(Object.keys(SUPPLY_LABELS) as SupplyInstall[]).map((s) => (
+              <option key={s} value={s}>
+                {SUPPLY_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="check">
+          <span>
+            <input type="checkbox" checked={it.cdp} onChange={(e) => set({ cdp: e.target.checked })} /> Contractor's design portion (CDP)
+          </span>
+        </label>
+        <label>
+          Status
+          <select value={it.status} onChange={(e) => set({ status: e.target.value as ProcStatus })}>
+            {(vo ? VO_STATUSES : CONTRACT_STATUSES).map((s) => (
+              <option key={s} value={s}>
+                {STATUS_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Subcontractor / supplier
+          <select value={it.company_id ?? ''} onChange={(e) => set({ company_id: e.target.value || null })}>
+            <option value="">– not appointed –</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.trade ? ` (${c.trade})` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        {data.orders.length > 0 && (
+          <label>
+            Or from an order (Payment notices)
+            <select
+              value={it.order_id ?? ''}
+              onChange={(e) => {
+                const o = data.orders.find((x) => x.id === e.target.value)
+                set(o ? { order_id: o.id, company_id: o.company_id, order_value: o.order_value, order_no: o.order_no, order_date: o.order_date } : { order_id: null })
+              }}
+            >
+              <option value="">–</option>
+              {data.orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {data.companies.find((c) => c.id === o.company_id)?.name ?? 'Order'}
+                  {o.trade ? ` (${o.trade})` : ''} {o.order_value != null ? money(o.order_value) : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label>
+          Order value £
+          <input type="number" inputMode="decimal" step="0.01" value={it.order_value ?? ''} onChange={(e) => set({ order_value: n(e.target.value) })} />
+        </label>
+        <label>
+          Order no.
+          <input value={it.order_no ?? ''} onChange={(e) => set({ order_no: e.target.value || null })} />
+        </label>
+        <label>
+          Order date
+          <input type="date" value={it.order_date ?? ''} onChange={(e) => set({ order_date: e.target.value || null })} />
+        </label>
+        <label>
+          Design / approval (weeks)
+          <input type="number" inputMode="decimal" step="0.5" value={it.design_weeks ?? ''} onChange={(e) => set({ design_weeks: n(e.target.value) })} />
+        </label>
+        <label>
+          Lead time (weeks)
+          <input type="number" inputMode="decimal" step="0.5" value={it.lead_weeks ?? ''} onChange={(e) => set({ lead_weeks: n(e.target.value) })} />
+        </label>
+        <label>
+          Required on site
+          <input type="date" value={it.required_on_site ?? ''} onChange={(e) => set({ required_on_site: e.target.value || null })} />
+          <span className="hint">
+            {it.required_on_site ? 'Typed (clear it to use the programme)' : fromTasks ? `From the programme: ${ukDate(fromTasks)}` : 'Link activities below, or type a date'}
+          </span>
+        </label>
+      </div>
+      <p className={`small ${urgency(orderBy, it.status, today) === 'late' ? 'late' : ''}`}>
+        Order by: <strong>{ukDate(orderBy) || '–'}</strong>
+        {orderBy && ` (on site ${ukDate(onSite)} − ${Number(it.lead_weeks ?? 0)} weeks lead − ${Number(it.design_weeks ?? 0)} weeks design)`}
+      </p>
+
+      {data.tasks.length > 0 && (
+        <details>
+          <summary>
+            Programme activities ({it.timeline_task_refs.length} linked){suggested.length ? ` · suggested: ${suggested.join(', ')}` : ''}
+          </summary>
+          {suggested.length > 0 && (
+            <button className="small-button" onClick={() => set({ timeline_task_refs: [...new Set([...it.timeline_task_refs, ...suggested])] })}>
+              Tick the suggested ({suggested.length})
+            </button>
+          )}
+          <TaskPick tasks={data.tasks} sections={sections} codes={it.timeline_task_refs} suggested={suggested} onToggle={toggle} />
+        </details>
+      )}
+      <label>
+        Comments
+        <textarea rows={2} value={it.comments ?? ''} onChange={(e) => set({ comments: e.target.value || null })} />
+      </label>
+      {row.lines.length > 0 && (
+        <details>
+          <summary>Its SoW lines ({row.lines.length})</summary>
+          <ul className="month-parts">
+            {row.lines.map((l) => (
+              <li key={l.key}>
+                <span>
+                  <span className="muted">{l.ref}</span> {l.description}
+                </span>
+                <span className="num">{money(l.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <div className="form-actions">
+        <button className="primary" onClick={() => onSave(it)}>
+          Save
+        </button>
+        <button onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function TaskPick({
+  tasks,
+  sections,
+  codes,
+  suggested,
+  onToggle,
+}: {
+  tasks: ProgrammeTask[]
+  sections: string[]
+  codes: string[]
+  suggested: string[]
+  onToggle: (c: string) => void
+}) {
+  return (
+    <div className="task-pick">
+      {sections.map((s) => (
+        <fieldset key={s}>
+          <legend>{s}</legend>
+          {tasks
+            .filter((t) => (t.section ?? 'No section') === s)
+            .map((t) => (
+              <label key={t.code} className={suggested.includes(t.code) ? 'suggested' : ''}>
+                <input type="checkbox" checked={codes.includes(t.code)} onChange={() => onToggle(t.code)} />
+                <span>
+                  <span className="muted">{t.code}</span> {t.milestone ? '◆ ' : ''}
+                  {t.name}
+                  <span className="muted small">
+                    {' '}
+                    · {ukDate(t.start_date)}
+                    {t.finish_date !== t.start_date ? ` – ${ukDate(t.finish_date)}` : ''}
+                  </span>
+                </span>
+              </label>
+            ))}
+        </fieldset>
+      ))}
+    </div>
+  )
+}
+
+// ---------- SoW lines into packages: move a line, or split its £ ----------
+function LinesCard({
+  lines,
+  packages,
+  onSave,
+}: {
+  lines: ProcLine[]
+  packages: string[]
+  onSave: (key: string, rows: { package: string; amount: number }[] | null) => Promise<unknown>
+}) {
+  const [filter, setFilter] = useState('')
+  const [open, setOpen] = useState<string | null>(null)
+  const f = filter.trim().toLowerCase()
+  const shown = lines.filter((l) => !f || `${l.ref ?? ''} ${l.description} ${Object.keys(l.alloc).join(' ')}`.toLowerCase().includes(f))
+  const sections = [...new Set(shown.map((l) => l.section))]
+  const moved = lines.filter((l) => l.split).length
+  return (
+    <section className="card">
+      <details className="fold">
+        <summary>
+          <h2>SoW lines into packages</h2>
+          <span className="muted small">
+            {lines.length} lines{moved ? ` · ${moved} moved or split` : ''}
+          </span>
+        </summary>
+        <p className="muted small">
+          Each SoW line's cost goes to the packages it's priced in (general columns read from the description). Move a whole line to another package, or split its £ across
+          packages, e.g. a bar into mirrors, joinery, metalwork and install when they're separate orders. Add a package above if it isn't listed.
+        </p>
+        <input className="filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a line or package…" aria-label="Find a line" />
+        <div className="proc-lines">
+          <table className="table stack">
+            <tbody>
+              {sections.map((s) => (
+                <Fragment key={s}>
+                  <tr className="group-head">
+                    <td colSpan={4}>{s || 'SoW'}</td>
+                  </tr>
+                  {shown
+                    .filter((l) => l.section === s)
+                    .map((l) => (
+                      <Fragment key={l.key}>
+                        <tr className={l.split ? 'moved' : ''}>
+                          <td className="stack-title">
+                            <span className="muted">{l.ref}</span> {l.description}
+                          </td>
+                          <td className="num" data-label="Cost">
+                            {money(l.value)}
+                          </td>
+                          <td data-label="Packages">
+                            {Object.entries(l.alloc)
+                              .filter(([, v]) => Math.abs(v) >= 0.005)
+                              .map(([p, v]) => (Object.keys(l.alloc).length > 1 ? `${p} ${money(v)}` : p))
+                              .join(' · ')}
+                            {l.split && <span className="muted small"> (changed)</span>}
+                          </td>
+                          <td>
+                            <button className="small-button" onClick={() => setOpen(open === l.key ? null : l.key)}>
+                              {open === l.key ? 'Close' : 'Move / split'}
+                            </button>
+                          </td>
+                        </tr>
+                        {open === l.key && (
+                          <tr className="editor-row">
+                            <td colSpan={4}>
+                              <SplitEditor line={l} packages={packages} onSave={(rows) => onSave(l.key, rows).then(() => setOpen(null))} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
+  )
+}
+
+function SplitEditor({ line, packages, onSave }: { line: ProcLine; packages: string[]; onSave: (rows: { package: string; amount: number }[] | null) => void }) {
+  // starts as the line is now (its own split, or the SoW's)
+  const [rows, setRows] = useState<{ package: string; amount: string }[]>(() =>
+    Object.entries(line.alloc)
+      .filter(([, v]) => Math.abs(v) >= 0.005)
+      .map(([p, v]) => ({ package: p, amount: String(v) })),
+  )
+  const total = Math.round(rows.reduce((s, r) => s + Number(r.amount || 0), 0) * 100) / 100
+  const left = Math.round((line.value - total) * 100) / 100
+  const options = [...new Set([...packages, ...Object.keys(line.parts)])].sort((a, b) => a.localeCompare(b, 'en-GB'))
+  const set = (k: number, p: Partial<(typeof rows)[number]>) => setRows(rows.map((r, i) => (i === k ? { ...r, ...p } : r)))
+  const valid = rows.every((r) => r.package.trim()) && left > -0.005
+  return (
+    <div className="split">
+      <p className="small">
+        <strong>{money(line.value)}</strong> across packages. The SoW's own split:{' '}
+        {Object.entries(line.parts)
+          .map(([p, v]) => `${p} ${money(v)}`)
+          .join(' · ')}
+      </p>
+      {rows.map((r, k) => (
+        <div key={k} className="split-row">
+          <select value={options.includes(r.package) ? r.package : ''} onChange={(e) => set(k, { package: e.target.value })}>
+            <option value="">– package –</option>
+            {options.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+          <input className="split-gbp" type="number" inputMode="decimal" step="0.01" value={r.amount} onChange={(e) => set(k, { amount: e.target.value })} aria-label="£" />
+          <button className="small-button" onClick={() => setRows(rows.filter((_, i) => i !== k))} aria-label="Remove">
+            ✕
+          </button>
+        </div>
+      ))}
+      <div className="form-actions">
+        <button className="small-button" onClick={() => setRows([...rows, { package: '', amount: left > 0 ? String(left) : '' }])}>
+          + Another package
+        </button>
+        {rows.length === 1 && Math.abs(left) >= 0.005 && (
+          <button className="small-button" onClick={() => set(0, { amount: String(line.value) })}>
+            Move the whole line to it
+          </button>
+        )}
+      </div>
+      <p className={left < -0.005 ? 'late small' : 'muted small'}>
+        {left < -0.005
+          ? `That's ${money(-left)} more than the line: reduce a package.`
+          : Math.abs(left) >= 0.005
+            ? `${money(left)} left over follows the SoW's own split.`
+            : 'All of the line is allocated ✓'}
+      </p>
+      <div className="form-actions">
+        <button
+          className="primary"
+          disabled={!valid}
+          onClick={() => onSave(rows.filter((r) => Number(r.amount || 0)).map((r) => ({ package: r.package, amount: Math.round(Number(r.amount) * 100) / 100 })))}
+        >
+          Save
+        </button>
+        {line.split && (
+          <button className="link-button" onClick={() => onSave(null)}>
+            Back to the SoW's split
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
