@@ -1,7 +1,7 @@
 
 ## Still to build (the list, kept up to date)
 - **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
-- **Modules still to come (build order):** procurement schedule step 2 (Excel / client copy), sampling tracker, progress reports, O&M / H&S file.
+- **Modules still to come (build order):** sampling tracker, progress reports, O&M / H&S file.
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
   - Cashflow: S-curve in the Excel (left out for now, 21 Nov).
@@ -228,7 +228,7 @@ Reference: `Contracts/24XX/2415LHMA - The Mall/6. Reports/1 Client Team Report/P
 - **Client copy (decided 19 Nov):** progress report section 3 shows **package, status and lead time only** — no subcontractor, budgets or values.
 - Export: Excel (internal, full) and PDF (client copy).
 
-## Procurement: built (21 Nov, script 023), step 1 of 2
+## Procurement: built (21 Nov, script 023)
 **Packages (Richard, 21 Nov):** "based on SoW but group by package, not just from the pricing elements on the right-hand side under the packages, but read the line items in the SoW to determine how these should be grouped as well; like other packages have an override and a split section so a £ value can be apportioned to another package. This will be useful for, like, a bar which might have mirrors, joinery, metalwork, install etc. which might all be separate orders on some jobs."
 - **From the office SoW's lines** (the job's one SoW):
   - each line's cost goes to the package column it's priced in;
@@ -246,7 +246,16 @@ Reference: `Contracts/24XX/2415LHMA - The Mall/6. Reports/1 Client Team Report/P
   - **order by** = on site − lead − design, **red** when passed without an order, **amber** within 2 weeks;
   - comments, and its SoW lines.
 - **Section B, variations:** issued and agreed VOs, each with the same details plus "Covered by an existing order" / "Nothing to order".
-- **Step 2 (next):** Excel (internal, full) and the client copy (package, status and lead time only, for progress reports). Placing an order still to link to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
+- **Excel, lead time and provisional on-site dates (Richard, 21 Nov):** "needs to be exportable to Excel and have a lead time column, and date on site required provisionally worked out by the programme for the first date the bar starts for the relevant element".
+  - **Lead time** (and design weeks) is a column on screen and in the Excel.
+  - **Required on site, provisionally from the programme:** with nothing linked or typed, it's the first start of the programme activities that match the package. Activities that aren't on site are skipped (design, procurement, lead times, drawings, manufacture, approvals): Corsham's "Joinery design, procurement & lead times" starts 3 months before "Joinery & door installation".
+    - It's marked "provisional" on screen and in italics in the Excel.
+    - Linking the package's own activities, or typing a date, firms it up.
+  - **Excel (A · Contract packages › "Excel" / "Excel: client copy"):**
+    - **Internal:** package, supply / install, CDP, budget (cost), subcontractor, order value, ± budget, order no. / date, design weeks, lead time, required on site, order by, status, comments; red / amber rows; totals; section B variations; landscape, logo top right.
+    - **Client copy:** package, lead time and status only (decided 19 Nov, for progress reports).
+    - Tested: both open in Excel with no errors.
+- **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
 ## Sampling module — scope (agreed 19 Nov)
 Purpose: track **physical samples** per job. SubmittalLink covers technical submissions and drawings but not physical samples, so there is no overlap.

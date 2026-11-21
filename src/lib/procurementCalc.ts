@@ -111,12 +111,43 @@ export function onSiteDate(typed: string | null, codes: string[], tasks: { code:
   const starts = codes.map((c) => tasks.find((t) => t.code === c)?.start_date).filter((d): d is string => !!d)
   return starts.sort()[0] ?? null
 }
+// …and where it came from. With nothing linked or typed, it's provisional: the first start of the
+// programme activities that match the package's name (Richard, 21 Nov: "date on site required
+// provisionally worked out by the programme, for the first date the relevant element starts").
+export function requiredOnSite(typed: string | null, linked: string[], suggested: string[], tasks: { code: string; start_date: string }[]) {
+  if (typed) return { date: typed, from: 'typed' as const }
+  const own = onSiteDate(null, linked, tasks)
+  if (own) return { date: own, from: 'programme' as const }
+  const guess = onSiteDate(null, suggested, tasks)
+  return guess ? { date: guess, from: 'provisional' as const } : { date: null, from: null }
+}
 export function latestOrderDate(onSite: string | null, leadWeeks: number | null, designWeeks: number | null) {
   if (!onSite) return null
   const d = new Date(`${onSite}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - Math.round((Number(leadWeeks ?? 0) + Number(designWeeks ?? 0)) * 7))
   return d.toISOString().slice(0, 10)
 }
+// for the provisional on-site date, only activities on site: not design, procurement, lead times,
+// drawings or manufacture (Corsham's "Joinery design, procurement & lead times" starts 3 months
+// before the joinery is installed)
+const OFF_SITE = /design|procure|lead\s*time|tender|drawings|manufactur|\border(s|ing)?\b|approval/i
+export const onSiteActivities = (codes: string[], tasks: { code: string; name: string }[]) => codes.filter((c) => !OFF_SITE.test(tasks.find((t) => t.code === c)?.name ?? ''))
+
+export type SupplyInstall = 'supply' | 'install' | 'supply_and_install'
+export const SUPPLY_LABELS: Record<SupplyInstall, string> = { supply: 'Supply', install: 'Install', supply_and_install: 'Supply and install' }
+
+// a package's dates, as shown and exported: required on site (typed, from its linked activities,
+// or provisional from the programme), order by, and red / amber
+export function rowDates(
+  r: { required_on_site: string | null; timeline_task_refs: string[]; suggested: string[]; lead_weeks: number | null; design_weeks: number | null; status: ProcStatus },
+  tasks: { code: string; start_date: string }[],
+  today: string,
+) {
+  const site = requiredOnSite(r.required_on_site, r.timeline_task_refs, r.suggested, tasks)
+  const orderBy = latestOrderDate(site.date, r.lead_weeks, r.design_weeks)
+  return { onSite: site.date, from: site.from, orderBy, flag: urgency(orderBy, r.status, today) }
+}
+
 // red: the latest order date has passed without an order; amber: within 2 weeks
 export function urgency(orderBy: string | null, status: ProcStatus, today: string): 'late' | 'soon' | null {
   if (!orderBy || PLACED.includes(status)) return null

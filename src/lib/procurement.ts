@@ -8,11 +8,11 @@ import { loadCompanies, loadOrders } from './subcontracts'
 import { loadJobVariations, projectedValue } from './variations'
 import { loadProgramme } from './programme'
 import { GROUP_LABELS, byGroupThenName, groupOf } from './cvrCalc'
-import { packageBudgets, procurementLines, type ProcLine, type ProcStatus, type SplitRow } from './procurementCalc'
+import { suggestTasks } from './cashflowCalc'
+import { onSiteActivities, packageBudgets, procurementLines, type ProcLine, type ProcStatus, type SplitRow, type SupplyInstall } from './procurementCalc'
 import type { Job } from './types'
 
-export type SupplyInstall = 'supply' | 'install' | 'supply_and_install'
-export const SUPPLY_LABELS: Record<SupplyInstall, string> = { supply: 'Supply', install: 'Install', supply_and_install: 'Supply and install' }
+export { SUPPLY_LABELS, rowDates, type SupplyInstall } from './procurementCalc'
 
 export interface ProcItem {
   id: string | null // null until first saved
@@ -39,6 +39,7 @@ export interface ProcRow extends ProcItem {
   group: string
   budget: number // section A: from the SoW lines; section B: the VO's value
   lines: { key: string; ref: string | null; description: string; amount: number }[]
+  suggested: string[] // programme activities matching its name: the provisional on-site date
 }
 
 const must1 = async <T>(p: PromiseLike<{ data: T | null; error: { message: string } | null }>) => {
@@ -110,6 +111,7 @@ export async function loadProcurement(job: Job) {
         group: GROUP_LABELS[group],
         budget: budgets.get(name) ?? 0,
         lines: lines.filter((l) => l.alloc[name]).map((l) => ({ key: l.key, ref: l.ref, description: l.description, amount: l.alloc[name] })),
+        suggested: onSiteActivities(suggestTasks(name, prog.tasks), prog.tasks),
       }
     })
 
@@ -126,12 +128,15 @@ export async function loadProcurement(job: Job) {
         group: 'Variations',
         budget: Math.round(projectedValue(v.vo, v.build) * 100) / 100,
         lines: [],
+        suggested: onSiteActivities(suggestTasks(v.vo.title, prog.tasks), prog.tasks),
       }
     })
 
   return { contract, variations, lines, tasks: prog.tasks, companies, orders, hasLines: budgetLines.length > 0 }
 }
 
+// a package's dates, as shown and exported: required on site (typed, from its linked activities,
+// or provisional from the programme), order by, and red / amber
 const FIELDS = [
   'supply_install',
   'cdp',

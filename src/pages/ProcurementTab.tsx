@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
-import { addProcPackage, loadProcurement, saveProcItem, saveSplit, SUPPLY_LABELS, type ProcItem, type ProcRow, type SupplyInstall } from '../lib/procurement'
-import { STATUS_LABELS, latestOrderDate, onSiteDate, urgency, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
+import { addProcPackage, loadProcurement, rowDates, saveProcItem, saveSplit, SUPPLY_LABELS, type ProcItem, type ProcRow, type SupplyInstall } from '../lib/procurement'
+import { STATUS_LABELS, type ProcLine, type ProcStatus } from '../lib/procurementCalc'
 import { suggestTasks } from '../lib/cashflowCalc'
 import type { ProgrammeTask } from '../lib/programme'
 import JobSowCard from '../components/JobSow'
@@ -52,6 +52,7 @@ export default function ProcurementTab() {
           <th className="num">{vo ? 'Value' : 'Budget'}</th>
           <th>Subcontractor</th>
           <th className="num">Order value</th>
+          <th className="num">Lead time</th>
           <th>On site</th>
           <th>Order by</th>
           <th>Status</th>
@@ -59,15 +60,13 @@ export default function ProcurementTab() {
       </thead>
       <tbody>
         {rows.map((r, n) => {
-          const onSite = onSiteDate(r.required_on_site, r.timeline_task_refs, data.tasks)
-          const orderBy = latestOrderDate(onSite, r.lead_weeks, r.design_weeks)
-          const flag = urgency(orderBy, r.status, today)
+          const { onSite, from, orderBy, flag } = rowDates(r, data.tasks, today)
           const company = data.companies.find((c) => c.id === r.company_id)
           return (
             <Fragment key={r.key}>
               {!vo && r.group !== rows[n - 1]?.group && (
                 <tr className="group-head">
-                  <td colSpan={7}>{r.group}</td>
+                  <td colSpan={8}>{r.group}</td>
                 </tr>
               )}
               <tr
@@ -92,7 +91,19 @@ export default function ProcurementTab() {
                     </span>
                   ) : null}
                 </td>
-                <td data-label="On site">{ukDate(onSite) || <span className="muted">–</span>}</td>
+                <td className="num" data-label="Lead time">
+                  {r.lead_weeks != null ? `${r.lead_weeks} wk${r.lead_weeks === 1 ? '' : 's'}` : <span className="muted">–</span>}
+                  {r.design_weeks ? <span className="muted small"> +{r.design_weeks} design</span> : null}
+                </td>
+                <td data-label="On site">
+                  {ukDate(onSite) || <span className="muted">–</span>}
+                  {from === 'provisional' && (
+                    <span className="muted small" title="From the programme activities that match its name: link its own, or type a date, to firm it up">
+                      {' '}
+                      provisional
+                    </span>
+                  )}
+                </td>
                 <td data-label="Order by">
                   {ukDate(orderBy) || <span className="muted">–</span>}
                   {flag === 'late' && <span className="late small"> late</span>}
@@ -102,7 +113,7 @@ export default function ProcurementTab() {
               </tr>
               {open === r.key && (
                 <tr className="editor-row">
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <ItemEditor
                       row={r}
                       vo={vo}
@@ -120,9 +131,16 @@ export default function ProcurementTab() {
     </table>
   )
 
-  const late = [...data.contract, ...data.variations].filter(
-    (r) => urgency(latestOrderDate(onSiteDate(r.required_on_site, r.timeline_task_refs, data.tasks), r.lead_weeks, r.design_weeks), r.status, today) === 'late',
-  ).length
+  const late = [...data.contract, ...data.variations].filter((r) => rowDates(r, data.tasks, today).flag === 'late').length
+  const exportExcel = async (copy: 'internal' | 'client') => {
+    setError(null)
+    try {
+      const { exportProcurement } = await import('../lib/exportProcurement')
+      await exportProcurement({ job, contract: data.contract, variations: data.variations, tasks: data.tasks, companies: data.companies, copy })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   return (
     <>
@@ -133,8 +151,15 @@ export default function ProcurementTab() {
 
       <section className="card">
         <div className="pane-head">
-          <h2>A · Contract packages</h2>
-          {late > 0 && <span className="late small">{late} late</span>}
+          <h2>A · Contract packages {late > 0 && <span className="late small">{late} late</span>}</h2>
+          <div className="form-actions">
+            <button className="primary" onClick={() => exportExcel('internal')}>
+              Excel
+            </button>
+            <button onClick={() => exportExcel('client')} title="Package, status and lead time only: for the client / progress reports (no subcontractors, budgets or values)">
+              Excel: client copy
+            </button>
+          </div>
         </div>
         <p className="muted small">
           From the office SoW: each priced package column, with the general columns (Subbie, Labour, Materials) read line by line into their trades. Budgets are cost. Move or split
@@ -171,9 +196,9 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
   const set = (p: Partial<ProcItem>) => setIt({ ...it, ...p })
   const n = (v: string) => (v.trim() === '' ? null : Number(v))
   const suggested = useMemo(() => suggestTasks(row.label, data.tasks), [row.label, data.tasks])
-  const onSite = onSiteDate(it.required_on_site, it.timeline_task_refs, data.tasks)
-  const fromTasks = onSiteDate(null, it.timeline_task_refs, data.tasks)
-  const orderBy = latestOrderDate(onSite, it.lead_weeks, it.design_weeks)
+  const { onSite, orderBy, flag } = rowDates({ ...it, suggested: row.suggested }, data.tasks, today)
+  // what the programme gives without a typed date: its linked activities, else provisional
+  const programmeDate = rowDates({ ...it, required_on_site: null, suggested: row.suggested }, data.tasks, today)
   const companies = [...data.companies].sort(
     (a, b) => Number(b.type === 'subcontractor' || b.type === 'supplier') - Number(a.type === 'subcontractor' || a.type === 'supplier') || a.name.localeCompare(b.name),
   )
@@ -265,11 +290,17 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
           Required on site
           <input type="date" value={it.required_on_site ?? ''} onChange={(e) => set({ required_on_site: e.target.value || null })} />
           <span className="hint">
-            {it.required_on_site ? 'Typed (clear it to use the programme)' : fromTasks ? `From the programme: ${ukDate(fromTasks)}` : 'Link activities below, or type a date'}
+            {it.required_on_site
+              ? `Typed (clear it to use the programme${programmeDate.onSite ? `: ${ukDate(programmeDate.onSite)}` : ''})`
+              : programmeDate.from === 'programme'
+                ? `From its linked activities: ${ukDate(programmeDate.onSite)}`
+                : programmeDate.from === 'provisional'
+                  ? `Provisional, from the programme activities matching its name: ${ukDate(programmeDate.onSite)}. Link its own below, or type a date, to firm it up`
+                  : 'No matching programme activities: link some below, or type a date'}
           </span>
         </label>
       </div>
-      <p className={`small ${urgency(orderBy, it.status, today) === 'late' ? 'late' : ''}`}>
+      <p className={`small ${flag === 'late' ? 'late' : ''}`}>
         Order by: <strong>{ukDate(orderBy) || '–'}</strong>
         {orderBy && ` (on site ${ukDate(onSite)} − ${Number(it.lead_weeks ?? 0)} weeks lead − ${Number(it.design_weeks ?? 0)} weeks design)`}
       </p>
