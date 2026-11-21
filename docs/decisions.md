@@ -107,7 +107,13 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
   - this month, cumulative, cumulative %, retention held (job %, halved from the PC month) and payment after retention;
   - issued VOs in their own at-risk column;
   - the S-curve on screen: monthly bars and the cumulative % line.
-- **Step 2 (next):** Excel export (internal copy with DBP's applied figures, client copy with certified and paid only), the actuals overlay from Applications for past months, and the S-curve in the Excel.
+- **Step 2 (built 21 Nov): Excel export and actuals.** No S-curve in the Excel for now (Richard, 21 Nov); it stays on screen.
+  - **Actuals from Applications:** each application's latest revision gives applied (DBP's gross), certified (the client's assessment, gross) and paid. Monthly figures are the change from the application before, in the valuation month; paid goes in the month it was paid. They're shown as extra columns on the forecast and in the Excel. Months outside the forecast are listed too.
+  - **Excel (Forecast › "Excel: client copy" / "Excel: internal"):** landscape, logo top right, trades down the side by works group, a column per month and a total.
+    - Then: total this month, cumulative (formulas), cumulative %, retention held, payment after retention; issued VOs at risk in their own section, not in the totals; the actuals.
+    - **Internal copy:** adds Applied, and shows EP, "Omissions and OH&P not tied to a package" and "Difference to the contract sum" separately.
+    - **Client copy:** certified and paid only, and those three rows as one **"Allowances and adjustments"** row, so no OH&P or contingency reaches the client.
+    - Tested: both recalculate in Excel with no errors and total the contract sum (Micro £847,000).
 
 ## Timeline and Minutes merge — parked (19 Nov)
 - Parked until the developer (who holds the Minutes Firebase project) and the IT manager (Supabase hosting) are available. Fresh copies of both apps to be taken from the live sites when work starts.

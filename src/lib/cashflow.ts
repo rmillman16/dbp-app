@@ -2,6 +2,7 @@
 import { supabase } from './supabase'
 import { cached, must } from './offline'
 import { loadJobVariations, projectedValue } from './variations'
+import { appName, frontSheet, latestRevisions, loadApplication, loadApplications, loadSowRevision } from './applications'
 import { loadProgramme } from './programme'
 import { loadBudgetLines, loadPackages } from './cvr'
 import { GROUP_LABELS, byGroupThenName, groupOf } from './cvrCalc'
@@ -101,6 +102,51 @@ export async function saveTrade(packageId: string, trade: string | null) {
 }
 // a SoW line's own weighting is kept under this key (gone = it follows its trade)
 export const lineKey = (trade: string, line: string) => `line:${trade}::${line}`
+
+// ---------- actuals from the Applications module (decided 19 Nov) ----------
+// Past months show what was applied (DBP's gross application: internal copy only), certified (the
+// client's assessment, gross) and paid. Applications are cumulative, so a month's figure is the
+// change from the application before; paid is as entered, in the month it was paid.
+export interface Actual {
+  month: string // YYYY-MM
+  applied: number | null
+  certified: number | null
+  paid: number | null
+  label: string // "Application 3 R1"
+}
+export async function loadActuals(job: Job): Promise<Actual[]> {
+  const apps = latestRevisions(await loadApplications(job.id))
+    .filter((a) => a.valuation_date && a.sow_revision_id)
+    .sort((a, b) => a.app_no - b.app_no)
+  if (!apps.length) return []
+  const vos = await loadJobVariations(job)
+  const out = new Map<string, Actual>()
+  let prevApplied = 0
+  let prevCertified = 0
+  for (const app of apps) {
+    const [{ lines }, sow] = await Promise.all([loadApplication(app.id), loadSowRevision(app.sow_revision_id!)])
+    const applied = frontSheet(job, app, sow.lines, lines, vos, 'dbp').totalApplication
+    const assessed = app.client_certified != null || app.status === 'assessed' || app.status === 'paid'
+    const certified = assessed ? frontSheet(job, app, sow.lines, lines, vos, 'client').totalApplication : null
+    const month = app.valuation_date!.slice(0, 7)
+    const a = out.get(month) ?? { month, applied: 0, certified: null, paid: null, label: '' }
+    a.applied = Math.round(((a.applied ?? 0) + applied - prevApplied) * 100) / 100
+    prevApplied = applied
+    if (certified != null) {
+      a.certified = Math.round(((a.certified ?? 0) + certified - prevCertified) * 100) / 100
+      prevCertified = certified
+    }
+    a.label = appName(app)
+    out.set(month, a)
+    if (app.paid_amount != null) {
+      const pm = (app.paid_date ?? app.valuation_date!).slice(0, 7)
+      const p = out.get(pm) ?? { month: pm, applied: null, certified: null, paid: null, label: '' }
+      p.paid = Math.round(((p.paid ?? 0) + Number(app.paid_amount)) * 100) / 100
+      out.set(pm, p)
+    }
+  }
+  return [...out.values()].sort((a, b) => a.month.localeCompare(b.month))
+}
 
 // a subcontract line and the trade it goes into (read from its description, or overruled)
 export interface LineTradeChoice extends LineValue {

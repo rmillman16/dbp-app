@@ -6,12 +6,14 @@ import {
   NO_TRADE,
   addStage,
   deleteStage,
+  loadActuals,
   loadCashflow,
   moveStage,
   renameStage,
   saveItem,
   saveLineTrade,
   saveTrade,
+  type Actual,
   type CashflowItem,
   type LineTradeChoice,
   type TradeChoice,
@@ -57,9 +59,13 @@ export default function CashflowTab() {
   const [msg, setMsg] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
 
+  const [actuals, setActuals] = useState<Actual[]>([])
+
   const reload = () => loadCashflow(job).then(setData, (e: Error) => setError(e.message))
   useEffect(() => {
     reload()
+    // past months from Applications (a job with no applications yet has none)
+    loadActuals(job).then(setActuals, () => setActuals([]))
   }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // the programme's own Start on site / PC milestones first, then the job's dates
@@ -250,7 +256,22 @@ export default function CashflowTab() {
         ) : null}
       </section>
 
-      <Forecast result={result} retentionPct={Number(job.retention_pct ?? 0)} siteStart={siteStart} pc={pc} />
+      <Forecast
+        result={result}
+        retentionPct={Number(job.retention_pct ?? 0)}
+        siteStart={siteStart}
+        pc={pc}
+        actuals={actuals}
+        onExport={async (copy) => {
+          setError(null)
+          try {
+            const { exportCashflow } = await import('../lib/exportCashflow')
+            await exportCashflow({ job, items: data.items, result, actuals, siteStart, pc, programmeName: data.programme?.project_name ?? null, copy })
+          } catch (e) {
+            setError((e as Error).message)
+          }
+        }}
+      />
     </>
   )
 }
@@ -846,16 +867,45 @@ function ItemEditor({
 }
 
 // ---------- the forecast ----------
-function Forecast({ result, retentionPct, siteStart, pc }: { result: CashflowResult; retentionPct: number; siteStart: string | null; pc: string | null }) {
+function Forecast({
+  result,
+  retentionPct,
+  siteStart,
+  pc,
+  actuals,
+  onExport,
+}: {
+  result: CashflowResult
+  retentionPct: number
+  siteStart: string | null
+  pc: string | null
+  actuals: Actual[]
+  onExport: (copy: 'internal' | 'client') => void
+}) {
   const { monthly } = result
   const notPlaced = result.rows.filter((r) => r.unplaced && r.kind !== 'vo_risk')
   const [shown, setShown] = useState<string | null>(null) // the month opened to see what makes it up
+  // past months: what was applied, certified and paid (from Applications)
+  const actual = new Map(actuals.map((a) => [a.month, a]))
+  const outside = actuals.filter((a) => !result.months.includes(a.month))
+  const cols = (result.atRiskTotal ? 7 : 6) + (actuals.length ? 3 : 0)
   return (
     <section className="card">
-      <h2>Forecast</h2>
+      <div className="pane-head">
+        <h2>Forecast</h2>
+        <div className="form-actions">
+          <button className="primary" onClick={() => onExport('client')} disabled={!monthly.length}>
+            Excel: client copy
+          </button>
+          <button onClick={() => onExport('internal')} disabled={!monthly.length}>
+            Excel: internal
+          </button>
+        </div>
+      </div>
       <p className="muted small">
         What we'll apply for each month, excl. VAT, valuations at month end. Start on site {ukDate(siteStart) || 'not set'}, PC {ukDate(pc) || 'not set'} (from the programme's
         milestones, else the job's dates). Retention at {retentionPct}%{pc ? ', halved from PC' : ''}. Click a month to see what makes it up.
+        {actuals.length > 0 && ' Past months also show what was applied, certified and paid (from Applications); the client copy shows certified and paid only.'}
       </p>
       {notPlaced.length > 0 && (
         <details className="warning">
@@ -883,6 +933,13 @@ function Forecast({ result, retentionPct, siteStart, pc }: { result: CashflowRes
               <th className="num">Retention held</th>
               <th className="num">Payment after retention</th>
               {result.atRiskTotal ? <th className="num">Issued VOs (at risk)</th> : null}
+              {actuals.length > 0 && (
+                <>
+                  <th className="num">Applied</th>
+                  <th className="num">Certified</th>
+                  <th className="num">Paid</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -910,10 +967,23 @@ function Forecast({ result, retentionPct, siteStart, pc }: { result: CashflowRes
                       {m.atRisk ? money(m.atRisk) : ''}
                     </td>
                   ) : null}
+                  {actuals.length > 0 && (
+                    <>
+                      <td className={`num ${actual.get(m.month)?.applied == null ? 'stack-hide' : ''}`} data-label="Applied">
+                        {money(actual.get(m.month)?.applied)}
+                      </td>
+                      <td className={`num ${actual.get(m.month)?.certified == null ? 'stack-hide' : ''}`} data-label="Certified">
+                        {money(actual.get(m.month)?.certified)}
+                      </td>
+                      <td className={`num ${actual.get(m.month)?.paid == null ? 'stack-hide' : ''}`} data-label="Paid">
+                        {money(actual.get(m.month)?.paid)}
+                      </td>
+                    </>
+                  )}
                 </tr>
                 {shown === m.month && (
                   <tr className="editor-row">
-                    <td colSpan={result.atRiskTotal ? 7 : 6}>
+                    <td colSpan={cols}>
                       <strong>What makes up {monthLabel(m.month)}</strong>
                       <ul className="month-parts">
                         {result.rows
@@ -941,10 +1011,22 @@ function Forecast({ result, retentionPct, siteStart, pc }: { result: CashflowRes
             <tr>
               <td>Total</td>
               <td className="num">{money(monthly.reduce((s, m) => s + m.value, 0))}</td>
-              <td colSpan={result.atRiskTotal ? 5 : 4} />
+              <td colSpan={cols - 2} />
             </tr>
           </tfoot>
         </table>
+      )}
+      {outside.length > 0 && (
+        <p className="muted small">
+          Outside the forecast's months:{' '}
+          {outside
+            .map(
+              (a) =>
+                `${monthLabel(a.month)}: ${[a.applied != null ? `applied ${money(a.applied)}` : '', a.certified != null ? `certified ${money(a.certified)}` : '', a.paid != null ? `paid ${money(a.paid)}` : ''].filter(Boolean).join(', ')}`,
+            )
+            .join(' · ')}{' '}
+          (in the Excel too)
+        </p>
       )}
     </section>
   )
