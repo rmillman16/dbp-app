@@ -7,7 +7,9 @@ import { useAccess } from '../lib/access'
 import { NoAccess } from '../components/NoAccess'
 import {
   OPEN_STATUSES,
-  REQ_STATUS_LABELS,
+  ADMIN_LIST_NAME,
+  statusLabel,
+  statusesFor,
   addFile,
   fileUrl,
   jobLabel,
@@ -60,12 +62,12 @@ function SiteNav() {
         </NavLink>
         {can('buyer_material') && (
           <NavLink to="/site/buyer/material" className="pill">
-            Material buyer's list
+            {ADMIN_LIST_NAME.material}
           </NavLink>
         )}
         {can('buyer_hire') && (
           <NavLink to="/site/buyer/hire" className="pill">
-            Hire buyer's list
+            {ADMIN_LIST_NAME.hire}
           </NavLink>
         )}
       </nav>
@@ -94,7 +96,7 @@ function AddFiles({ onFiles, disabled, label = 'Choose files…' }: { onFiles: (
   )
 }
 
-const statusTag = (s: ReqStatus) => <span className={`tag req-${s}`}>{REQ_STATUS_LABELS[s]}</span>
+const statusTag = (s: ReqStatus, kind: ReqKind) => <span className={`tag req-${s}`}>{statusLabel(s, kind)}</span>
 
 // ---------- my requisitions (the site manager's view) ----------
 export default function Site() {
@@ -149,7 +151,7 @@ export default function Site() {
                   <td className="nowrap" data-label="Needed by">
                     {ukDate(r.required_by)}
                   </td>
-                  <td data-label="Status">{statusTag(r.status)}</td>
+                  <td data-label="Status">{statusTag(r.status, r.kind)}</td>
                 </tr>
               ))}
             </tbody>
@@ -171,7 +173,6 @@ const hireTitle = (details: string) => {
 
 function RequisitionForm({ kind }: { kind: ReqKind }) {
   const hire = kind === 'hire'
-  const navigate = useNavigate()
   const [params] = useSearchParams()
   const [jobs, setJobs] = useState<Job[] | null>(null)
   // the date needed (hire: start of the hire period) starts 3 days from now unless changed (22 Nov)
@@ -179,6 +180,7 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState<Requisition | null>(null)
 
   useEffect(() => {
     loadSites().then(setJobs, (e: Error) => setError(e.message))
@@ -204,7 +206,12 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
         },
         files,
       )
-      navigate(`/site/requisitions/${r.id}?sent=1`)
+      // keep the site; clear the rest for the next one
+      setForm({ job_id: form.job_id, element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
+      setFiles([])
+      setSent(r)
+      setBusy(false)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setError(saveError(err))
       setBusy(false)
@@ -215,6 +222,15 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
   return (
     <>
       <SiteNav />
+      {sent && (
+        <div className="success-banner" role="status">
+          <strong>✓ {reqRef(sent)} sent to the buyer.</strong> Add another below, or <Link to={`/site/requisitions/${sent.id}`}>view it</Link>. Any questions will come to your
+          bell.
+          <button type="button" className="link-button small" onClick={() => setSent(null)} aria-label="Close">
+            ✕
+          </button>
+        </div>
+      )}
       <form className="card form req-form" onSubmit={submit}>
         <h2>{hire ? 'Hire requisition' : 'Material requisition'}</h2>
         <p className="muted small intro">
@@ -298,15 +314,26 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
 }
 
 // ---------- the buyer's list (the back end, across all jobs) ----------
-type Filter = 'open' | 'query' | 'ordered' | 'delivered' | 'all'
-const FILTERS: [Filter, string][] = [
-  ['open', 'Open'],
-  ['query', 'Awaiting answer'],
-  ['ordered', 'Ordered'],
-  ['delivered', 'Delivered'],
-  ['all', 'All'],
-]
-const inFilter = (f: Filter, s: ReqStatus) => (f === 'all' ? true : f === 'open' ? OPEN_STATUSES.includes(s) && s !== 'ordered' : s === f)
+type Filter = 'open' | 'query' | 'ordered' | 'delivered' | 'on_hire' | 'off_hired' | 'all'
+const FILTERS: Record<ReqKind, [Filter, string][]> = {
+  material: [
+    ['open', 'Open'],
+    ['query', 'Awaiting answer'],
+    ['ordered', 'Ordered'],
+    ['delivered', 'Delivered'],
+    ['all', 'All'],
+  ],
+  // 22 Nov: "a list of on hire items or an ability to filter"
+  hire: [
+    ['open', 'Open'],
+    ['query', 'Awaiting answer'],
+    ['on_hire', 'On hire'],
+    ['off_hired', 'Off-hired'],
+    ['all', 'All'],
+  ],
+}
+const inFilter = (f: Filter, s: ReqStatus) =>
+  f === 'all' ? true : f === 'open' ? OPEN_STATUSES.includes(s) && s !== 'ordered' : f === 'on_hire' ? s === 'ordered' || s === 'delivered' : s === f
 
 export function BuyerList() {
   const { kind: kindParam } = useParams()
@@ -317,6 +344,7 @@ export function BuyerList() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('open')
+  useEffect(() => setFilter('open'), [kind])
   const [jobId, setJobId] = useState('')
   const [search, setSearch] = useState('')
 
@@ -362,7 +390,7 @@ export function BuyerList() {
     return (
       <>
         <SiteNav />
-        <NoAccess what={`the ${kind} buyer's list`} />
+        <NoAccess what={ADMIN_LIST_NAME[kind]} />
       </>
     )
   return (
@@ -370,7 +398,7 @@ export function BuyerList() {
       <SiteNav />
       <section className="card">
         <div className="pane-head">
-          <h2>{kind === 'hire' ? 'Hire' : 'Material'} buyer's list</h2>
+          <h2>{ADMIN_LIST_NAME[kind]}</h2>
         </div>
         <div className="toolbar">
           <input
@@ -388,7 +416,7 @@ export function BuyerList() {
             ))}
           </select>
           <div className="segmented">
-            {FILTERS.map(([f, label]) => (
+            {FILTERS[kind].map(([f, label]) => (
               <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
                 {label}
                 {rows && <span className="seg-count">{rows.filter((r) => inFilter(f, r.status)).length}</span>}
@@ -433,9 +461,9 @@ export function BuyerList() {
                 const status = (
                   <td data-label="Status" onClick={(e) => e.stopPropagation()}>
                     <select className={`req-status req-${r.status}`} value={r.status} onChange={(e) => setStatus(r, e.target.value as ReqStatus)}>
-                      {(Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).map((st) => (
+                      {statusesFor(r.kind).map((st) => (
                         <option key={st} value={st}>
-                          {REQ_STATUS_LABELS[st]}
+                          {statusLabel(st, r.kind)}
                         </option>
                       ))}
                     </select>
@@ -465,7 +493,10 @@ export function BuyerList() {
                     <td className={`nowrap ${urgent ? 'late' : ''}`} data-label="Hire start">
                       {ukDate(r.required_by)}
                     </td>
-                    <td className={`nowrap ${r.data?.hire_end ? '' : 'stack-hide'}`} data-label="Hire end">
+                    <td
+                      className={`nowrap ${r.data?.hire_end ? '' : 'stack-hide'} ${(r.status === 'ordered' || r.status === 'delivered') && r.data?.hire_end && (r.data.hire_end as string) <= soon ? 'late' : ''}`}
+                      data-label="Hire end"
+                    >
                       {ukDate((r.data?.hire_end as string) ?? null)}
                     </td>
                     <td className={`pre clamp ${r.notes ? '' : 'stack-hide'}`} data-label="Notes">
@@ -520,6 +551,7 @@ export function RequisitionPage() {
   const [draft, setDraft] = useState('')
   const [order, setOrder] = useState<Partial<Requisition>>({})
   const [note, setNote] = useState('') // buyer notes (in data)
+  const [hireEnd, setHireEnd] = useState('') // hire end (in data): the off-hire reminder is 3 days before
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -531,6 +563,7 @@ export function RequisitionPage() {
         setMessages(m)
         setFiles(f)
         setNote(String(r.data?.buyer_notes ?? ''))
+        setHireEnd(String(r.data?.hire_end ?? ''))
         setOrder({ supplier: r.supplier, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
       },
       (e: Error) => setError(e.message),
@@ -579,7 +612,7 @@ export function RequisitionPage() {
         order_value: order.order_value == null || String(order.order_value) === '' ? null : Number(order.order_value),
         order_date: order.order_date || null,
         delivery_date: order.delivery_date || null,
-        data: { ...req.data, buyer_notes: note.trim() || null },
+        data: { ...req.data, buyer_notes: note.trim() || null, ...(req.kind === 'hire' ? { hire_end: hireEnd || null } : {}) },
         ...(status ? { status } : {}),
         ...(status === 'ordered' && !order.order_date ? { order_date: todayIso() } : {}),
       }
@@ -628,7 +661,7 @@ export function RequisitionPage() {
           <dt>Site</dt>
           <dd>{job ? <Link to={`/jobs/${job.id}`}>{jobLabel(job)}</Link> : '—'}</dd>
           <dt>Status</dt>
-          <dd>{statusTag(req.status)}</dd>
+          <dd>{statusTag(req.status, req.kind)}</dd>
           {req.kind === 'hire' ? (
             <>
               <dt>Hire period</dt>
@@ -719,9 +752,9 @@ export function RequisitionPage() {
             <label>
               Status
               <select value={req.status} onChange={(e) => saveOrder(e.target.value as ReqStatus)} disabled={busy}>
-                {(Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).map((s) => (
+                {statusesFor(req.kind).map((s) => (
                   <option key={s} value={s}>
-                    {REQ_STATUS_LABELS[s]}
+                    {statusLabel(s, req.kind)}
                   </option>
                 ))}
               </select>
@@ -748,6 +781,13 @@ export function RequisitionPage() {
               {req.kind === 'hire' ? 'On site' : 'Delivery date'}
               <input type="date" value={order.delivery_date ?? ''} onChange={(e) => setOrder({ ...order, delivery_date: e.target.value })} />
             </label>
+            {req.kind === 'hire' && (
+              <label>
+                Hire end
+                <input type="date" value={hireEnd} min={req.required_by} onChange={(e) => setHireEnd(e.target.value)} />
+                <span className="muted small">The ops team are reminded 3 days before</span>
+              </label>
+            )}
             <label className="span-2">
               Buyer notes
               <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
@@ -765,7 +805,12 @@ export function RequisitionPage() {
             )}
             {req.status === 'ordered' && (
               <button disabled={busy} onClick={() => saveOrder('delivered')}>
-                Mark delivered
+                {req.kind === 'hire' ? 'Mark on hire' : 'Mark delivered'}
+              </button>
+            )}
+            {req.kind === 'hire' && (req.status === 'ordered' || req.status === 'delivered') && (
+              <button disabled={busy} onClick={() => saveOrder('off_hired')}>
+                Mark off-hired
               </button>
             )}
           </div>

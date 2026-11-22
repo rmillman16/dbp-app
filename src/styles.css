@@ -802,3 +802,7 @@ tr.login-off td { opacity: 0.6; }
 .type-chip:disabled { cursor: default; opacity: 0.45; }
 .type-chip.on:disabled { opacity: 1; }
 .type-sep { width: 1px; background: var(--line); margin: 0 4px; align-self: stretch; }
+.success-banner { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; background: #e2f3e8; color: #14532d; border: 1px solid #b7dcc3; border-radius: 8px; padding: 12px 16px; margin: 0 0 12px; }
+.success-banner button { margin-left: auto; color: #14532d; }
+.tag.req-off_hired { background: #eee; color: var(--muted); }
+select.req-status.req-off_hired { background: #eee; }

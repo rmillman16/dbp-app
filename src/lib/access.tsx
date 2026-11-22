@@ -47,8 +47,8 @@ export const SECTIONS: [Section, string, string][] = [
   ['contracts', 'Contracts', 'EOT clauses and wording'],
   ['contractors', 'Contractors', ''],
   ['site', 'Site › Requisitions', 'Raise material / hire requisitions and see your own'],
-  ['buyer_material', 'Site › Material buyer’s list', 'Every material requisition, all jobs'],
-  ['buyer_hire', 'Site › Hire buyer’s list', 'Every hire requisition, all jobs'],
+  ['buyer_material', 'Site › Material Req - ADMIN', 'Every material requisition, all jobs'],
+  ['buyer_hire', 'Site › Hire Req - ADMIN', 'Every hire requisition, all jobs; off-hire reminders'],
 ]
 export const sectionLabel = (s: Section) => SECTIONS.find(([k]) => k === s)?.[1] ?? s
 

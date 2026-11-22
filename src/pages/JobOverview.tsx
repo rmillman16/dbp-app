@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { money, ukDate } from '../lib/format'
-import { useNotifications } from '../lib/notifications'
+import { needsAttention, useNotifications } from '../lib/notifications'
 import { loadJobVariations, projectedValue, type VoWithLines } from '../lib/variations'
 import NotificationList from '../components/NotificationList'
 import JobSowCard from '../components/JobSow'
@@ -12,7 +12,7 @@ export default function JobOverview() {
   const { job } = useJob()
   const { attention, items } = useNotifications()
   // the To do box (22 Nov): requisition questions and answers waiting on me for this job
-  const todo = items.filter((n) => n.job_id === job.id && /^requisition_(query|answer)$/.test(n.kind))
+  const todo = items.filter((n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || (n.kind === 'off_hire_due' && needsAttention(n))))
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
   const [calMsg, setCalMsg] = useState<string | null>(null)
 

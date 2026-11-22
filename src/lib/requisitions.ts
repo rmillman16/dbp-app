@@ -9,16 +9,22 @@ import { cached, must } from './offline'
 import type { Job } from './types'
 
 export type ReqKind = 'material' | 'hire'
-export type ReqStatus = 'new' | 'query' | 'answered' | 'ordered' | 'delivered' | 'cancelled'
+export type ReqStatus = 'new' | 'query' | 'answered' | 'ordered' | 'delivered' | 'off_hired' | 'cancelled' // off_hired: hire only (039)
 export const REQ_STATUS_LABELS: Record<ReqStatus, string> = {
   new: 'New',
   query: 'Query raised',
   answered: 'Answered',
   ordered: 'Ordered',
   delivered: 'Delivered',
+  off_hired: 'Off-hired',
   cancelled: 'Voided', // as on the SharePoint lists (22 Nov)
 }
 export const OPEN_STATUSES: ReqStatus[] = ['new', 'query', 'answered', 'ordered']
+// a hire that's delivered is "On hire"; off-hired is for hire only
+export const statusLabel = (s: ReqStatus, kind: ReqKind) => (kind === 'hire' && s === 'delivered' ? 'On hire' : REQ_STATUS_LABELS[s])
+export const statusesFor = (kind: ReqKind) => (Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).filter((s) => kind === 'hire' || s !== 'off_hired')
+// the back ends' names (22 Nov)
+export const ADMIN_LIST_NAME: Record<ReqKind, string> = { material: 'Material Req - ADMIN', hire: 'Hire Req - ADMIN' }
 
 export interface Requisition {
   id: string

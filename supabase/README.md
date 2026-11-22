@@ -42,6 +42,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `036_access_requests.sql` | Request access: the no-access screen sends IT a request (bell); admins mark the IT login(s) in Settings › Users; requests listed in Settings | ✅ Run |
 | `037_admins_from_app.sql` | Admins can make other people admins from Settings › Users (not yourself off, never the last admin) | ✅ Run |
 | `038_requisition_supplier_text.sql` | Requisitions: supplier is a typed text box, not a dropdown | ✅ Run |
+| `039_off_hire_reminders.sql` | Hire: Off-hired status; the ops team get a reminder 3 days before a hire ends (bell and job To do); requester updates say "voided" | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
