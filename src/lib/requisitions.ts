@@ -105,7 +105,9 @@ export function loadSites() {
   return cached('req-sites', async () => {
     const r = await supabase.rpc('requisition_sites')
     if (!r.error) return r.data as Job[]
-    return must<Job[]>(supabase.from('jobs').select('id,job_no,code,name,status').in('status', ['live', 'tender']).order('job_no', { ascending: false }))
+    const j = await supabase.from('jobs').select('id,job_no,code,name,status').in('status', ['live', 'tender']).order('job_no', { ascending: false })
+    if (j.error) throw new Error(j.error.message)
+    return j.data as Job[]
   })
 }
 
