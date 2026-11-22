@@ -33,11 +33,18 @@
     - A part you can't open is hidden from the menus and job tabs. Going to it by link shows a padlock and **"You don't have access to this area"** with a **Request access** button (revised 22 Nov), with an optional note on why.
     - **Requests go to IT** (036): admins tick **IT** on the admin login(s) IT uses (Settings › Users). The request goes on their bell and is listed in Settings › Access requests (Done / Decline tells the person). If nobody is ticked IT, every admin gets it. The app will ultimately be managed by IT through an admin account.
     - A page that crashes shows "This page hit a problem" with Reload / Go to Home instead of a blank screen.
+    - **Managing logins from the app** (built 22 Nov; Edge Function `manage-users`): admins, IT included, can do all of this from Settings › Users.
+      - **+ Add user:** name, email and profile types. The app shows a temporary password once, e.g. Dbp-7KQM-X4TP-29, with Copy and Draft email buttons.
+      - **Reset password** gives a new temporary password.
+      - **Switch off / on** a login. Leavers are switched off, not deleted, so their name stays on what they did. You can't switch yourself off.
+      - **Last signed in** is shown for each user.
+      - My details has **Change password**.
+      - Admin itself is still only set in the SQL Editor.
+      - The server key stays inside Supabase and is never in the app.
     - **Database enforcement:** for requisitions it's the grid (your own, or all of a kind whose buyer's list you can open). The rest is screens only for now.
     - **⚠ Before External logins are handed out,** the database must also check each part (jobs, commercial, etc.).
   - **Still to come:**
     - Which jobs each person sees.
-    - Add / reset / remove users from the app (needs a small Edge Function; Richard to say go).
     - A requester-only view for site managers can now be a type ticked for Site requisitions only.
 - **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
   - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.

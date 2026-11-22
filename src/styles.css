@@ -790,3 +790,11 @@ select.req-status.req-ordered, select.req-status.req-delivered { background: #e2
 .no-access h2 { margin: 8px 0 18px; }
 .no-access-ask { max-width: 420px; margin: 0 auto; }
 .no-access-ask textarea { width: 100%; }
+.add-user, .password-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 0 0 14px; background: #faf9fc; }
+.add-user h3 { margin-top: 0; }
+.add-user .label-text { display: block; font-weight: 600; margin-bottom: 4px; }
+.password-card { background: #e2f3e8; border-color: #b7dcc3; }
+.temp-password { font-size: 18px; letter-spacing: 0.05em; background: #fff; padding: 2px 8px; border-radius: 6px; }
+.user-actions { display: flex; gap: 10px; }
+.link-button.danger { color: var(--red); }
+tr.login-off td { opacity: 0.6; }

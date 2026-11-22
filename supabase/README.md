@@ -47,9 +47,17 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | Function | What it does | Needs | Deployed? |
 |---|---|---|---|
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
+| `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ⬜ Not yet |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
 - **Changes come as a new script** (`002_…`, `003_…`) that alters what's there, so nothing already in the app is lost. Claude adds each new script here and a row to the table above.
 - Before running, check the table above to see which number you're up to.
 - Only the Project URL and publishable (anon) key are ever shared for the build. Never paste the secret (service-role) key or the database password into a chat.
+
+### Deploying `manage-users` (about 2 minutes, no IT needed)
+1. Supabase › **Edge Functions** › **Deploy a new function** › **Via Editor**.
+2. Name it exactly `manage-users`.
+3. Delete the sample code, paste the whole of `functions/manage-users/index.ts`, then **Deploy function**.
+4. In the app: Settings › Users › **+ Add user**.
+   - If it says "Invalid JWT", open the function's **Details** in Supabase, turn **Verify JWT** off, and save. The function checks sign-in and admin itself.

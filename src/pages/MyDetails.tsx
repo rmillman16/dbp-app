@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
 import { loadMe } from '../lib/admin'
@@ -50,6 +50,50 @@ export default function MyDetails() {
           </button>
         </div>
       </section>
+      <ChangePassword />
     </>
+  )
+}
+
+// change your own password (e.g. after an admin gives you a temporary one, 22 Nov)
+function ChangePassword() {
+  const [pw, setPw] = useState('')
+  const [again, setAgain] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function save(e: FormEvent) {
+    e.preventDefault()
+    setMsg(null)
+    if (pw.length < 10) return setMsg('Use at least 10 characters.')
+    if (pw !== again) return setMsg('The two passwords don’t match.')
+    if (!navigator.onLine) return setMsg(saveError(new Error('offline')))
+    setBusy(true)
+    const r = await supabase.auth.updateUser({ password: pw })
+    setBusy(false)
+    if (r.error) return setMsg(/same|different/i.test(r.error.message) ? 'That’s your current password: choose a new one.' : r.error.message)
+    setPw('')
+    setAgain('')
+    setMsg('Password changed.')
+  }
+  return (
+    <form className="card" onSubmit={save}>
+      <h2>Change password</h2>
+      <div className="form-grid">
+        <label>
+          New password
+          <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required />
+        </label>
+        <label>
+          New password again
+          <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} required />
+        </label>
+      </div>
+      {msg && <p className={msg === 'Password changed.' ? 'saved' : 'error'}>{msg}</p>}
+      <div className="form-actions">
+        <button className="primary" disabled={busy}>
+          {busy ? 'Changing…' : 'Change password'}
+        </button>
+      </div>
+    </form>
   )
 }

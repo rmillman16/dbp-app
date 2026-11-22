@@ -5,6 +5,7 @@ import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
 import { ROLES, SECTIONS, roleLabel, useAccess, type Role, type Section } from '../lib/access'
 import AdminOnly from '../components/AdminOnly'
+import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type LoginStatus } from '../lib/users'
 import { Insurances, OmStandardDocuments } from './Sections'
 
 export default function Settings() {
@@ -118,13 +119,23 @@ function CompanyDetails() {
 
 // Users and their profile types (script 035): admins tick each person's types here; what each type can open
 // is the grid below (Access). No type yet = today's access, so nobody is locked out while types are given out.
+// Admins (IT included) add, reset and switch off logins here too (manage-users Edge Function, 22 Nov).
 function Users() {
   const [people, setPeople] = useState<Profile[] | null>(null)
-  const { reload: reloadAccess } = useAccess()
+  const { reload: reloadAccess, me } = useAccess()
   const [err, setErr] = useState<string | null>(null)
-  useEffect(() => {
+  const [logins, setLogins] = useState<Record<string, LoginStatus> | null>(null)
+  const [loginsErr, setLoginsErr] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
+  const [shown, setShown] = useState<{ email: string; name: string; password: string; isNew: boolean; warning?: string } | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+
+  function loadPeople() {
     cached('profiles', () => must<Profile[]>(supabase.from('profiles').select('*').order('email'))).then(setPeople, () => setPeople([]))
-  }, [])
+    listLogins().then(setLogins, (e: Error) => setLoginsErr(e.message))
+  }
+  useEffect(loadPeople, [])
+
   async function toggle(p: Profile, role: Role) {
     setErr(null)
     const before = people
@@ -146,59 +157,228 @@ function Users() {
       setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 036 in Supabase first (supabase/README.md).' : r.error.message)
     }
   }
+  async function reset(p: Profile) {
+    if (!confirm(`Give ${p.full_name ?? p.email} a new temporary password? Their old one stops working.`)) return
+    setErr(null)
+    setBusy(p.id)
+    try {
+      const password = await resetPassword(p.id)
+      setShown({ email: p.email ?? '', name: p.full_name ?? '', password, isNew: false })
+    } catch (e) {
+      setErr((e as Error).message)
+    }
+    setBusy(null)
+  }
+  async function switchLogin(p: Profile, on: boolean) {
+    if (!on && !confirm(`Switch off ${p.full_name ?? p.email}'s login? They can't sign in until it's switched back on. Nothing they did is deleted.`)) return
+    setErr(null)
+    setBusy(p.id)
+    try {
+      await setLoginOn(p.id, on)
+      setLogins({ ...(logins ?? {}), [p.id]: { ...(logins?.[p.id] ?? { last_sign_in_at: null }), disabled: !on } })
+    } catch (e) {
+      setErr((e as Error).message)
+    }
+    setBusy(null)
+  }
+
   const noIt = people != null && !people.some((p) => p.is_admin && p.is_it)
-  const untyped = (people ?? []).filter((p) => !p.is_admin && !(p.roles ?? []).length).length
+  const untyped = (people ?? []).filter((p) => !p.is_admin && !(p.roles ?? []).length && !logins?.[p.id]?.disabled).length
   return (
     <section className="card">
-      <h2>Users and profile types</h2>
+      <div className="pane-head">
+        <h2>Users and profile types</h2>
+        <button className="primary" onClick={() => (setAdding(true), setShown(null))}>
+          + Add user
+        </button>
+      </div>
       <p className="muted small intro">
         Tick each person’s profile types (more than one is fine). What each type can open is set in Access below. Admins see everything.
         {untyped > 0 && ` ${untyped} ${untyped === 1 ? 'person has' : 'people have'} no type yet, so they still see everything but the buyer’s lists.`} Tick <strong>IT</strong> on
         the admin login IT uses: access requests go to it{noIt ? ' (until then they go to every admin)' : ''}.
       </p>
+      {adding && (
+        <AddUser
+          onCancel={() => setAdding(false)}
+          onDone={(r) => {
+            setAdding(false)
+            setShown({ ...r, isNew: true })
+            loadPeople()
+          }}
+        />
+      )}
+      {shown && <PasswordCard {...shown} onClose={() => setShown(null)} />}
+      {loginsErr && <p className="warning small">{loginsErr}</p>}
       <table className="table stack users-table">
         <thead>
           <tr>
             <th>Name</th>
-            <th>Email</th>
             <th>Profile types</th>
+            <th>Last signed in</th>
+            <th />
           </tr>
         </thead>
         <tbody>
-          {people?.map((p) => (
-            <tr key={p.id}>
-              <td className="stack-title">{p.full_name && p.full_name !== p.email ? p.full_name : '–'}</td>
-              <td data-label="Email">{p.email}</td>
-              <td data-label="Types">
-                <div className="type-chips">
-                  {p.is_admin && (
-                    <span className="type-chip on fixed" title="Admin is changed in Supabase's SQL Editor">
-                      Admin
-                    </span>
+          {people?.map((p) => {
+            const st = logins?.[p.id]
+            return (
+              <tr key={p.id} className={st?.disabled ? 'login-off' : ''}>
+                <td className="stack-title">
+                  {p.full_name && p.full_name !== p.email ? p.full_name : '–'}
+                  <div className="muted small">{p.email}</div>
+                  {st?.disabled && <span className="tag">Switched off</span>}
+                </td>
+                <td data-label="Types">
+                  <div className="type-chips">
+                    {p.is_admin && (
+                      <span className="type-chip on fixed" title="Admin is changed in Supabase's SQL Editor">
+                        Admin
+                      </span>
+                    )}
+                    {/* IT (script 036): the admin login(s) IT uses; access requests go to them */}
+                    {p.is_admin && (
+                      <button type="button" className={`type-chip it ${p.is_it ? 'on' : ''}`} onClick={() => setIt(p, !p.is_it)} title="Access requests go to IT">
+                        IT
+                      </button>
+                    )}
+                    {ROLES.map(([r, label]) => (
+                      <button key={r} type="button" className={`type-chip ${(p.roles ?? []).includes(r) ? 'on' : ''}`} onClick={() => toggle(p, r)}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </td>
+                <td className="nowrap" data-label="Last signed in">
+                  {st ? (st.last_sign_in_at ? new Date(st.last_sign_in_at).toLocaleDateString('en-GB') : 'Never') : ''}
+                </td>
+                <td className="nowrap user-actions">
+                  {logins && (
+                    <>
+                      <button className="link-button small" disabled={busy === p.id} onClick={() => reset(p)}>
+                        Reset password
+                      </button>
+                      {p.id !== me?.id &&
+                        (st?.disabled ? (
+                          <button className="link-button small" disabled={busy === p.id} onClick={() => switchLogin(p, true)}>
+                            Switch on
+                          </button>
+                        ) : (
+                          <button className="link-button small danger" disabled={busy === p.id} onClick={() => switchLogin(p, false)}>
+                            Switch off
+                          </button>
+                        ))}
+                    </>
                   )}
-                  {/* IT (script 036): the admin login(s) IT uses; access requests go to them */}
-                  {p.is_admin && (
-                    <button type="button" className={`type-chip it ${p.is_it ? 'on' : ''}`} onClick={() => setIt(p, !p.is_it)} title="Access requests go to IT">
-                      IT
-                    </button>
-                  )}
-                  {ROLES.map(([r, label]) => (
-                    <button key={r} type="button" className={`type-chip ${(p.roles ?? []).includes(r) ? 'on' : ''}`} onClick={() => toggle(p, r)}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </td>
-            </tr>
-          ))}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
       {err && <p className="error">{err}</p>}
       <p className="muted small">
-        Add a login in Supabase › Authentication › Users › Add user (tick Auto Confirm). To make someone an admin, run in Supabase › SQL Editor:{' '}
+        Someone who leaves: switch their login off (nothing they did is deleted). To make someone an admin, run in Supabase › SQL Editor:{' '}
         <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
       </p>
     </section>
+  )
+}
+
+function AddUser({ onCancel, onDone }: { onCancel: () => void; onDone: (r: { email: string; name: string; password: string; warning?: string }) => void }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [roles, setRoles] = useState<Role[]>([])
+  const [err, setErr] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setErr(null)
+    setBusy(true)
+    try {
+      const r = await createLogin(email, name, roles)
+      onDone({ email: email.trim().toLowerCase(), name: name.trim(), password: r.password, warning: r.warning })
+    } catch (x) {
+      setErr((x as Error).message)
+      setBusy(false)
+    }
+  }
+  return (
+    <form className="add-user" onSubmit={submit}>
+      <h3>Add a user</h3>
+      <div className="form-grid">
+        <label>
+          Full name
+          <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
+        </label>
+        <label>
+          Email
+          <input type="email" value={email} placeholder="name@duboulay.co.uk" onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <div className="span-2">
+          <span className="label-text">Profile types</span>
+          <div className="type-chips">
+            {ROLES.map(([r, label]) => (
+              <button
+                key={r}
+                type="button"
+                className={`type-chip ${roles.includes(r) ? 'on' : ''}`}
+                onClick={() => setRoles(roles.includes(r) ? roles.filter((x) => x !== r) : [...roles, r])}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {roles.length === 0 && <p className="muted small">With no type they’ll see everything but the buyer’s lists.</p>}
+        </div>
+      </div>
+      {err && <p className="error">{err}</p>}
+      <div className="form-actions">
+        <button className="primary" disabled={busy}>
+          {busy ? 'Adding…' : 'Add user'}
+        </button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// the temporary password, shown once: copy it, or open a draft email to them (nothing is sent from the app)
+function PasswordCard({
+  email,
+  name,
+  password,
+  isNew,
+  warning,
+  onClose,
+}: {
+  email: string
+  name: string
+  password: string
+  isNew: boolean
+  warning?: string
+  onClose: () => void
+}) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="password-card">
+      <strong>{isNew ? `Login made for ${name || email}` : `New password for ${name || email}`}</strong>
+      <p>
+        Temporary password: <code className="temp-password">{password}</code>{' '}
+        <button className="link-button small" onClick={() => navigator.clipboard?.writeText(password).then(() => (setCopied(true), setTimeout(() => setCopied(false), 1500)))}>
+          {copied ? 'Copied ✓' : 'Copy'}
+        </button>
+      </p>
+      <p className="muted small">It’s shown only now. Pass it on, and ask them to change it in My details after signing in.</p>
+      {warning && <p className="warning small">{warning}</p>}
+      <div className="form-actions">
+        <a className="button primary" href={welcomeEmail(email, name, password)}>
+          Draft email to them
+        </a>
+        <button onClick={onClose}>Done</button>
+      </div>
+    </div>
   )
 }
 
