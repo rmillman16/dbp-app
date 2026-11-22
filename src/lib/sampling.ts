@@ -5,7 +5,7 @@
 import { supabase } from './supabase'
 import { cached, must } from './offline'
 import { loadProgramme, type ProgrammeTask } from './programme'
-import { loadCompanies } from './subcontracts'
+import { addCompany, loadCompanies } from './subcontracts'
 import { addDays } from './programmeEdit'
 import type { Company } from './types'
 
@@ -200,6 +200,7 @@ export interface ScheduleItem {
   description: string | null
   specification: string | null
   quantity: string | null
+  supplier: string | null // from the schedule: its supplier / manufacturer column, else the start of the spec
 }
 // a new schedule (or revision): what's added, removed and changed against the samples already here
 export function compareSchedule(existing: Sample[], items: ScheduleItem[]) {
@@ -230,34 +231,64 @@ export async function applySchedule(
   existing: Sample[],
   items: ScheduleItem[],
   removedAction: 'keep' | 'omit' | 'delete', // samples no longer on the schedule
+  companies: Company[] = [],
 ) {
+  // the schedule's suppliers, matched to the contractor list by name (a new name is added to it)
+  const known = [...companies]
+  const companyId = async (name: string | null) => {
+    if (!name?.trim()) return null
+    const n = name.trim().toLowerCase()
+    let c = known.find((x) => x.name.trim().toLowerCase() === n)
+    if (!c) {
+      c = await addCompany(name.trim(), 'supplier', null)
+      known.push(c)
+    }
+    return c.id
+  }
+  const fields = (it: ScheduleItem) => {
+    const { supplier: _s, ...rest } = it
+    void _s
+    return rest
+  }
   const r = await supabase.from('finish_schedules').insert({ job_id: jobId, designer: meta.designer, document_no: meta.document_no, revision: meta.revision }).select('id').single()
   if (r.error) throw new Error(r.error.message)
   const scheduleId = r.data.id
   await supabase.from('finish_schedules').update({ file_name: meta.file_name }).eq('id', scheduleId) // 030's column; harmless before it
   const { added, changed, removed } = compareSchedule(existing, items)
   const start = Math.max(0, ...existing.map((s) => s.sort)) + 1
-  if (added.length)
+  if (added.length) {
+    const ids = await Promise.all(added.map((it) => companyId(it.supplier)))
     await with030(() =>
       ok(
-        supabase
-          .from('samples')
-          .insert(
-            added.map((it, i) =>
-              row({ job_id: jobId, finish_schedule_id: scheduleId, ...it, sample_type: 'sample', status: 'not_requested', changed_after_approval: false, sort: start + i }),
-            ),
+        supabase.from('samples').insert(
+          added.map((it, i) =>
+            row({
+              job_id: jobId,
+              finish_schedule_id: scheduleId,
+              ...fields(it),
+              supplier_company_id: ids[i],
+              sample_type: 'sample',
+              status: 'not_requested',
+              changed_after_approval: false,
+              sort: start + i,
+            }),
           ),
+        ),
       ),
     )
+  }
   for (const c of changed) {
-    // its status (and group, if changed by hand) is kept; a change to something already approved is flagged (resample, possible VO)
+    // its status (and group, if changed by hand) is kept; a change to something already approved is flagged (resample, possible VO);
+    // a supplier already chosen is kept too
+    const supplier = c.sample.supplier_company_id ? {} : { supplier_company_id: await companyId(c.item.supplier) }
     await with030(() =>
       ok(
         supabase
           .from('samples')
           .update(
             row({
-              ...c.item,
+              ...fields(c.item),
+              ...supplier,
               material_group: c.sample.material_group,
               finish_schedule_id: scheduleId,
               changed_after_approval: c.sample.changed_after_approval || isApproved(c.sample),
@@ -268,6 +299,13 @@ export async function applySchedule(
     )
   }
   const unchanged = existing.filter((s) => items.some((i) => i.code.trim().toUpperCase() === s.code.trim().toUpperCase()) && !changed.some((c) => c.sample.id === s.id))
+  // unchanged samples with no supplier yet take the schedule's
+  for (const s of unchanged) {
+    if (s.supplier_company_id) continue
+    const it = items.find((i) => i.code.trim().toUpperCase() === s.code.trim().toUpperCase())
+    const id = await companyId(it?.supplier ?? null)
+    if (id) await ok(supabase.from('samples').update({ supplier_company_id: id }).eq('id', s.id))
+  }
   if (unchanged.length)
     await ok(
       supabase

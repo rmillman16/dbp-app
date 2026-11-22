@@ -94,8 +94,30 @@ export function headingGroup(text: string) {
   return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
+// words a specification starts with when it describes the material rather than naming a supplier
+const NOT_A_SUPPLIER =
+  /^(crown|quarter|rotary|natural|painted|paint|solid|stained|polished|honed|brushed|satin|matt|matte|gloss|white|black|grey|gray|oak|walnut|ash|maple|beech|ral|ncs|bs|stainless|mild|toughened|laminated|clear|tinted|bespoke|tbc|tba|n\/a|refer|see|as|to|by|existing|new|supply|install|approved|equal|generic|standard|various)$/i
+// the supplier from the start of a specification (22 Nov: "typically the first word or words of the spec"):
+// a name already on the contractor list if the spec starts with one, else "Manufacturer: X", else the
+// first part before a dash, comma or bracket (up to three words, "Farrow & Ball" kept whole), else its first word
+export function supplierFromSpec(text: string, known: string[] = []) {
+  const t = text.trim()
+  if (!t) return null
+  const lower = t.toLowerCase()
+  const hit = known.filter((k) => k.trim() && lower.startsWith(k.trim().toLowerCase())).sort((a, b) => b.length - a.length)[0]
+  if (hit) return hit.trim()
+  const labelled = /^(?:manufacturer|supplier|maker|brand)\s*[:\-]\s*([^,;\n·|]+)/i.exec(t)
+  if (labelled) return labelled[1].trim()
+  // a spec that starts by describing the material names no supplier (e.g. "Crown cut oak veneer")
+  if (NOT_A_SUPPLIER.test(t.split(/\s+/)[0])) return null
+  const part = t.split(/\s[-–—·|:]\s|[,;\n(]/)[0].trim()
+  const words = part.split(/\s+/)
+  const name = words.length <= 3 ? part : words[1] === '&' || words[1]?.toLowerCase() === 'and' ? words.slice(0, 3).join(' ') : words[0]
+  return name.replace(/[.:;,\-–]+$/, '') || null
+}
+
 // the items: one per code, its locations gathered from every row it's on
-export function buildItems(rows: unknown[][], m: Mapping): ScheduleItem[] {
+export function buildItems(rows: unknown[][], m: Mapping, known: string[] = []): ScheduleItem[] {
   const get = (r: unknown[], f: Field) => (m[f] === undefined ? '' : words(r[m[f]!]))
   const out = new Map<string, ScheduleItem>()
   let heading: string | null = null
@@ -126,6 +148,8 @@ export function buildItems(rows: unknown[][], m: Mapping): ScheduleItem[] {
       description,
       specification: spec || null,
       quantity: get(r, 'quantity') || null,
+      // its own supplier column if there is one, else from the start of the specification
+      supplier: get(r, 'manufacturer') || supplierFromSpec(get(r, 'specification') || get(r, 'product') || spec, known),
     })
   }
   return [...out.values()]

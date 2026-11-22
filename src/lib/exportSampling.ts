@@ -40,7 +40,7 @@ export async function exportSampling(job: Job, samples: Sample[], companies: Com
     { head: 'Requested', width: 11, value: (s) => excelDate(s.requested_date), fmt: DATE },
     { head: 'Due', width: 11, value: (s) => excelDate(s.due_date), fmt: DATE },
     { head: 'Submitted', width: 11, value: (s) => excelDate(s.submitted_date), fmt: DATE },
-    { head: 'Decision', width: 11, value: (s) => excelDate(s.decision_date), fmt: DATE },
+    { head: 'Signed off', width: 11, value: (s) => excelDate(s.decision_date), fmt: DATE },
     { head: 'Decided by', width: 14, value: (s) => s.decided_by, wrap: true },
     { head: 'Designer comments', width: 30, value: (s) => s.designer_comments, wrap: true },
     { head: 'Stored at', width: 14, value: (s) => s.stored_location, wrap: true },

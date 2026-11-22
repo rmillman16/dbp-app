@@ -314,8 +314,8 @@ export default function SamplingTab() {
                   <th>Locations</th>
                   <th>Status</th>
                   <th>Type</th>
-                  <th>Due</th>
                   <th>Submitted</th>
+                  <th>Signed off</th>
                   <th>Photo</th>
                 </tr>
               </thead>
@@ -343,6 +343,12 @@ export default function SamplingTab() {
                                 {s.code}
                               </button>
                               {s.designer_ref && <span className="muted small"> · {s.designer_ref}</span>}
+                              {late && (
+                                <span className="late small" title={`Due ${ukDate(s.due_date)}${fromProg ? ' (from the programme)' : ''}, not yet submitted`}>
+                                  {' '}
+                                  overdue
+                                </span>
+                              )}
                               {s.changed_after_approval && (
                                 <span className="soon small" title="The schedule changed after it was approved: resample, possible VO">
                                   {' '}
@@ -405,17 +411,6 @@ export default function SamplingTab() {
                                 ))}
                               </select>
                             </td>
-                            <td data-label="Due">
-                              <input
-                                type="date"
-                                className={`proc-date ${fromProg ? 'from-programme' : ''}`}
-                                value={s.due_date ?? ''}
-                                onChange={(e) => change(s, { due_date: e.target.value || null, programme_task_code: null, weeks_before: null })}
-                                title={fromProg ? 'From the programme: typing a date unlinks it' : 'Due date'}
-                                aria-label="Due"
-                              />
-                              {late && <span className="late small proc-prov">overdue</span>}
-                            </td>
                             <td data-label="Submitted">
                               <input
                                 type="date"
@@ -423,6 +418,16 @@ export default function SamplingTab() {
                                 value={s.submitted_date ?? ''}
                                 onChange={(e) => change(s, { submitted_date: e.target.value || null })}
                                 aria-label="Submitted"
+                              />
+                            </td>
+                            <td data-label="Signed off">
+                              <input
+                                type="date"
+                                className="proc-date"
+                                value={s.decision_date ?? ''}
+                                onChange={(e) => change(s, { decision_date: e.target.value || null })}
+                                title="The date the designer signed it off (or rejected it)"
+                                aria-label="Signed off"
                               />
                             </td>
                             <td data-label="Photo">
@@ -468,9 +473,10 @@ export default function SamplingTab() {
       {importing && (
         <ImportDialog
           existing={data.samples}
+          known={data.companies.map((c) => c.name)}
           onClose={() => setImporting(false)}
           onImport={async (meta, items, removedAction) => {
-            const r = await applySchedule(job.id, meta, data.samples, items, removedAction)
+            const r = await applySchedule(job.id, meta, data.samples, items, removedAction, data.companies)
             setImporting(false)
             setMsg(
               `Schedule imported: ${r.added} added, ${r.changed} changed${r.removed ? `, ${r.removed} no longer on it (${removedAction === 'delete' ? 'deleted' : removedAction === 'omit' ? 'marked Omitted' : 'kept'})` : ''}.`,
@@ -812,10 +818,12 @@ function SamplePanel({
 // ---------- importing the finishes schedule (Excel) ----------
 function ImportDialog({
   existing,
+  known,
   onClose,
   onImport,
 }: {
   existing: Sample[]
+  known: string[] // the contractor list's names, to match suppliers
   onClose: () => void
   onImport: (
     meta: { designer: string | null; document_no: string | null; revision: string | null; file_name: string },
@@ -841,7 +849,7 @@ function ImportDialog({
   }
   const rows = sheets && header >= 0 ? sheets[sheet].rows.slice(header + 1) : []
   const headers = sheets && header >= 0 ? sheets[sheet].rows[header] : []
-  const items = useMemo(() => (map.code !== undefined ? buildItems(rows, map) : []), [rows, map]) // eslint-disable-line react-hooks/exhaustive-deps
+  const items = useMemo(() => (map.code !== undefined ? buildItems(rows, map, known) : []), [rows, map, known]) // eslint-disable-line react-hooks/exhaustive-deps
   const diff = useMemo(() => compareSchedule(existing, items), [existing, items])
 
   return (
@@ -998,6 +1006,7 @@ function ImportDialog({
                             <th>Code</th>
                             <th>Group</th>
                             <th>Description</th>
+                            <th>Supplier</th>
                             <th>Specification</th>
                             <th>Locations</th>
                           </tr>
@@ -1011,6 +1020,7 @@ function ImportDialog({
                               <td>{it.code}</td>
                               <td>{it.material_group}</td>
                               <td>{it.description}</td>
+                              <td>{it.supplier}</td>
                               <td>{it.specification}</td>
                               <td>{it.locations.join(', ')}</td>
                             </tr>
@@ -1063,7 +1073,7 @@ async function printTracker(job: { job_no: number; code: string; name: string },
     .map((g) => {
       const list = samples.filter((s) => s.material_group === g)
       if (!list.length) return ''
-      return `<tr class="grp"><td colspan="8">${esc(g)} (${list.length})</td></tr>${list
+      return `<tr class="grp"><td colspan="9">${esc(g)} (${list.length})</td></tr>${list
         .map(
           (s) => `<tr class="${s.status === 'omitted' ? 'omit' : overdue(s, todayIso()) ? 'late' : s.changed_after_approval ? 'chg' : ''}">
         <td><b>${esc(s.code)}</b>${s.designer_ref ? `<br><span class="m">${esc(s.designer_ref)}</span>` : ''}</td>
@@ -1071,7 +1081,8 @@ async function printTracker(job: { job_no: number; code: string; name: string },
         <td>${esc(s.description)}${s.specification ? `<br><span class="m">${esc(s.specification)}</span>` : ''}</td>
         <td>${esc((s.locations ?? []).join(', '))}</td>
         <td>${esc(SAMPLE_STATUS_LABELS[s.status])}${s.changed_after_approval ? '<br><span class="m">spec changed since</span>' : ''}</td>
-        <td>${esc(ukDate(s.due_date))}${isOpen(s) && s.due_date && s.due_date < todayIso() ? '<br><span class="m">overdue</span>' : ''}</td>
+        <td>${esc(ukDate(s.submitted_date))}</td>
+        <td>${esc(ukDate(s.decision_date))}${isOpen(s) && s.due_date && s.due_date < todayIso() ? '<br><span class="m">overdue</span>' : ''}</td>
         <td>${esc(s.designer_comments)}</td>
         <td>${photos.get(s.id) ? `<img src="${photos.get(s.id)}">` : ''}</td></tr>`,
         )
@@ -1091,7 +1102,7 @@ async function printTracker(job: { job_no: number; code: string; name: string },
     tr.grp td { background: #eef3fa; font-weight: 700; color: #1f1246; } tr.late td { background: #fdecea; } tr.chg td { background: #fff4d6; } tr.omit td { color: #9a9aa6; }
     td img { width: 22mm; height: 22mm; object-fit: cover; border-radius: 3px; } thead { display: table-header-group; } tr { page-break-inside: avoid; }
   </style></head><body><header><div><h1>Sample tracker</h1><div class="sub">${esc(`${job.job_no} ${job.code} · ${job.name}`)} · ${esc(ukDate(todayIso()))}</div></div><img src="${location.origin}/dbp-logo.png" alt="du Boulay Projects"></header>
-  <table><thead><tr><th>Code</th><th>Supplier</th><th>Description / specification</th><th>Locations</th><th>Status</th><th>Due</th><th>Designer comments</th><th>Photo</th></tr></thead><tbody>${body}</tbody></table>
+  <table><thead><tr><th>Code</th><th>Supplier</th><th>Description / specification</th><th>Locations</th><th>Status</th><th>Submitted</th><th>Signed off</th><th>Designer comments</th><th>Photo</th></tr></thead><tbody>${body}</tbody></table>
   <script>window.onload = () => setTimeout(() => window.print(), 300)</script></body></html>`)
   w.document.close()
 }

@@ -443,6 +443,19 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: Submitted / Signed off; supplier from the schedule (22 Nov)
+- **Columns:** the tracker shows **Submitted** and **Signed off** (the designer's decision date) instead of Due and Submitted.
+  - The due date stays in the side panel and still drives "overdue", now a small tag by the code (the due date in its tip).
+  - The Excel's "Decision" column is "Signed off"; the PDF shows Submitted and Signed off.
+- **Supplier from the finishes schedule:**
+  - The schedule's supplier / manufacturer / company column if it has one.
+  - Otherwise the start of the spec: a name already on the contractor list if the spec starts with one; else "Manufacturer: X"; else the part before a dash, comma or bracket (up to three words, "Farrow & Ball" kept whole); else the first word.
+  - A spec starting with a material or finish word (oak, crown, painted, RAL, TBC, "refer"…) gives no supplier rather than a wrong one.
+  - Suppliers are matched to the contractor list by name; new names are added to it as suppliers.
+  - A supplier already chosen on a sample is never overwritten. Unchanged samples with none take the schedule's on the next import.
+  - The import preview shows the supplier column.
+- Tested: Kvadrat Hallingdal… → Kvadrat; Farrow & Ball Estate Emulsion, … → Farrow & Ball; Manufacturer: Romo; … → Romo; Dinesen - Heartoak… → Dinesen; Mosaic Factory Barcelona… → Mosaic Factory (on the contractor list); Havwoods (or equal) → Havwoods; Crown cut oak veneer… → none.
+
 ## Sampling: heading rows in schedules (22 Nov)
 - Richard's import brought in a "FABRIC" row as a sample. Designers put a category heading in the code column above each group.
 - A row with words in the code column, no number, and nothing else filled in is now a **heading**. It isn't a sample, and it gives the material group to the items under it ("FABRIC" → Fabrics; one with no standard match, e.g. "SANITARYWARE", becomes its own group "Sanitaryware").
