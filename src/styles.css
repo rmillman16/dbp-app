@@ -806,3 +806,5 @@ tr.login-off td { opacity: 0.6; }
 .success-banner button { margin-left: auto; color: #14532d; }
 .tag.req-off_hired { background: #eee; color: var(--muted); }
 select.req-status.req-off_hired { background: #eee; }
+.check-line { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; font-weight: normal; }
+.check-line input { width: auto; }

@@ -7,6 +7,7 @@
 import { supabase } from './supabase'
 import { cached, must } from './offline'
 import type { Job } from './types'
+import { nudgeEmails } from './notifications'
 
 export type ReqKind = 'material' | 'hire'
 export type ReqStatus = 'new' | 'query' | 'answered' | 'ordered' | 'delivered' | 'off_hired' | 'cancelled' // off_hired: hire only (039)
@@ -130,12 +131,14 @@ export async function raiseRequisition(r: NewRequisition, files: File[]) {
   if (ins.error) throw new Error(needs032(ins.error.message))
   const req = ins.data as Requisition
   for (const f of files) await addFile(req, f)
+  nudgeEmails()
   return req
 }
 
 export async function updateRequisition(id: string, patch: Partial<Requisition>) {
   const r = await supabase.from('requisitions').update(patch).eq('id', id)
   if (r.error) throw new Error(needs032(r.error.message))
+  if (patch.status || patch.data) nudgeEmails()
 }
 
 export async function postMessage(req: Requisition, body: string) {
@@ -148,6 +151,7 @@ export async function postMessage(req: Requisition, body: string) {
     .select('*')
     .single()
   if (r.error) throw new Error(needs032(r.error.message))
+  nudgeEmails()
   return r.data as ReqMessage
 }
 

@@ -58,7 +58,13 @@
     - One list across all jobs, replacing the SharePoint "dbp Material Requisitions" list.
     - A conversation on each request: the buyer asks the requester questions and they reply.
     - Stages: New → Query raised → Answered → Ordered → Delivered (to confirm).
-  - **Questions to the requester** go on their bell and on the job Overview's notifications and **To-do** box (the first real item for it). Emails stay drafts only, so the conversation happens in the app.
+  - **Questions to the requester** go on their bell and on the job Overview's notifications and **To-do** box (the first real item for it). The conversation happens in the app.
+  - **Notification emails (Richard, 22 Nov): the one exception to "the app only drafts emails".**
+    - What gets emailed: notifications addressed to one person (buyer questions, answers, status updates, new requisitions to the ops team, off-hire reminders, access requests and replies). Each email is a short notice of what's waiting, with an **Open in the DBP app** button. No attachments, prices or documents.
+    - Sent from DBP's Microsoft 365 mailbox by the Edge Function `send-emails` (script 041). It goes straight away when something happens, plus a Cron job every 2 minutes for off-hire reminders on their day.
+    - Each person can turn emails off in My details. Nothing older than 2 days is ever sent, so there's no backlog.
+    - **Waiting on IT:** the Microsoft mailbox permission (questions-for-IT §2). Until then nothing is sent and the bell works as before.
+    - **Everything else stays drafts only** (enquiries, chasers, sign-off requests, letters).
   - **Existing SharePoint requisitions:** start fresh. SharePoint stays as the archive.
   - **Built 22 Nov (scripts 032, 033), material first:** the sidebar's "Project management" is now **Site**, holding the forms and the back end.
     - **Form** (`/site/requisitions/new`), fields as on the SharePoint form: Site name, Element of work, Materials required (with links), Date required by (starts 3 days from today, changeable), Notes, Attachments. The requester's name and email are added automatically. A job's Overview has a "+ Material requisition" link with the site filled in.
@@ -86,6 +92,7 @@
       - **3 days before a hire ends**, everyone whose type can open Hire Req - ADMIN (the ops team; the admins if nobody can) gets a reminder on their bell and in that job's To-do, and so does whoever raised the hire (040). It moves if the end date changes and closes when off-hired or voided.
     - **Both lists:** **Buyer notes** can be typed straight into the list. "Cancelled" is shown as **Voided**, as on SharePoint.
     - **Still to do:**
+      - Set up notification emails once IT has done their part (supabase/README.md › Setting up notification emails).
       - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.

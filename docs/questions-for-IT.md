@@ -24,6 +24,12 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
   - The requested scopes are just `openid email profile`.
   - Someone who leaves loses access when their Microsoft account is disabled.
 
+- [ ] **Notification emails from the app (agreed with Richard 22 Nov).** Short automatic notices, e.g. "the buyer has a question on MR0012" or "HR0005 hire ends in 3 days", with a link into the app. No attachments or documents.
+  - Create or choose a **shared mailbox** to send from, e.g. `requisitions@duboulay.co.uk` or `dbp-app@duboulay.co.uk`.
+  - On the app registration, add the Microsoft Graph **application** permission **Mail.Send**, with admin consent.
+  - **Limit it to that one mailbox** with an Exchange Online application access policy (`New-ApplicationAccessPolicy -AccessRight RestrictAccess -PolicyScopeGroupId <mailbox or mail-enabled group> -AppId <client id>`), so the app can't send as anyone else.
+  - Give Richard the **tenant ID**, **client ID**, a **client secret** and the **mailbox address**. He enters them only in Supabase › Edge Functions › Secrets (`MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`), never in the app.
+
 ## 3. Supabase plan before go-live
 - [ ] Upgrade the Supabase project to **Pro** (about $25 / month) for daily backups of the data. The free plan has no automatic backups; until then an admin runs Settings › **Export all data** weekly.
 - [ ] Confirm the project's region is London (UK data residency).

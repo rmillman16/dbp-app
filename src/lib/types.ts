@@ -505,6 +505,7 @@ export interface Profile {
   initials: string | null
   job_title: string | null // signature, e.g. Quantity Surveyor
   is_admin: boolean
+  email_notifications?: boolean // script 041: email me my notifications (My details)
   is_it?: boolean // script 036: the admin login(s) IT uses; access requests go to them
   roles?: string[] // script 035: profile types (src/lib/access.tsx)
   is_operations?: boolean // script 034: sees the requisition buyer's lists (admins tick it in Settings › Users)

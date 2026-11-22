@@ -17,6 +17,21 @@ export default function MyDetails() {
   if (!me) return msg ? <p className="error">{msg}</p> : <p className="muted">Loading…</p>
   const set = (k: 'full_name' | 'initials' | 'job_title', v: string) => setMe({ ...me, [k]: v || null })
 
+  // emails on / off (script 041): saved straight away
+  async function setEmails(on: boolean) {
+    setMe({ ...me!, email_notifications: on })
+    const r = await supabase.from('profiles').update({ email_notifications: on }).eq('id', me!.id)
+    setMsg(
+      r.error
+        ? /column|schema cache/i.test(r.error.message)
+          ? 'Run script 041 in Supabase first.'
+          : saveError(r.error)
+        : on
+          ? 'Emails on.'
+          : 'Emails off: notifications stay on your bell.',
+    )
+  }
+
   async function save() {
     setMsg(null)
     if (!navigator.onLine) return setMsg(saveError(new Error('offline')))
@@ -43,7 +58,11 @@ export default function MyDetails() {
             <input value={me.job_title ?? ''} onChange={(x) => set('job_title', x.target.value)} placeholder="e.g. Quantity Surveyor" />
           </label>
         </div>
-        {msg && <p className={msg === 'Saved.' ? 'saved' : 'error'}>{msg}</p>}
+        <label className="check-line">
+          <input type="checkbox" checked={me.email_notifications !== false} onChange={(x) => setEmails(x.target.checked)} />
+          Email me my notifications (questions on my requisitions, off-hire reminders and so on)
+        </label>
+        {msg && <p className={/^(Saved|Emails)/.test(msg) ? 'saved' : 'error'}>{msg}</p>}
         <div className="form-actions">
           <button className="primary" onClick={save}>
             Save

@@ -93,3 +93,10 @@ export function useNotifications() {
   if (!v) throw new Error('useNotifications must be used inside NotificationsProvider')
   return v
 }
+
+// after anything that creates a notification: ask the send-emails function to email it now rather than at its
+// next scheduled run (22 Nov). Never holds anything up; if email isn't set up it simply does nothing.
+export function nudgeEmails() {
+  if (!navigator.onLine) return
+  supabase.functions.invoke('send-emails', { body: {} }).catch(() => {})
+}

@@ -44,6 +44,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `038_requisition_supplier_text.sql` | Requisitions: supplier is a typed text box, not a dropdown | ✅ Run |
 | `039_off_hire_reminders.sql` | Hire: Off-hired status; the ops team get a reminder 3 days before a hire ends (bell and job To do); requester updates say "voided" | ✅ Run |
 | `040_off_hire_requester.sql` | Off-hire reminders also go to whoever raised the hire | ✅ Run |
+| `041_notification_emails.sql` | Notification emails: what's been emailed, each person's on / off (My details); new requisitions notify the ops team | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
@@ -52,6 +53,7 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 |---|---|---|---|
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
 | `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ✅ Deployed |
+| `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
@@ -65,3 +67,14 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 3. Delete the sample code, paste the whole of `functions/manage-users/index.ts`, then **Deploy function**.
 4. In the app: Settings › Users › **+ Add user**.
    - If it says "Invalid JWT", open the function's **Details** in Supabase, turn **Verify JWT** off, and save. The function checks sign-in and admin itself.
+
+### Setting up notification emails (`send-emails`)
+1. Run `041_notification_emails.sql`.
+2. Deploy the function as for `manage-users`: name it `send-emails` and paste `functions/send-emails/index.ts`. Turn **Verify JWT** off; the function checks callers itself.
+3. Supabase › Edge Functions › **Secrets**: add the six secrets above. IT provides the Microsoft ones (questions-for-IT §2). `CRON_SECRET` is any long random text you make up.
+4. Supabase › **Integrations › Cron** (enable it if asked) › **Create job**:
+   - name `send-emails`, schedule every 2 minutes (`*/2 * * * *`);
+   - type **Supabase Edge Function**, method POST, function `send-emails`;
+   - add the header `x-cron-secret` with the same text as `CRON_SECRET`.
+
+   This sends off-hire reminders on their day; everything else also goes straight away when it happens.

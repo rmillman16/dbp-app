@@ -5,6 +5,7 @@ import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
 import { ROLES, SECTIONS, roleLabel, useAccess, type Role, type Section } from '../lib/access'
 import AdminOnly from '../components/AdminOnly'
+import { nudgeEmails } from '../lib/notifications'
 import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type LoginStatus } from '../lib/users'
 import { Insurances, OmStandardDocuments } from './Sections'
 
@@ -440,7 +441,7 @@ function AccessRequests() {
     const { data } = await supabase.auth.getSession()
     const u = await supabase.from('access_requests').update({ status, handled_by: data.session?.user.id, handled_at: new Date().toISOString() }).eq('id', r.id)
     if (u.error) setErr(saveError(u.error))
-    else load()
+    else (load(), nudgeEmails())
   }
   if (rows.length === 0) return <span id="access-requests" />
   return (

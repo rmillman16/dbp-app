@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
+import { nudgeEmails } from '../lib/notifications'
 import { sectionLabel, useAccess, type Section } from '../lib/access'
 
 // "You don't have access to this area" (22 Nov): a padlock, that line, and Request access, which sends IT a
@@ -34,6 +35,7 @@ export function NoAccess({ what }: { what: string }) {
     const r = await supabase.from('access_requests').insert({ profile_id: data.session?.user.id, area: what, path: pathname, note: note.trim() || null })
     setBusy(false)
     if (r.error) return setError(/relation|schema cache|does not exist/i.test(r.error.message) ? 'Requests need script 036 run in Supabase first.' : saveError(r.error))
+    nudgeEmails()
     setSent(new Date().toISOString())
     setAsking(false)
   }
