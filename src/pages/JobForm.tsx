@@ -240,11 +240,13 @@ export default function JobForm() {
         <label>
           Status
           <select value={form.status} onChange={(e) => set('status', e.target.value as JobStatus)}>
-            {(Object.keys(JOB_STATUS_LABELS) as JobStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {JOB_STATUS_LABELS[s]}
-              </option>
-            ))}
+            {(Object.keys(JOB_STATUS_LABELS) as JobStatus[])
+              .filter((s) => s !== 'archived' || form.status === 'archived')
+              .map((s) => (
+                <option key={s} value={s}>
+                  {JOB_STATUS_LABELS[s]}
+                </option>
+              ))}
           </select>
         </label>
         <label>

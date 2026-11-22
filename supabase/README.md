@@ -45,6 +45,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `039_off_hire_reminders.sql` | Hire: Off-hired status; the ops team get a reminder 3 days before a hire ends (bell and job To do); requester updates say "voided" | ✅ Run |
 | `040_off_hire_requester.sql` | Off-hire reminders also go to whoever raised the hire | ✅ Run |
 | `041_notification_emails.sql` | Notification emails: what's been emailed, each person's on / off (My details); new requisitions notify the ops team | ✅ Run |
+| `042_archive_jobs.sql` | Archiving jobs: admins only; an archived job and everything filed under it is read-only; reminders keep running | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

@@ -6,7 +6,7 @@ import { cached, must } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Job, type JobStatus } from '../lib/types'
 
 type Filter = JobStatus | 'all'
-const FILTERS: Filter[] = ['live', 'tender', 'complete', 'all']
+const FILTERS: Filter[] = ['live', 'tender', 'complete', 'archived', 'all']
 
 export default function JobsTable({ title = 'Jobs' }: { title?: string }) {
   const [jobs, setJobs] = useState<Job[] | null>(null)
@@ -32,9 +32,7 @@ export default function JobsTable({ title = 'Jobs' }: { title?: string }) {
   }, [])
 
   const q = search.trim().toLowerCase()
-  const shown = (jobs ?? [])
-    .filter((j) => filter === 'all' || j.status === filter)
-    .filter((j) => !q || `${j.job_no} ${j.code} ${j.name}`.toLowerCase().includes(q))
+  const shown = (jobs ?? []).filter((j) => filter === 'all' || j.status === filter).filter((j) => !q || `${j.job_no} ${j.code} ${j.name}`.toLowerCase().includes(q))
 
   return (
     <section className="card">

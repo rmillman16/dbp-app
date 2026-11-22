@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router-dom'
 import { useAccess, type Section } from '../lib/access'
 import { NoAccess } from '../components/NoAccess'
+import ReadOnlyArea from '../components/ReadOnlyArea'
+import { saveError } from '../lib/offline'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { cached, must } from '../lib/offline'
@@ -38,7 +40,8 @@ export default function JobLayout() {
   const [error, setError] = useState<string | null>(null)
   const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
-  const { can } = useAccess()
+  const { can, isAdmin } = useAccess()
+  const [archiveErr, setArchiveErr] = useState<string | null>(null)
 
   // close the sections dropdown whenever you move to another section
   useEffect(() => setMenuOpen(false), [pathname])
@@ -49,6 +52,24 @@ export default function JobLayout() {
       (e: Error) => setError(e.message),
     )
   }, [id])
+
+  // archiving (22 Nov, script 042): admins only; an archived job is read-only and its reminders keep running
+  async function setArchived(on: boolean) {
+    if (!job) return
+    const msg = on
+      ? `Archive ${job.job_no} ${job.code}? It becomes read-only for everyone and leaves the live lists. Its defects and retention reminders keep running. An admin can unarchive it.`
+      : `Unarchive ${job.job_no} ${job.code}? It goes back to Complete and can be changed again.`
+    if (!confirm(msg)) return
+    setArchiveErr(null)
+    const r = await supabase
+      .from('jobs')
+      .update({ status: on ? 'archived' : 'complete' })
+      .eq('id', job.id)
+      .select('*')
+      .single()
+    if (r.error) setArchiveErr(saveError(r.error))
+    else setJob(r.data as Job)
+  }
 
   if (error) return <p className="error">{error}</p>
   if (!job) return <p className="muted">Loading…</p>
@@ -90,10 +111,24 @@ export default function JobLayout() {
             </a>
           )}
         </span>
-        <Link to={`/jobs/${job.id}/edit`} className="button small-button job-edit">
-          Edit job
-        </Link>
+        {job.status !== 'archived' && (
+          <Link to={`/jobs/${job.id}/edit`} className="button small-button job-edit">
+            Edit job
+          </Link>
+        )}
+        {isAdmin && (
+          <button className="small-button job-archive" onClick={() => setArchived(job.status !== 'archived')}>
+            {job.status === 'archived' ? 'Unarchive' : 'Archive'}
+          </button>
+        )}
       </div>
+      {job.status === 'archived' && (
+        <p className="archived-banner">
+          <strong>Archived:</strong> read-only. Defects and retention reminders keep running.
+          {isAdmin ? ' Unarchive it (above) to make changes.' : ' Ask an admin if something needs changing.'}
+        </p>
+      )}
+      {archiveErr && <p className="error">{archiveErr}</p>}
 
       <nav className="tabs">{tabs('tab')}</nav>
 
@@ -116,7 +151,13 @@ export default function JobLayout() {
         )}
       </div>
 
-      {current.section && !can(current.section) ? <NoAccess what={`${current.label} on jobs`} /> : <Outlet context={{ job, setJob } satisfies JobContext} />}
+      {current.section && !can(current.section) ? (
+        <NoAccess what={`${current.label} on jobs`} />
+      ) : (
+        <ReadOnlyArea on={job.status === 'archived'}>
+          <Outlet context={{ job, setJob } satisfies JobContext} />
+        </ReadOnlyArea>
+      )}
     </>
   )
 }

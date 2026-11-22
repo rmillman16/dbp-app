@@ -16,7 +16,15 @@
   - About one session to build.
 - **Submittals and RFIs** (Richard, 22 Nov): to scope. Technical submittals (drawings, data sheets, method statements) and requests for information, tracked per job. The 19 Nov sampling scope noted SubmittalLink covers technical submissions and drawings today, so agree first whether this replaces it or links to it. Progress report 2.2 shows the submittals summary (before samples) and design queries.
 - **Enquiry generator** (Richard, 22 Nov): as in his "Enquiry Generator Preview" artifact. It drafts subcontractor enquiries in Outlook and never sends them (drafts only, as for all email). Read the artifact before scoping.
-- **Archiving jobs** (Richard, 22 Nov): a finished job becomes read-only and leaves the live lists. Defects and retention reminders keep running on the bell.
+- **Archiving jobs: built 22 Nov (script 042), admins only.**
+  - Admins see **Archive / Unarchive** on a job's header; it asks to confirm. Unarchiving puts it back to Complete.
+  - An archived job is **read-only for everyone**:
+    - It gets a banner, and Edit job is hidden.
+    - On its pages, inputs and buttons are switched off, except for looking around: exports and downloads, print, filters, search, show / hide.
+    - The database refuses changes to the job and to anything filed under it (every table with a job_id).
+  - **Reminders are untouched**, so defects and retention reminders keep running and can still be marked done.
+  - Archived jobs leave the live lists. The Jobs list has an **Archived** filter.
+  - Records a level below (e.g. a VO's lines, which aren't filed by job directly) are locked by the screens only.
 - **SOPs and how-to guides per module** (Richard, 22 Nov), like the programme's help page (`/help/programme`), for each module.
 - **Permissions** (Richard, 22 Nov):
   - roles;

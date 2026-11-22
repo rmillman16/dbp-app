@@ -808,3 +808,8 @@ tr.login-off td { opacity: 0.6; }
 select.req-status.req-off_hired { background: #eee; }
 .check-line { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; font-weight: normal; }
 .check-line input { width: auto; }
+.archived-banner { background: #f1eff6; border: 1px solid #d9d4e6; color: var(--navy); border-radius: 8px; padding: 10px 14px; margin: 8px 0 12px; }
+.job-archive { margin-left: 6px; }
+.tag.archived { background: #e6e3ee; color: #5a5470; }
+.read-only-area input:disabled, .read-only-area textarea:disabled, .read-only-area select:disabled { background: #f6f5f9; color: inherit; opacity: 1; }
+.read-only-area button:disabled { opacity: 0.45; }
