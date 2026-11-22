@@ -41,7 +41,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `035_profile_types.sql` | Profile types (project manager, commercial, site management, design, accounts, external, operations; admin as before) and the access grid admins tick in Settings › Access; no type yet = today's access | ✅ Run |
 | `036_access_requests.sql` | Request access: the no-access screen sends IT a request (bell); admins mark the IT login(s) in Settings › Users; requests listed in Settings | ✅ Run |
 | `037_admins_from_app.sql` | Admins can make other people admins from Settings › Users (not yourself off, never the last admin) | ✅ Run |
-| `038_requisition_supplier_text.sql` | Requisitions: supplier is a typed text box, not a dropdown | ⬜ Not yet |
+| `038_requisition_supplier_text.sql` | Requisitions: supplier is a typed text box, not a dropdown | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
