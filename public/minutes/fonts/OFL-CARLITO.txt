@@ -1,0 +1,18 @@
+Carlito fonts — bundled with this app for PDF export.
+Source: https://github.com/googlefonts/carlito
+
+These files are a pre-subsetted build (fonttools/pyftsubset): trimmed to the
+Latin + Latin-1 + Latin Extended-A character set plus common punctuation
+(everything realistic for English/European meeting notes), with hinting
+instructions and unused OpenType layout tables stripped. This is a static,
+offline optimization for file size only — it does not change the license.
+
+Copyright (c) 2010-2013 by tyPoland Lukasz Dziedzic with Reserved Font Name "Carlito".
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://scripts.sil.org/OFL
+
+The OFL permits the font to be used, studied, modified, redistributed, and
+embedded in documents/software free of charge, provided it is not sold by
+itself and this notice accompanies it. Documents created with the font
+(such as the PDFs this app exports) are not restricted by this license.

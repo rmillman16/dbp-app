@@ -34,6 +34,8 @@ import MyDetails from './pages/MyDetails'
 import Site, { BuyerList, HireRequisitionForm, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
+import { MinutesPage, MinutesTab } from './pages/Minutes'
+import MyTasks from './pages/MyTasks'
 
 // The sign-in Supabase keeps on the device (cleared on sign-out).
 function storedSignInEmail(): string | null {
@@ -132,6 +134,7 @@ export default function App() {
             <Route path="payment-notices/:orderId" element={<OrderPage />} />
             <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
             <Route path="programme" element={<ProgrammeTab />} />
+            <Route path="minutes/:meetingId?" element={<MinutesTab />} />
             <Route path="cashflow" element={<CashflowTab />} />
             <Route path="procurement" element={<ProcurementTab />} />
             <Route path="sampling" element={<SamplingTab />} />
@@ -140,6 +143,15 @@ export default function App() {
             <Route path="cvr/:cvrId" element={<CvrEditor />} />
           </Route>
           <Route path="/help/programme" element={<ProgrammeHelp />} />
+          <Route
+            path="/minutes/:meetingId?"
+            element={
+              <A section="job_minutes" what="Minutes">
+                <MinutesPage />
+              </A>
+            }
+          />
+          <Route path="/my-tasks" element={<MyTasks />} />
           <Route
             path="/estimating"
             element={

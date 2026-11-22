@@ -1,0 +1,1703 @@
+/* Meeting minutes (22 Nov): DBP Minutes' own look, copied from dbp-mint.firebaseapp.com and scoped under .mint so
+   none of it reaches the rest of the app. Colours sampled from the DBP logo (mark blue #0E73B1, wordmark navy
+   #1F1246). Light only, to sit with the rest of the app. */
+
+/* ---------- Tokens ---------- */
+.mint {
+  --paper: #ffffff;
+  --paper-raised: #fbfafd;
+  --ink: #1f1246;
+  --ink-soft: #5b5470;
+  --ink-faint: #948da8;
+  --rule: #d3e3f0;
+  --margin: #c0525c;
+  --accent: #0e73b1;
+  --accent-strong: #0a5c8f;
+  --accent-on: #ffffff;
+  --accent-soft: #e5f1f8;
+  --accent-soft-strong: #d2e6f2;
+  --border: #e0dcea;
+  --danger: #b3261e;
+  --danger-soft: #fbeae9;
+  --warn: #8a5a12;
+  --warn-soft: #fbf1de;
+  --good: #1f7a4d;
+  --good-soft: #e7f5ec;
+  --shadow: rgba(31, 18, 70, 0.1);
+  --font: 'Aptos', 'Aptos Display', 'Segoe UI Variable', 'Segoe UI', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mint * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+/* the app's own button / input / label styles don't apply in here: back to the browser's, as DBP Minutes had */
+.mint :where(button, input, select, textarea, label) {
+  all: revert;
+}
+.mint :where(button, input, select, textarea) {
+  font-family: inherit;
+  color: inherit;
+}
+.mint :where(input, select, textarea) {
+  background: transparent;
+}
+.mint :where(button) {
+  cursor: pointer;
+}
+.mint,
+.mint * {
+  box-sizing: border-box;
+}
+.mint :where(button:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+.mint :is(input, select, textarea):focus {
+  outline: none;
+}
+.mint :focus-visible,
+.mint :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.mint a {
+  color: var(--accent);
+}
+.mint h1,
+.mint h2 {
+  color: var(--ink);
+}
+.mint .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mint {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.mint .mint-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper-raised);
+  flex-wrap: wrap;
+}
+.mint .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+.mint .icon-btn:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mint .icon-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+.mint .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+  user-select: none;
+}
+.mint .brand-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex: none;
+}
+.mint .brand-name {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+.mint .brand-hint {
+  display: none;
+}
+
+.mint .mint-bar-spacer {
+  flex: 1 1 auto;
+}
+
+.mint .save-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.mint .save-status .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex: none;
+  transition: background-color 0.2s ease;
+}
+.mint .save-status.state-saved .dot {
+  background: var(--good);
+}
+.mint .save-status.state-saving .dot {
+  display: none;
+}
+.mint .save-status.state-error .dot {
+  background: var(--danger);
+}
+.mint .save-status.state-readonly .dot {
+  background: var(--ink-faint);
+}
+
+.mint .save-status .dots3 {
+  display: none;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.mint .save-status.state-saving .dots3 {
+  display: inline-flex;
+}
+.mint .save-status .dots3 i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: block;
+  animation: mintDotBounce 1.1s ease-in-out infinite;
+}
+.mint .save-status .dots3 i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.mint .save-status .dots3 i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes mintDotBounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.mint .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  white-space: nowrap;
+}
+.mint .btn svg {
+  width: 15px;
+  height: 15px;
+}
+.mint .btn-ghost:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-strong);
+}
+.mint .btn-ghost.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-strong);
+  color: var(--accent);
+}
+.mint .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+.mint .btn-primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+.mint .btn-text {
+  border: none;
+  background: none;
+  padding: 0;
+  height: auto;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13px;
+}
+.mint .btn-text:hover {
+  text-decoration: underline;
+}
+.mint .btn-small {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.mint .btn-danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+.mint .btn-danger:hover {
+  background: var(--danger-soft);
+}
+
+.mint .export-wrap {
+  position: relative;
+}
+.mint .export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px var(--shadow);
+  min-width: 210px;
+  padding: 6px;
+  z-index: 40;
+}
+.mint .export-menu button,
+.mint .export-menu a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border-radius: 7px;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.mint .export-menu button:hover,
+.mint .export-menu a:hover {
+  background: var(--accent-soft);
+}
+.mint .export-menu svg {
+  width: 16px;
+  height: 16px;
+  color: var(--ink-soft);
+  flex: none;
+}
+.mint .export-menu .menu-note {
+  padding: 6px 10px 2px;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.mint .body-row {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  position: relative;
+}
+
+.mint .drawer {
+  width: 280px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  background: var(--paper-raised);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: transform 0.22s ease;
+}
+.mint .drawer-head {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.mint .drawer-head input[type='search'] {
+  width: 100%;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  font-size: 13px;
+  background: var(--paper);
+}
+.mint .drawer-head input[type='search']:focus-visible {
+  outline-offset: 0;
+}
+
+.mint .meeting-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+}
+.mint .drawer-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--ink-faint);
+  font-size: 11px;
+  opacity: 0.7;
+}
+.mint .drawer-foot img {
+  border-radius: 4px;
+  display: block;
+}
+.mint .meeting-empty {
+  color: var(--ink-faint);
+  font-size: 13px;
+  padding: 22px 14px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.mint .meeting-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 10px;
+  margin-bottom: 4px;
+  background: none;
+  position: relative;
+}
+.mint .meeting-item:hover {
+  background: var(--accent-soft);
+}
+.mint .meeting-item.active {
+  background: var(--accent-soft-strong);
+  border-color: var(--accent-soft-strong);
+}
+.mint .meeting-item .mi-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.mint .meeting-item .mi-project {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mint .meeting-item .mi-date {
+  font-size: 11px;
+  color: var(--ink-faint);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.mint .meeting-item .mi-subtitle {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mint .meeting-item .mi-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+.mint .mi-avatars {
+  display: flex;
+}
+.mint .mi-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mint .mi-avatars .avatar {
+  margin-left: -6px;
+}
+.mint .mi-avatars .avatar:first-child {
+  margin-left: 0;
+}
+.mint .mi-delete {
+  opacity: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mint .meeting-item:hover .mi-delete,
+.mint .mi-delete.confirming {
+  opacity: 1;
+}
+.mint .mi-delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.mint .mi-delete svg {
+  width: 14px;
+  height: 14px;
+}
+.mint .mi-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.mint .mi-confirm button {
+  font-size: 11.5px;
+  padding: 3px 7px;
+  height: auto;
+  border-radius: 5px;
+}
+
+.mint .project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 12px 10px;
+  margin-bottom: 4px;
+  background: none;
+}
+.mint .project-item:hover {
+  background: var(--accent-soft);
+}
+.mint .project-item .pi-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mint .project-item .pi-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  color: var(--ink-faint);
+}
+.mint .project-item .pi-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.mint .project-item .pi-chevron {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.mint .pi-edit,
+.mint .sbr-edit {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.mint .pi-edit:hover,
+.mint .sbr-edit:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mint .pi-edit svg,
+.mint .sbr-edit svg {
+  width: 13px;
+  height: 13px;
+}
+.mint .sbr-edit {
+  margin-left: auto;
+}
+
+.mint .project-rename-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 13.5px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.mint .sidebar-back-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 6px 10px 10px;
+  margin-bottom: 2px;
+}
+.mint .sidebar-back-row .sbr-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  flex: none;
+}
+.mint .sidebar-back-row:hover .sbr-arrow {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mint .sidebar-back-row .sbr-arrow svg {
+  width: 15px;
+  height: 15px;
+}
+.mint .sidebar-back-row .sbr-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mint .drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 16, 22, 0.4);
+  z-index: 30;
+}
+
+.mint .note {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+}
+.mint .note[hidden] {
+  display: none;
+}
+
+.mint .dash-title {
+  font-size: 27px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.mint .dash-sub {
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  margin: 0 0 18px;
+}
+.mint .dash-name {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.mint .dash-name label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.mint .dash-name input {
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13.5px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  min-width: 200px;
+}
+.mint .dash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mint .dash-task {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--paper-raised);
+}
+.mint .dash-task:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-strong);
+}
+.mint .dash-task-text {
+  font-size: 14.5px;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+.mint .dash-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.mint .dash-empty {
+  color: var(--ink-soft);
+  font-size: 14px;
+  padding: 16px 0;
+}
+.mint .note-inner {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 28px 28px 120px;
+  position: relative;
+}
+
+.mint .letterhead {
+  padding-bottom: 14px;
+  margin-bottom: 6px;
+  border-bottom: 2px solid var(--accent);
+}
+.mint .field-project {
+  display: block;
+  width: 100%;
+  border: none;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  padding: 3px 0;
+  border-radius: 6px;
+}
+.mint .field-project::placeholder {
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+.mint .field-project:focus-visible {
+  outline-offset: 2px;
+}
+.mint .field-subtitle {
+  display: block;
+  width: 100%;
+  border: none;
+  font-size: 15px;
+  color: var(--ink-soft);
+  padding: 1px 0 8px;
+  border-radius: 6px;
+}
+.mint .field-subtitle::placeholder {
+  color: var(--ink-faint);
+}
+.mint .letterhead-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 4px;
+}
+.mint .date-field {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.mint .field-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+}
+.mint .date-field input[type='date'] {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  font-variant-numeric: tabular-nums;
+}
+
+.mint .attendees-block {
+  padding: 14px 0 18px;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 4px;
+}
+.mint .attendee-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 8px 0 8px;
+}
+.mint .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 10.5px;
+  font-weight: 700;
+  flex: none;
+  border: 2px solid var(--paper);
+}
+.mint .attendee-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 6px 3px 3px;
+  font-size: 12.5px;
+}
+.mint .attendee-chip .avatar {
+  width: 20px;
+  height: 20px;
+  font-size: 9.5px;
+  border-width: 0;
+}
+.mint .attendee-chip .ac-remove {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.mint .attendee-chip .ac-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.mint .attendee-chip .ac-remove svg {
+  width: 10px;
+  height: 10px;
+}
+.mint .attendee-chip.not-present {
+  opacity: 0.75;
+  border-style: dashed;
+}
+.mint .attendee-chip .ac-toggle-presence {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.mint .attendee-chip .ac-toggle-presence:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mint .attendee-chip .ac-toggle-presence svg {
+  width: 10px;
+  height: 10px;
+}
+.mint .attendee-group-label {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 2px 0 6px;
+}
+.mint .present-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.mint .present-toggle input {
+  margin: 0;
+}
+.mint .attendee-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mint .attendee-add input {
+  flex: 1 1 220px;
+  max-width: 260px;
+  border: none;
+  border-bottom: 1px dashed var(--border);
+  padding: 5px 2px;
+  font-size: 13px;
+}
+.mint .attendee-add input::placeholder {
+  color: var(--ink-faint);
+}
+.mint .initials-preview {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  min-height: 14px;
+}
+
+.mint .points-canvas {
+  position: relative;
+  padding-top: 16px;
+  background-image: repeating-linear-gradient(to bottom, transparent, transparent 34px, var(--rule) 35px);
+  background-position: 0 8px;
+}
+.mint .points-canvas::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 34px;
+  width: 1px;
+  background: var(--margin);
+  opacity: 0.55;
+}
+@media (max-width: 620px) {
+  .mint .points-canvas::before {
+    left: 14px;
+    opacity: 0.35;
+  }
+}
+
+.mint .points-list {
+  display: flex;
+  flex-direction: column;
+}
+.mint .point {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 5px 6px 5px 50px;
+  position: relative;
+  border-radius: 8px;
+}
+@media (max-width: 620px) {
+  .mint .point {
+    padding-left: 26px;
+  }
+}
+.mint .point:hover {
+  background: var(--accent-soft);
+}
+.mint .point.point-cost {
+  background: var(--warn-soft);
+}
+.mint .point.point-urgent {
+  background: var(--danger-soft);
+}
+.mint .point.editing {
+  background: var(--accent-soft-strong);
+}
+.mint .point.dragging {
+  background: var(--paper-raised);
+  box-shadow: 0 10px 26px var(--shadow);
+  border-radius: 10px;
+  z-index: 5;
+  cursor: grabbing;
+}
+.mint .point.drop-before::before,
+.mint .point.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.mint .point.drop-before::before {
+  top: -2px;
+}
+.mint .point.drop-after::after {
+  bottom: -2px;
+}
+
+.mint .point-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mint .point-marker {
+  position: absolute;
+  left: 20px;
+  top: 10px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  border: none;
+  background: none;
+  border-radius: 4px;
+}
+@media (max-width: 620px) {
+  .mint .point-marker {
+    left: 2px;
+  }
+}
+.mint .point-marker svg {
+  width: 13px;
+  height: 13px;
+}
+.mint .point-marker.is-action {
+  color: var(--accent);
+}
+.mint .point-marker.is-done {
+  color: var(--good);
+}
+.mint .point-marker:hover {
+  color: var(--accent);
+}
+
+.mint .point-text {
+  font-size: 15px;
+  line-height: 34.9px;
+  min-height: 34.9px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+.mint .point.done .point-text {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+}
+.mint .point-text:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink-faint);
+}
+
+.mint .mention {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 5px;
+  padding: 0 5px;
+  font-weight: 700;
+  font-size: 0.93em;
+}
+
+.mint .point-edit-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.mint .point-edit-area {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  font-size: 15px;
+  line-height: 1.5;
+  padding: 7px 0;
+  resize: none;
+  font-family: inherit;
+  color: var(--ink);
+  overflow: hidden;
+}
+.mint .mention-quick-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper-raised);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mint .mention-quick-btn:hover,
+.mint .mention-quick-btn:active {
+  background: var(--accent-soft);
+}
+@media (min-width: 861px) {
+  .mint .mention-quick-btn {
+    display: none;
+  }
+}
+
+.mint .point-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+.mint .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--paper-raised);
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+}
+.mint .chip svg {
+  width: 11px;
+  height: 11px;
+}
+.mint .chip.owner {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft-strong);
+  color: var(--accent);
+}
+.mint .chip.due.status-later {
+  background: var(--paper-raised);
+}
+.mint .chip.due.status-soon {
+  background: var(--warn-soft);
+  border-color: var(--warn-soft);
+  color: var(--warn);
+}
+.mint .chip.due.status-overdue {
+  background: var(--danger-soft);
+  border-color: var(--danger-soft);
+  color: var(--danger);
+}
+.mint .chip.due.status-done {
+  background: var(--good-soft);
+  border-color: var(--good-soft);
+  color: var(--good);
+}
+.mint .chip.flag-urgent {
+  background: var(--danger-soft);
+  border-color: var(--danger-soft);
+  color: var(--danger);
+}
+.mint .chip.flag-urgent svg {
+  width: 12px;
+  height: 12px;
+}
+.mint .chip.flag-cost {
+  background: var(--warn-soft);
+  border-color: var(--warn-soft);
+  color: var(--warn);
+  cursor: help;
+}
+.mint .btn-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--font);
+  background: var(--paper);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
+}
+.mint .btn-complete svg {
+  width: 12px;
+  height: 12px;
+}
+.mint .btn-complete:hover {
+  background: var(--accent-soft);
+}
+.mint .btn-complete.is-done {
+  background: var(--good-soft);
+  border-color: var(--good-soft);
+  color: var(--good);
+}
+.mint .btn-complete.is-done:hover {
+  background: var(--good-soft);
+  filter: brightness(0.96);
+}
+
+.mint .point-updates {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.mint .point-updates li {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  padding: 4px 0 4px 14px;
+  border-left: 2px solid var(--border);
+  margin-bottom: 2px;
+}
+.mint .point-updates .pu-date {
+  font-weight: 700;
+  color: var(--ink-faint);
+  margin-right: 6px;
+}
+.mint .add-update-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.mint .add-update-link:hover {
+  text-decoration: underline;
+}
+.mint .update-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.mint .update-add-row .update-input {
+  flex: 1;
+  min-width: 160px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-family: var(--font);
+}
+.mint .update-add-row .update-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.mint .point-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 4px 0 10px;
+  font-size: 12.5px;
+}
+.mint .toggle-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  background: var(--paper-raised);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.mint .toggle-action .switch {
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  flex: none;
+}
+.mint .toggle-action .switch::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--paper);
+  top: 2px;
+  left: 2px;
+  transition: left 0.15s ease;
+}
+.mint .toggle-action.on {
+  color: var(--accent);
+  border-color: var(--accent-soft-strong);
+}
+.mint .toggle-action.on .switch {
+  background: var(--accent);
+}
+.mint .toggle-action.on .switch::after {
+  left: 13px;
+}
+
+.mint .mini-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.mint .mini-field select,
+.mint .mini-field input[type='date'] {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 7px;
+  font-size: 12px;
+  background: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+.mint .point-side {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  padding-top: 5px;
+}
+
+.mint .drag-handle {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+.mint .drag-handle:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.mint .drag-handle:active {
+  cursor: grabbing;
+}
+.mint .drag-handle svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mint .point-remove {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mint .point-remove:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.mint .point-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.mint .point-heading .point-text {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  line-height: 34.9px;
+}
+
+.mint .points-add-row {
+  display: flex;
+  gap: 18px;
+  padding: 10px 6px 40px 50px;
+}
+@media (max-width: 620px) {
+  .mint .points-add-row {
+    padding-left: 26px;
+  }
+}
+.mint .add-link {
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 4px 0;
+}
+.mint .add-link:hover {
+  text-decoration: underline;
+}
+.mint .add-link-muted {
+  color: var(--ink-soft);
+}
+
+.mint .task-summary {
+  margin: 6px 0 0;
+  padding: 18px 6px 4px;
+  border-top: 2px solid var(--accent);
+}
+.mint .ts-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.mint .ts-group {
+  margin-bottom: 14px;
+}
+.mint .ts-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 13.5px;
+  margin-bottom: 6px;
+}
+.mint .ts-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.mint .ts-items li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+  padding: 2px 0 2px 22px;
+  position: relative;
+}
+.mint .ts-items li .chip {
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.mint .ts-items li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+.mint .ts-items li.ts-done {
+  color: var(--ink-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--border);
+}
+.mint .ts-items li.ts-done::before {
+  background: var(--good);
+}
+
+.mint .note-footnote {
+  margin-top: 22px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+.mint .mention-dropdown {
+  position: absolute;
+  z-index: 60;
+  background: var(--paper);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px var(--shadow);
+  padding: 5px;
+  min-width: 180px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.mint .mention-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 7px 8px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.mint .mention-dropdown button:hover,
+.mint .mention-dropdown button.active {
+  background: var(--accent-soft);
+}
+.mint .mention-dropdown .md-empty {
+  padding: 8px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+
+.mint .empty-hero {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--ink-soft);
+}
+.mint .empty-hero h2 {
+  font-size: 19px;
+  margin: 10px 0 6px;
+  color: var(--ink);
+}
+.mint .empty-hero p {
+  font-size: 13.5px;
+  max-width: 320px;
+  margin: 0 auto 16px;
+  line-height: 1.5;
+}
+
+.mint .toast {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--accent-strong);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px var(--shadow);
+  z-index: 80;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.mint .toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.mint .toast.toast-danger {
+  background: var(--danger);
+}
+
+@media (max-width: 860px) {
+  .mint .drawer {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 35;
+    transform: translateX(-100%);
+    box-shadow: 0 0 0 transparent;
+  }
+  .mint .drawer.open {
+    transform: translateX(0);
+    box-shadow: 10px 0 30px var(--shadow);
+  }
+  .mint .brand-name {
+    display: none;
+  }
+}
+@media (min-width: 861px) {
+  .mint .drawer-scrim {
+    display: none !important;
+  }
+  .mint .mint-drawer-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .mint input,
+  .mint select,
+  .mint textarea {
+    font-size: 16px !important;
+  }
+}
+
+.mint .chip.chip-carried {
+  color: var(--ink-soft);
+}
+.mint .chip.chip-carried svg {
+  width: 12px;
+  height: 12px;
+}
+
+.mint .next-meeting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 22px 0 4px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.mint .next-meeting-row[hidden] {
+  display: none;
+}
+.mint .next-meeting-hint {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+/* ---------- Inside the app (sidebar, top bar and job tabs already there) ---------- */
+.mint {
+  height: calc(100dvh - var(--mint-offset, 140px));
+  min-height: 520px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mint.in-job {
+  --mint-offset: 250px;
+}
+.mint .field-label {
+  margin: 0;
+}
+.mint .brand-mark-sm {
+  width: 26px;
+  height: 26px;
+}
+.mint .mi-job {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 1px;
+}
+.mint .ac-company {
+  color: var(--ink-faint);
+}
+.mint [role='button'] {
+  cursor: pointer;
+}
+.mint .attendee-add-wrap {
+  position: relative;
+}
+.mint .attendee-hint {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 6px;
+}
+.mint .job-field select {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  max-width: 280px;
+}
+.mint .ro-note {
+  font-size: 12.5px;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 12px;
+}
+.mint .mint-error {
+  font-size: 12.5px;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 0 0 12px;
+}
+.mint .dash-task {
+  position: relative;
+}
+.mint .dash-task .btn-complete {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+.mint .dash-task .dash-task-text {
+  padding-right: 96px;
+}
+.mint .mention-dropdown {
+  position: fixed;
+}
+.mint .mention-dropdown .md-sub {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.mint .drawer-scrim {
+  z-index: 54;
+}
+.mint.my-tasks {
+  height: auto;
+  min-height: 0;
+}
+.mint.my-tasks .note {
+  overflow: visible;
+}
+
+/* phones and small tablets: the page scrolls as one, the meeting list slides in over it (as DBP Minutes did) */
+@media (max-width: 860px) {
+  .mint,
+  .mint.in-job {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+  .mint .body-row {
+    display: block;
+  }
+  .mint .note {
+    overflow: visible;
+  }
+  .mint .drawer {
+    z-index: 55;
+  }
+  .mint .note-inner {
+    padding: 20px 16px 80px;
+  }
+}

@@ -13,6 +13,7 @@ import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] = [
   { to: '', label: 'Overview' },
   { to: 'programme', label: 'Programme', section: 'job_programme' },
+  { to: 'minutes', label: 'Minutes', section: 'job_minutes' },
   { to: 'variations', label: 'Variations', section: 'job_commercial' },
   { to: 'quotations', label: 'Quotations', section: 'job_commercial' },
   { to: 'applications', label: 'Applications', section: 'job_commercial' },

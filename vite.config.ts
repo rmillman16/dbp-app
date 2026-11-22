@@ -25,7 +25,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ttf}'], // ttf: the minutes PDF font, so PDF export works offline
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // the Excel library is ~1 MB
         navigateFallback: 'index.html',
       },

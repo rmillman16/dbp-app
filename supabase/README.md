@@ -48,6 +48,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `042_archive_jobs.sql` | Archiving jobs: admins only; an archived job and everything filed under it is read-only; reminders keep running | ✅ Run |
 | `043_access_in_database.sql` | The access grid enforced by the database for every part (needed before External logins); shared lists stay open; requisition site list via requisition_sites() | ✅ Run |
 | `044_dashboard_access.sql` | Company dashboard: ticked for Project manager and Commercial in Settings › Access | ✅ Run |
+| `045_minutes.sql` | Meeting minutes: meetings, attendees and points; an action with a staff owner goes on their bell (moved / closed as it changes; Done on the bell ticks it); My tasks; Job › Minutes in Settings › Access; archived jobs read-only | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
@@ -56,7 +57,7 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 |---|---|---|---|
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
 | `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ✅ Deployed |
-| `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
+| `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests, minutes actions) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
