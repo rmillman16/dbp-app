@@ -99,8 +99,14 @@ export function loadRequisition(id: string) {
 }
 
 // the jobs a requisition can be for (the form's "Site name"): live ones, then tenders
+// just number, code and name (script 043: requisition_sites(), so people who can raise requisitions but not open
+// jobs still get the list); before 043 is run, straight from jobs. Only id, job_no, code, name and status are filled.
 export function loadSites() {
-  return cached('req-sites', () => must<Job[]>(supabase.from('jobs').select('*').in('status', ['live', 'tender']).order('job_no', { ascending: false })))
+  return cached('req-sites', async () => {
+    const r = await supabase.rpc('requisition_sites')
+    if (!r.error) return r.data as Job[]
+    return must<Job[]>(supabase.from('jobs').select('id,job_no,code,name,status').in('status', ['live', 'tender']).order('job_no', { ascending: false }))
+  })
 }
 
 export interface NewRequisition {

@@ -49,8 +49,10 @@
       - My details has **Change password**.
       - **Admin and IT** are buttons too (037). Making someone an admin asks you to confirm. You can't take admin off yourself, and the last admin can't be removed. IT can only be ticked on admins.
       - The server key stays inside Supabase and is never in the app.
-    - **Database enforcement:** for requisitions it's the grid (your own, or all of a kind whose buyer's list you can open). The rest is screens only for now.
-    - **⚠ Before External logins are handed out,** the database must also check each part (jobs, commercial, etc.).
+    - **Database enforcement: built 22 Nov (043).** The database applies the grid to every part of the app, so a part you can't open comes back empty. Quotations and programmes follow the job's part, or Estimating for an enquiry's.
+      - Left open to all staff because several parts use them: contractors, O&M standard documents, wording, company settings, profiles and reminders.
+      - The requisition forms get just each site's number, code and name.
+      - **Before External logins:** check the External ticks in Settings › Access, and decide which jobs each person sees (still to build).
   - **Still to come:**
     - Which jobs each person sees.
     - A requester-only view for site managers can now be a type ticked for Site requisitions only.
