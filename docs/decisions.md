@@ -443,6 +443,12 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: heading rows in schedules (22 Nov)
+- Richard's import brought in a "FABRIC" row as a sample. Designers put a category heading in the code column above each group.
+- A row with words in the code column, no number, and nothing else filled in is now a **heading**. It isn't a sample, and it gives the material group to the items under it ("FABRIC" → Fabrics; one with no standard match, e.g. "SANITARYWARE", becomes its own group "Sanitaryware").
+- The group order is: the schedule's category column, then the heading, then the description, then the code and specification.
+- Re-importing removes heading rows an earlier import took in (no number, nothing filled in, never touched), whatever is chosen for samples dropped from the schedule.
+
 ## Sampling: Omitted status; supplier second (22 Nov, script 031)
 - **Omitted** status (Richard: "so we can do it contractor side if client doesn't update"):
   - Set by DBP. It's not on the bell (the reminder only covers samples not yet submitted).
