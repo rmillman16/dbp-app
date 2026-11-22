@@ -94,6 +94,21 @@ export function programmeDue(s: Pick<Sample, 'programme_task_code' | 'weeks_befo
 }
 export const overdue = (s: Sample, today: string) => isOpen(s) && !!s.due_date && s.due_date < today
 
+// a "sample" that's only a heading from the schedule: no number in its code, no description or
+// specification, and never touched (no status, supplier, dates, photo or approval)
+export const isHeadingRow = (s: Sample) =>
+  !/\d/.test(s.code) &&
+  !s.description &&
+  !s.specification &&
+  s.status === 'not_requested' &&
+  !s.supplier_company_id &&
+  !s.requested_date &&
+  !s.submitted_date &&
+  !s.decision_date &&
+  !s.photo_path &&
+  !s.evidence_path &&
+  !s.designer_comments
+
 export async function loadSampling(jobId: string) {
   const [samples, schedules, prog, companies] = await Promise.all([
     cached(`samples:${jobId}`, () => must<Sample[]>(supabase.from('samples').select('*').eq('job_id', jobId).order('sort').order('code'))),
@@ -101,6 +116,18 @@ export async function loadSampling(jobId: string) {
     loadProgramme(jobId).catch(() => ({ programme: null, tasks: [] as ProgrammeTask[] })),
     loadCompanies().catch(() => [] as Company[]),
   ])
+  // heading rows an import took for samples (22 Nov: "FABRIC" above FB-01) are cleared out as the tab opens
+  const headings = samples.filter(isHeadingRow)
+  if (headings.length && navigator.onLine) {
+    const r = await supabase
+      .from('samples')
+      .delete()
+      .in(
+        'id',
+        headings.map((s) => s.id),
+      )
+    if (!r.error) samples.splice(0, samples.length, ...samples.filter((s) => !headings.includes(s)))
+  }
   // due dates that follow the programme are kept up to date (so the bell's reminders are right too)
   const moved = samples.filter((s) => {
     const d = programmeDue(s, prog.tasks)
@@ -317,7 +344,7 @@ export async function applySchedule(
         ),
     )
   // heading rows an earlier import took for samples (e.g. FABRIC): no number, nothing filled in, never touched. Always removed.
-  const junk = removed.filter((s) => !/\d/.test(s.code) && !s.description && !s.specification && s.status === 'not_requested' && !s.supplier_company_id && !s.photo_path)
+  const junk = removed.filter(isHeadingRow)
   for (const s of junk) await deleteSample(s)
   const rest = removed.filter((s) => !junk.includes(s))
   if (removedAction === 'delete') for (const s of rest) await deleteSample(s)

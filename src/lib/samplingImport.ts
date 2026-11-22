@@ -161,7 +161,8 @@ export function buildItems(rows: unknown[][], m: Mapping, known: string[] = []):
       supplier: get(r, 'manufacturer') || supplierFromSpec(get(r, 'specification') || get(r, 'product') || spec, known),
     })
   }
-  return [...out.values()]
+  // never a heading as a sample, whatever the layout: a code with no number needs a description or specification
+  return [...out.values()].filter((it) => /\d/.test(it.code) || it.description || it.specification)
 }
 
 // the workbook's sheets as rows of cell text: read straight from the file (xlsxText.ts), not through the
