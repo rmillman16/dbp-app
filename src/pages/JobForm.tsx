@@ -6,6 +6,7 @@ import { cached, must, saveError } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Company, type Enquiry, type Job, type JobStatus } from '../lib/types'
 import { loadCompanies } from '../lib/subcontracts'
 import { enquiryRef, moveEnquiryToJob } from '../lib/quotations'
+import { moveEnquiryProgramme } from '../lib/programme'
 import { loadEnquiry } from './Estimating'
 
 // Every input is held as text while editing and converted on save.
@@ -81,7 +82,10 @@ export default function JobForm() {
   const [carLimit, setCarLimit] = useState<number | null>(null)
   const [clients, setClients] = useState<Company[]>([])
   useEffect(() => {
-    loadCompanies().then((cs) => setClients(cs.filter((c) => c.type === 'client')), () => {})
+    loadCompanies().then(
+      (cs) => setClients(cs.filter((c) => c.type === 'client')),
+      () => {},
+    )
   }, [])
   const [loading, setLoading] = useState(!isNew)
   const [error, setError] = useState<string | null>(null)
@@ -114,10 +118,13 @@ export default function JobForm() {
         () => {},
       )
       if (enquiryId)
-        loadEnquiry(enquiryId).then((e) => {
-          setEnquiry(e)
-          setForm((f) => ({ ...f, name: e.name, site_address: e.site_address ?? '' }))
-        }, () => {})
+        loadEnquiry(enquiryId).then(
+          (e) => {
+            setEnquiry(e)
+            setForm((f) => ({ ...f, name: e.name, site_address: e.site_address ?? '' }))
+          },
+          () => {},
+        )
     } else {
       cached(`job:${id}`, () => must<Job>(supabase.from('jobs').select('*').eq('id', id).single())).then(
         (data) => {
@@ -171,18 +178,18 @@ export default function JobForm() {
     let result
     if (isNew) {
       const { data: s } = await supabase.auth.getSession()
-      result = await supabase.from('jobs').insert({ ...row, created_by: s.session?.user.id }).select('id').single()
+      result = await supabase
+        .from('jobs')
+        .insert({ ...row, created_by: s.session?.user.id })
+        .select('id')
+        .single()
     } else {
       result = await supabase.from('jobs').update(row).eq('id', id).select('id').single()
     }
     setBusy(false)
 
     if (result.error) {
-      setError(
-        result.error.code === '23505'
-          ? `Job ${row.job_no} ${row.code} already exists.`
-          : saveError(result.error),
-      )
+      setError(result.error.code === '23505' ? `Job ${row.job_no} ${row.code} already exists.` : saveError(result.error))
       return
     }
     if (enquiry) {
@@ -191,6 +198,12 @@ export default function JobForm() {
       } catch (e) {
         // the job exists; say what didn't move rather than losing it
         return setError(`Job created, but the enquiry's quotations couldn't be moved: ${saveError(e)}`)
+      }
+      // and its programme (from Estimating) becomes the job's
+      try {
+        await moveEnquiryProgramme(enquiry.id, result.data.id)
+      } catch (e) {
+        return setError(`Job created, but the enquiry's programme couldn't be moved: ${saveError(e)}`)
       }
     }
     navigate(`/jobs/${result.data.id}`)
@@ -210,24 +223,11 @@ export default function JobForm() {
       <div className="form-grid">
         <label>
           Job no.
-          <input
-            inputMode="numeric"
-            placeholder="2611"
-            maxLength={4}
-            value={form.job_no}
-            onChange={(e) => set('job_no', e.target.value.replace(/\D/g, ''))}
-            required
-          />
+          <input inputMode="numeric" placeholder="2611" maxLength={4} value={form.job_no} onChange={(e) => set('job_no', e.target.value.replace(/\D/g, ''))} required />
         </label>
         <label>
           Job code
-          <input
-            placeholder="FISL"
-            maxLength={8}
-            value={form.code}
-            onChange={(e) => set('code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-            required
-          />
+          <input placeholder="FISL" maxLength={8} value={form.code} onChange={(e) => set('code', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} required />
         </label>
         <label className="span-2">
           Job name
@@ -253,13 +253,7 @@ export default function JobForm() {
         </label>
         <label>
           Contract sum (£, excl. VAT)
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.contract_sum}
-            onChange={(e) => set('contract_sum', e.target.value)}
-          />
+          <input type="number" step="0.01" min="0" value={form.contract_sum} onChange={(e) => set('contract_sum', e.target.value)} />
           {contractSum != null && <span className="hint">{money(contractSum)}</span>}
         </label>
         <label>
@@ -300,25 +294,11 @@ export default function JobForm() {
         </label>
         <label>
           Prelims %
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.prelims_pct}
-            onChange={(e) => set('prelims_pct', e.target.value)}
-            required
-          />
+          <input type="number" step="0.01" min="0" value={form.prelims_pct} onChange={(e) => set('prelims_pct', e.target.value)} required />
         </label>
         <label>
           Retention %
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.retention_pct}
-            onChange={(e) => set('retention_pct', e.target.value)}
-            required
-          />
+          <input type="number" step="0.01" min="0" value={form.retention_pct} onChange={(e) => set('retention_pct', e.target.value)} required />
         </label>
         <label>
           Weekly prelims £ (EOT prolongation)
@@ -333,8 +313,8 @@ export default function JobForm() {
 
       {overCar && (
         <p className="warning">
-          This contract sum is over the {money(carLimit)} contractors all risks limit (any one contract). Extend cover
-          before starting; a reminder will be added to notifications when you save.
+          This contract sum is over the {money(carLimit)} contractors all risks limit (any one contract). Extend cover before starting; a reminder will be added to notifications
+          when you save.
         </p>
       )}
       {error && <p className="error">{error}</p>}

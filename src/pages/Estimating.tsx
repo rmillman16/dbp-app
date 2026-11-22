@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate } from '../lib/format'
@@ -7,6 +7,8 @@ import { useIsAdmin } from '../lib/admin'
 import { createQuotation, enquiryRef, fullRef, loadQuotations } from '../lib/quotations'
 import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryStatus, type Quotation } from '../lib/types'
 import { ClauseLibrary, Wording } from './Sections'
+import ProgrammeEditor from '../components/programme/ProgrammeEditor'
+import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
 // works, new enquiries, tenders), each with its own quotations; when won, it's set up as
@@ -40,12 +42,17 @@ export default function Estimating() {
 
   useEffect(() => {
     if (tab) return
-    cached('enquiries', () => must<Enquiry[]>(supabase.from('enquiries').select('*').order('enquiry_no', { ascending: false }))).then(setEnquiries, (e: Error) => setError(e.message))
-    cached('enquiry-quote-ids', () => must<{ enquiry_id: string }[]>(supabase.from('quotations').select('enquiry_id').not('enquiry_id', 'is', null))).then((rows) => {
-      const c: Record<string, number> = {}
-      for (const r of rows) c[r.enquiry_id] = (c[r.enquiry_id] ?? 0) + 1
-      setQuoteCounts(c)
-    }, () => {})
+    cached('enquiries', () => must<Enquiry[]>(supabase.from('enquiries').select('*').order('enquiry_no', { ascending: false }))).then(setEnquiries, (e: Error) =>
+      setError(e.message),
+    )
+    cached('enquiry-quote-ids', () => must<{ enquiry_id: string }[]>(supabase.from('quotations').select('enquiry_id').not('enquiry_id', 'is', null))).then(
+      (rows) => {
+        const c: Record<string, number> = {}
+        for (const r of rows) c[r.enquiry_id] = (c[r.enquiry_id] ?? 0) + 1
+        setQuoteCounts(c)
+      },
+      () => {},
+    )
   }, [tab])
 
   const q = search.trim().toLowerCase()
@@ -354,6 +361,8 @@ export function EnquiryPage() {
           </dl>
         </section>
 
+        <EnquiryProgrammeCard e={e} />
+
         <section className="card">
           <div className="pane-head">
             <h2>Quotations</h2>
@@ -380,6 +389,68 @@ export function EnquiryPage() {
           )}
         </section>
       </div>
+    </>
+  )
+}
+
+// Estimating › enquiry › Programme (Richard, 22 Nov: "estimates and tenders often need a programme
+// too"). The same programme editor as a job's; when the enquiry is won it becomes the job's programme.
+function EnquiryProgrammeCard({ e }: { e: Enquiry }) {
+  const [p, setP] = useState<{ programme: SavedProgramme | null; tasks: ProgrammeTask[] } | null | 'none'>(null)
+  useEffect(() => {
+    if (e.job_id) return
+    loadProgramme({ enquiryId: e.id }).then(setP, () => setP('none'))
+  }, [e.id, e.job_id])
+  if (e.job_id) return null
+  const prog = p && p !== 'none' ? p.programme : null
+  return (
+    <section className="card">
+      <div className="pane-head">
+        <h2>Programme</h2>
+        <Link to={`/estimating/e/${e.id}/programme`} className="button primary">
+          {prog ? 'Open programme' : 'Start a programme'}
+        </Link>
+      </div>
+      {p === null ? (
+        <p className="muted small">Loading…</p>
+      ) : prog ? (
+        <p className="small">
+          {prog.project_name}: {p !== 'none' && p.tasks.length} tasks, {ukDate(prog.start_date)} to {ukDate(prog.finish_date)}. It becomes the job's programme when the enquiry is
+          won.
+        </p>
+      ) : (
+        <p className="muted small">A programme for the tender: start from a previous job's programme, import one, or start blank. It moves to the job when the enquiry is won.</p>
+      )}
+    </section>
+  )
+}
+
+export function EnquiryProgramme() {
+  const { enquiryId } = useParams()
+  const [e, setE] = useState<Enquiry | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
+  }, [enquiryId])
+  const owner = useMemo(() => ({ enquiryId: enquiryId! }), [enquiryId])
+  if (error) return <p className="error">{error}</p>
+  if (!e) return <p className="muted">Loading…</p>
+  return (
+    <>
+      <div className="job-head">
+        <div>
+          <Link to={`/estimating/e/${e.id}`} className="link-button small">
+            ← {enquiryRef(e)} · {e.name}
+          </Link>
+          <h1>Programme</h1>
+        </div>
+        {e.job_id && (
+          <Link to={`/jobs/${e.job_id}/programme`} className="button primary">
+            This enquiry is now a job: open its programme →
+          </Link>
+        )}
+      </div>
+      {!e.job_id && <ProgrammeEditor owner={owner} ownerName={`${enquiryRef(e)} ${e.name}`} defaults={{ start: null, pc: null }} />}
     </>
   )
 }

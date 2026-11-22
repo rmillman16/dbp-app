@@ -40,7 +40,9 @@ export function workingDaysBetween(a: string, b: string, shutdowns: Shutdown[] =
 }
 
 // a task's length for the links: a milestone counts as one day, as in Timeline
-const length = (t: ProgrammeTask, shutdowns: Shutdown[]) => (t.milestone ? 1 : duration(t, shutdowns))
+// a skeleton crew works through shutdowns, so its own length counts them (Timeline: taskEndDate)
+export const calendarOf = (t: Pick<ProgrammeTask, 'skeleton'>, shutdowns: Shutdown[]) => (t.skeleton ? [] : shutdowns)
+const length = (t: ProgrammeTask, shutdowns: Shutdown[]) => (t.milestone ? 1 : duration(t, calendarOf(t, shutdowns)))
 
 // where one link would put the task's start
 export function impliedStart(link: Link, pred: ProgrammeTask, days: number, shutdowns: Shutdown[] = []) {
@@ -71,8 +73,10 @@ export function reschedule(tasks: ProgrammeTask[], edited: string[], shutdowns: 
       if (s > latest) latest = s
     }
     if (!latest) return false
-    const start = nextWorkingDay(latest, shutdowns)
-    const finish = t.milestone ? start : finishFor(start, days.get(code)!, shutdowns)
+    // a skeleton crew may start in a shutdown; anything else moves to the next working day (Timeline
+    // can leave one starting on a shut day after a negative lag: deliberately not copied)
+    const start = nextWorkingDay(latest, calendarOf(t, shutdowns))
+    const finish = t.milestone ? start : finishFor(start, days.get(code)!, calendarOf(t, shutdowns))
     if (start === t.start_date && finish === t.finish_date) return false
     t.start_date = start
     t.finish_date = finish
@@ -96,8 +100,8 @@ export function recalendar(tasks: ProgrammeTask[], before: Shutdown[], after: Sh
   const changed = new Map<string, Pick<ProgrammeTask, 'start_date' | 'finish_date'>>()
   const next = tasks.map((t) => {
     const days = length(t, before)
-    const start = t.predecessors?.length ? t.start_date : nextWorkingDay(t.start_date, after)
-    const finish = t.milestone ? start : finishFor(start, days, after)
+    const start = t.predecessors?.length || t.skeleton ? t.start_date : nextWorkingDay(t.start_date, after)
+    const finish = t.milestone ? start : finishFor(start, days, calendarOf(t, after))
     if (start !== t.start_date || finish !== t.finish_date) changed.set(t.code, { start_date: start, finish_date: finish })
     return { ...t, start_date: start, finish_date: finish }
   })
@@ -152,7 +156,7 @@ export function criticalPath(tasks: ProgrammeTask[], shutdowns: Shutdown[] = [])
       const lag = Math.round(link.lag || 0)
       const limit =
         link.type === 'SS'
-          ? finishFor(shiftWorking(fLs, -lag, shutdowns), length(t, shutdowns), shutdowns)
+          ? finishFor(shiftWorking(fLs, -lag, shutdowns), length(t, shutdowns), shutdowns) // Timeline counts these on the full calendar, skeleton or not
           : link.type === 'FF'
             ? shiftWorking(fLf, -lag, shutdowns)
             : shiftWorking(fLs, -(1 + lag), shutdowns)
@@ -163,6 +167,6 @@ export function criticalPath(tasks: ProgrammeTask[], shutdowns: Shutdown[] = [])
     late.set(t.code, result)
     return result
   }
-  for (const t of tasks) if (t.finish_date >= latestFinish(t)) critical.add(t.code)
+  for (const t of tasks) if (t.finish_date === latestFinish(t)) critical.add(t.code) // no slack (Timeline: exactly equal)
   return critical
 }

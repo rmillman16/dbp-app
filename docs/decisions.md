@@ -1,7 +1,7 @@
 
 ## Still to build (the list, kept up to date)
 - **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
-- **Programme: still to bring across from Timeline** (Richard, 21 Nov: bring its features into the app, then retire it): baseline and slip, RAG status, contractor per task and prerequisites, revisions with history, print / PDF, MS Project / P6 export, undo, week numbers, section templates. Built so far: the Gantt chart and editing; links and the critical path; full screen.
+- **Programme / Timeline:** every Timeline feature is now in the app (22 Nov, script 026). Left to do: move the live programmes across (export each one's .json from Timeline, then use Open file… on the job's Programme tab), then retire Timeline. Richard to try it on real jobs and report back.
 - **Modules still to come (build order):** sampling tracker, progress reports, O&M / H&S file.
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
@@ -161,6 +161,37 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 - **Source:** the code isn't held locally. But the live app (https://du-boulay-timeline.web.app/) is one readable file, built by DBP with Claude Code, so DBP owns it. A dated copy is in `reference/timeline-app-2026-11-21.html`.
 - **Live programmes:** Timeline saves them in a separate Supabase project (shared with the follow-up / Minutes app). They come across by exporting each one's .json from Timeline and importing it on the job's Programme tab.
 - **Importing a Timeline file** now reads its own Save layout (before, only its autosave layout), with links, trade colours and shutdowns.
+
+## Programme: Timeline's layout and every feature (22 Nov, script 026)
+Richard: "take the layout of Timeline and copy every feature of it"; "within estimating we need to link it to programmes as estimates and tenders often need a programme too". His request for a "previous programme" section on the start page was cut off mid-sentence; read as **start from a previous programme**.
+- **Layout as Timeline's** (checked against a screenshot of Timeline with the same sample programme):
+  - The toolbar: Project, Programme starts, Start on site (Wk 1); New, Undo, Programmes, Issue revision, History, Open file, Save file; + Task, + Milestone, + Section; Day / Week / Fortnight / Month, Today; Shutdown, Shift, Set baseline, Link tasks, Critical path; contractor filter, Legend, Client logo, Print / PDF, Export, Full screen, Help.
+  - Then quick add, then the task list (Task, Trade, Start, Days, RAG, Prereq, Slip; columns resizable) beside the chart.
+- **Every Timeline feature, ported function by function** (`src/lib/programmeOps.ts`, `timelineExport.ts`, `timelinePrint.ts`, `timelineDiff.ts`):
+  - **Tasks:** quick add (press N; follows the last task, linked to it); + Task / + Milestone.
+  - **The task form:** section, trade, contractor, start, duration, milestone, skeleton crew, RAG, predecessors, prerequisite confirmed and note, baseline; Duplicate and Delete.
+  - **Editing in the list:** click a start or days cell to type (dates with or without the year, e.g. 4/1); click the RAG dot to change it; drag rows to reorder (by the ⋮⋮ grip on touch screens); sort by start within sections.
+  - **Sections:** collapse, rename, move up/down or drag, duplicate (repeating floors: N copies, staggered or back to back, linked), delete (heading only or with its tasks), insert a section break above a task; starter tasks for Precon and Close-out.
+  - **Calendar and moving:** shutdowns with Christmas suggested when the programme runs over it; skeleton crew works through shutdowns; shift the whole programme (calendar days) or a section (working days, its followers too).
+  - **Tracking:** set baseline, then slip (+7d / on track); critical path (outlined red; the button fades everything else); link mode (Shift-click for start-to-start; chains).
+  - **Legend and look:** trade colours, brand colours, tone down; client logo; week numbers from Wk 1; Undo (Ctrl+Z, last 30 changes).
+  - **Print:** A3 landscape, as many pages as it needs, with the DBP header and client logo, title block and week numbers; follows the contractor filter and critical path view.
+  - **Export:** MS Project XML, P6 XER, Timeline .json (opens in Timeline).
+- **Checked against Timeline's own code:**
+  - The scheduling, MS Project export, "what changed" lines and print pages give identical output.
+  - The P6 export is identical except for a bug in Timeline that's fixed here: its file gave critical activities 8 hours of float instead of 0.
+  - Scheduling with skeleton crews matches Timeline in all but one case, deliberately not copied: Timeline can start an ordinary task on a shut day after a negative lag from a skeleton-crew task. Here it moves to the next working day.
+- **Saving:** Timeline's Save button becomes automatic saving a moment after each change (so the cashflow and procurement always use the latest), with "Saved / Saving… / Not saved – retry" shown by the project name.
+- **Issue revision** (Timeline's Commit) keeps a numbered copy (Initial issue, Rev A, Rev B…) with a note. **History** shows each revision with "What changed" (Timeline's own wording), changes since the last issue, Download and Restore (undoable).
+- **Programmes** (and a section on the start page): start from another job's or estimate's programme. It's copied with its first task moved to a new start date, keeping the weeks' pattern in working days, the links, sections and trades. RAG, progress and baselines are cleared, and shutdowns left behind (Christmas is offered again).
+- **Importing** a new file now keeps the programme (and its issued revisions) and replaces its tasks, instead of deleting it. A Timeline file brings everything with it: contractors, RAG, prerequisites, skeleton crew, baselines, empty sections, Wk 1, client logo.
+- **Estimating:** each enquiry has a Programme box and page (Estimating › enquiry › Programme), the same editor. When the enquiry is won ("Won: set up as job"), its programme becomes the job's (unless the job already has one).
+- **Phones and tablets:** the toolbar scrolls sideways; on a phone the task list shows just the name and RAG, and the chart scrolls beside it. Menus open full width.
+- **Script 026** (run before using the new fields):
+  - Programmes can belong to an enquiry, and have programme start, Wk 1, client logo and section order.
+  - Tasks get contractor, RAG, prerequisite, skeleton crew and baseline.
+  - It adds the issued revisions table.
+  - Until it's run, tasks, dates, links and shutdowns still save, and the page says what's waiting on 026.
 
 ## Programme: links and the critical path (21–22 Nov, script 025)
 - **Ported from Timeline's own scheduling engine**, so programmes behave the same. Checked side by side with Timeline's code on 300 random linked programmes with a Christmas shutdown: dates and critical path were identical in all 300.

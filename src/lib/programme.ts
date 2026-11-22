@@ -13,7 +13,7 @@
 // Timeline's predecessors.
 import { supabase } from './supabase'
 import { cached, must } from './offline'
-import { addWorkingDays } from './cashflowCalc'
+import { fromTimeline, type TLState } from './timelineFormat'
 
 export interface ProgrammeTask {
   id?: string // once saved
@@ -26,6 +26,15 @@ export interface ProgrammeTask {
   finish_date: string
   milestone: boolean
   predecessors?: Link[] // the tasks it follows (script 025)
+  progress?: number // % (script 025)
+  // Timeline's other task fields (script 026)
+  contractor?: string | null
+  rag?: 'green' | 'amber' | 'red'
+  prereq_confirmed?: boolean
+  prereq_note?: string | null
+  skeleton?: boolean // a skeleton crew works through shutdowns
+  baseline_start?: string | null
+  baseline_duration?: number | null // working days
 }
 
 // a link to a task this one follows, by its activity code: finish to start, start to start or
@@ -55,11 +64,22 @@ export interface ParsedProgramme {
   tasks: ProgrammeTask[]
   trades?: Trade[] // from a Timeline file
   shutdowns?: Shutdown[]
+  sections?: Section[]
+  project_start?: string | null
+  week_start?: string | null
+  client_logo?: string | null
+}
+
+// a section in the programme's order; kept on the programme so an empty one stays (script 026)
+export interface Section {
+  name: string
+  collapsed?: boolean
 }
 
 export interface SavedProgramme {
   id: string
-  job_id: string
+  job_id: string | null // a job's, or an Estimating enquiry's (script 026)
+  enquiry_id?: string | null
   file_name: string | null
   project_name: string | null
   start_date: string | null
@@ -67,6 +87,11 @@ export interface SavedProgramme {
   imported_at: string
   trades?: Trade[] // script 025
   shutdowns?: Shutdown[]
+  // Timeline's settings (script 026)
+  project_start?: string | null // "Programme starts"
+  week_start?: string | null // "Start on site (Wk 1)"; blank = worked out
+  client_logo?: string | null // data URL
+  sections?: Section[]
 }
 
 const day = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null)
@@ -154,56 +179,13 @@ function parseXer(text: string): ParsedProgramme {
 }
 
 // ---------- Timeline's own file ----------
-// Timeline's Save puts the programme at the top of the file; its autosave wraps it in "data"
-interface TimelineData {
-  projectName?: string
-  groups?: { id: string | number; name: string }[]
-  trades?: { name: string; color: string }[]
-  shutdowns?: { name?: string; start: string; end: string }[]
-  tasks?: {
-    id: string | number
-    name: string
-    groupId?: string | number
-    trade?: string
-    start: string
-    duration?: number
-    milestone?: boolean
-    predecessors?: { id: string | number; type?: string; lag?: number }[]
-  }[]
-}
-type TimelineFile = TimelineData & { data?: TimelineData }
+// Timeline's Save puts the programme at the top of the file; its autosave wraps it in "data".
+// Every field is kept (timelineFormat.fromTimeline).
+type TimelineFile = Partial<TLState> & { data?: Partial<TLState> }
 function parseTimeline(json: TimelineFile): ParsedProgramme {
   const d = json.data ?? json
   if (!d?.tasks?.length) throw new Error('This file has no programme tasks. Save the programme from Timeline again and try once more.')
-  const groups = new Map((d.groups ?? []).map((g) => [String(g.id), g.name]))
-  const shut = d.shutdowns ?? []
-  const tasks: ProgrammeTask[] = d.tasks
-    .filter((t) => day(t.start))
-    .map((t) => {
-      const start = day(t.start)!
-      const days = Math.max(1, Math.round(Number(t.duration ?? 1)))
-      return {
-        code: String(t.id),
-        name: t.name,
-        section: t.groupId != null ? (groups.get(String(t.groupId)) ?? null) : null,
-        trade: t.trade || null,
-        start_date: start,
-        finish_date: t.milestone ? start : addWorkingDays(start, days - 1, shut),
-        milestone: !!t.milestone,
-        predecessors: (t.predecessors ?? []).map((p) => ({
-          code: String(p.id),
-          type: (['SS', 'FF'].includes(p.type ?? '') ? p.type : 'FS') as LinkType,
-          lag: Math.round(Number(p.lag ?? 0)),
-        })),
-      }
-    })
-  return {
-    project_name: d.projectName || 'Programme',
-    ...span(tasks),
-    tasks: tidyLinks(tasks),
-    trades: (d.trades ?? []).filter((t) => t.name && /^#[0-9a-f]{6}$/i.test(t.color)).map((t) => ({ name: t.name, color: t.color })),
-    shutdowns: shut.filter((x) => day(x.start) && day(x.end)).map((x) => ({ name: x.name || 'Shutdown', start: x.start, end: x.end })),
-  }
+  return fromTimeline(d)
 }
 
 // ---------- MS Project XML ----------
@@ -277,99 +259,268 @@ export async function parseProgramme(file: File): Promise<ParsedProgramme> {
 }
 
 // ---------- saving and loading ----------
-export async function saveProgramme(jobId: string, p: ParsedProgramme, fileName: string) {
-  const r = await supabase
-    .from('programmes')
-    .insert({
-      job_id: jobId,
-      file_name: fileName,
-      project_name: p.project_name,
-      start_date: p.start_date,
-      finish_date: p.finish_date,
-      // a Timeline file's trade colours and shutdowns come with it (script 025)
-      ...(p.trades?.length ? { trades: p.trades } : {}),
-      ...(p.shutdowns?.length ? { shutdowns: p.shutdowns } : {}),
-    })
-    .select('id')
-    .single()
-  if (r.error) throw new Error(r.error.message)
-  // links only sent when there are some, so a programme without them imports before script 025
-  const rows = p.tasks.map(({ predecessors, ...t }, i) => ({ ...t, ...(predecessors?.length ? { predecessors } : {}), programme_id: r.data.id, sort: i }))
-  for (let i = 0; i < rows.length; i += 500) {
-    const w = await supabase.from('programme_tasks').insert(rows.slice(i, i + 500))
-    if (w.error) throw new Error(w.error.message)
-  }
-  // only the latest is used: earlier imports go (links are by activity ID, so they're kept)
-  const old = await supabase.from('programmes').delete().eq('job_id', jobId).neq('id', r.data.id)
-  if (old.error) throw new Error(old.error.message)
-}
+// a programme belongs to a job, or to an Estimating enquiry until it's won (script 026)
+export type Owner = { jobId: string } | { enquiryId: string }
+const ownerOf = (o: string | Owner): Owner => (typeof o === 'string' ? { jobId: o } : o)
+const ownerKey = (o: Owner) => ('jobId' in o ? `job:${o.jobId}` : `enquiry:${o.enquiryId}`)
+const ownerRow = (o: Owner) => ('jobId' in o ? { job_id: o.jobId } : { enquiry_id: o.enquiryId })
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const forOwner = (q: any, o: Owner) => ('jobId' in o ? q.eq('job_id', o.jobId) : q.eq('enquiry_id', o.enquiryId).is('job_id', null))
 
-export function loadProgramme(jobId: string) {
-  return cached(`programme:${jobId}`, async () => {
-    const progs = await must<SavedProgramme[]>(supabase.from('programmes').select('*').eq('job_id', jobId).order('imported_at', { ascending: false }).limit(1))
-    const programme = progs[0] ?? null
-    const tasks: ProgrammeTask[] = []
-    const cols = 'id, sort, code, name, section, trade, start_date, finish_date, milestone'
-    const page = (from: number, links: boolean) =>
-      must<ProgrammeTask[]>(
-        supabase
-          .from('programme_tasks')
-          .select((links ? `${cols}, predecessors` : cols) as '*') // the column list is worked out, so not type-checked
-          .eq('programme_id', programme!.id)
-          .order('sort')
-          .range(from, from + 999),
-      )
-    let links = true // until script 025 is run there are no links to read
-    if (programme)
-      for (let from = 0; ; from += 1000) {
-        const rows = await page(from, links).catch((e: Error) => {
-          if (!links || !/predecessors/.test(e.message)) throw e
-          links = false
-          return page(from, false)
-        })
-        tasks.push(...rows)
-        if (rows.length < 1000) break
-      }
-    return { programme, tasks }
-  })
-}
-
-// ---------- editing in the app (Programme tab, 21 Nov) ----------
 const ok = async (p: PromiseLike<{ error: { message: string } | null }>) => {
   const r = await p
   if (r.error) throw new Error(r.error.message)
 }
-// a programme started from nothing: the job's start on site and PC as milestones
-export async function startBlankProgramme(jobId: string, name: string, start: string, pc: string) {
+const newId = () => crypto.randomUUID()
+
+// the owner's programme (the latest, if there were ever two)
+async function findProgramme(o: Owner) {
+  const progs = await must<SavedProgramme[]>(forOwner(supabase.from('programmes').select('*'), o).order('imported_at', { ascending: false }).limit(1))
+  return progs[0] ?? null
+}
+async function loadTasks(programmeId: string) {
+  const tasks: ProgrammeTask[] = []
+  for (let from = 0; ; from += 1000) {
+    // every column there is, so it works whichever scripts have been run
+    const rows = await must<ProgrammeTask[]>(
+      supabase
+        .from('programme_tasks')
+        .select('*')
+        .eq('programme_id', programmeId)
+        .order('sort')
+        .range(from, from + 999),
+    )
+    tasks.push(...rows)
+    if (rows.length < 1000) break
+  }
+  return tasks
+}
+
+export function loadProgramme(owner: string | Owner) {
+  const o = ownerOf(owner)
+  return cached(`programme:${ownerKey(o)}`, async () => {
+    const programme = await findProgramme(o)
+    return { programme, tasks: programme ? await loadTasks(programme.id) : [] }
+  })
+}
+
+// the columns a task row has in the database (only those the scripts run so far have added)
+const TASK_COLUMNS = ['code', 'name', 'section', 'trade', 'start_date', 'finish_date', 'milestone', 'sort'] as const
+const COLUMNS_025 = ['predecessors', 'progress'] as const
+const COLUMNS_026 = ['contractor', 'rag', 'prereq_confirmed', 'prereq_note', 'skeleton', 'baseline_start', 'baseline_duration'] as const
+export const has026 = (p: SavedProgramme | null) => !!p && 'sections' in p
+function taskRow(t: ProgrammeTask, programmeId: string, with026: boolean) {
+  const row: Record<string, unknown> = { programme_id: programmeId }
+  for (const k of TASK_COLUMNS) row[k] = t[k] ?? (k === 'sort' ? 0 : null)
+  row.predecessors = t.predecessors ?? []
+  row.progress = t.progress ?? 0
+  if (with026) {
+    row.contractor = t.contractor ?? null
+    row.rag = t.rag ?? 'green'
+    row.prereq_confirmed = !!t.prereq_confirmed
+    row.prereq_note = t.prereq_note ?? null
+    row.skeleton = !!t.skeleton
+    row.baseline_start = t.baseline_start ?? null
+    row.baseline_duration = t.baseline_duration ?? null
+  }
+  return row
+}
+const SETTINGS = ['project_name', 'start_date', 'finish_date', 'trades', 'shutdowns'] as const
+const SETTINGS_026 = ['project_start', 'week_start', 'client_logo', 'sections'] as const
+
+// a programme imported, made from the SoW, started blank or copied: an owner with a programme
+// already keeps it (and its issued revisions), with its tasks and settings replaced
+export async function saveProgramme(owner: string | Owner, p: ParsedProgramme, fileName: string) {
+  const o = ownerOf(owner)
+  const existing = await findProgramme(o)
+  const with026 = existing ? has026(existing) : true
+  const fields: Record<string, unknown> = {
+    file_name: fileName,
+    project_name: p.project_name,
+    start_date: p.start_date,
+    finish_date: p.finish_date,
+    imported_at: new Date().toISOString(),
+    trades: p.trades ?? [],
+    shutdowns: p.shutdowns ?? [],
+  }
+  if (with026) Object.assign(fields, { sections: p.sections ?? [], project_start: p.project_start ?? null, week_start: p.week_start ?? null, client_logo: p.client_logo ?? null })
+  let id: string
+  if (existing) {
+    id = existing.id
+    await ok(supabase.from('programmes').update(fields).eq('id', id))
+    await ok(supabase.from('programme_tasks').delete().eq('programme_id', id))
+  } else {
+    const r = await supabase
+      .from('programmes')
+      .insert({ ...ownerRow(o), ...fields })
+      .select('id')
+      .single()
+    if (r.error) {
+      // before script 026 a programme can't have the newer settings, or belong to an enquiry
+      if ('jobId' in o && /column|schema cache/i.test(r.error.message) && with026) {
+        for (const k of SETTINGS_026) delete fields[k]
+        const again = await supabase
+          .from('programmes')
+          .insert({ ...ownerRow(o), ...fields })
+          .select('id')
+          .single()
+        if (again.error) throw new Error(again.error.message)
+        id = again.data.id
+        return insertTasks(id, p.tasks, false)
+      }
+      throw new Error(/enquiry_id/.test(r.error.message) ? 'Programmes for estimates need script 026 run in Supabase first (supabase/README.md).' : r.error.message)
+    }
+    id = r.data.id
+  }
+  await insertTasks(id, p.tasks, with026)
+}
+async function insertTasks(programmeId: string, tasks: ProgrammeTask[], with026: boolean) {
+  const rows = tasks.map((t, i) => taskRow({ ...t, sort: i }, programmeId, with026))
+  for (let i = 0; i < rows.length; i += 500) await ok(supabase.from('programme_tasks').insert(rows.slice(i, i + 500)))
+}
+
+// ---------- saving edits (the Programme tab saves a moment after each change) ----------
+// what changed between the last save and now is written: new tasks added, changed ones updated,
+// removed ones deleted, and the programme's own settings
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+export async function syncProgramme(before: { programme: SavedProgramme; tasks: ProgrammeTask[] }, after: { programme: SavedProgramme; tasks: ProgrammeTask[] }) {
+  const id = after.programme.id
+  const with026 = has026(before.programme)
+  const keys = [...TASK_COLUMNS, ...COLUMNS_025, ...(with026 ? COLUMNS_026 : [])]
+  const old = new Map(before.tasks.map((t) => [t.id, t]))
+  const now = new Set(after.tasks.map((t) => t.id))
+  const gone = before.tasks.filter((t) => t.id && !now.has(t.id)).map((t) => t.id!)
+  const added = after.tasks.filter((t) => t.id && !old.has(t.id))
+  const changed = after.tasks.filter((t) => {
+    const b = t.id && old.get(t.id)
+    return b && keys.some((k) => !same(b[k], t[k]))
+  })
+  if (gone.length)
+    for (let i = 0; i < gone.length; i += 200)
+      await ok(
+        supabase
+          .from('programme_tasks')
+          .delete()
+          .in('id', gone.slice(i, i + 200)),
+      )
+  if (added.length)
+    for (let i = 0; i < added.length; i += 500) await ok(supabase.from('programme_tasks').insert(added.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+  if (changed.length)
+    for (let i = 0; i < changed.length; i += 500)
+      await ok(supabase.from('programme_tasks').upsert(changed.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+  const settings: Record<string, unknown> = {}
+  for (const k of [...SETTINGS, ...(with026 ? SETTINGS_026 : [])])
+    if (!same(before.programme[k], after.programme[k])) settings[k] = after.programme[k] ?? (k === 'trades' || k === 'shutdowns' || k === 'sections' ? [] : null)
+  if (Object.keys(settings).length) await ok(supabase.from('programmes').update(settings).eq('id', id))
+}
+export { newId as newTaskId }
+
+// a programme started from nothing: start on site and PC as milestones
+export async function startBlankProgramme(owner: string | Owner, name: string, start: string, pc: string) {
   await saveProgramme(
-    jobId,
+    owner,
     {
       project_name: name,
       start_date: start,
       finish_date: pc,
+      project_start: start,
+      week_start: start,
       tasks: [
         { code: 'A1010', name: 'Start on site', section: 'Milestones', trade: null, start_date: start, finish_date: start, milestone: true },
         { code: 'A1020', name: 'Practical Completion', section: 'Milestones', trade: null, start_date: pc, finish_date: pc, milestone: true },
       ],
+      sections: [{ name: 'Milestones' }],
     },
     'Started in the app',
   )
 }
-export async function updateTask(id: string, fields: Partial<Omit<ProgrammeTask, 'id'>>) {
-  await ok(supabase.from('programme_tasks').update(fields).eq('id', id))
+
+// ---------- previous programmes (to start a new one from) ----------
+export interface ProgrammeListItem {
+  id: string
+  project_name: string | null
+  start_date: string | null
+  finish_date: string | null
+  job_id: string | null
+  enquiry_id?: string | null
+  owner: string // e.g. "2611 MICR Micro by the Fix" or "E012 Corsham Street (estimate)"
 }
-export async function addTask(programmeId: string, task: ProgrammeTask) {
-  const { id: _id, ...row } = task
-  await ok(supabase.from('programme_tasks').insert({ ...row, programme_id: programmeId }))
+export async function listProgrammes(): Promise<ProgrammeListItem[]> {
+  type Row = Omit<ProgrammeListItem, 'owner'> & {
+    jobs?: { job_no: string; code: string; name: string } | null
+    enquiries?: { enquiry_no: number; name: string } | null
+  }
+  const base = 'id, project_name, start_date, finish_date, job_id, jobs(job_no, code, name)'
+  const rows = await must<Row[]>(
+    supabase
+      .from('programmes')
+      .select(`${base}, enquiry_id, enquiries(enquiry_no, name)` as '*')
+      .order('imported_at', { ascending: false }),
+  ).catch(() =>
+    must<Row[]>(
+      supabase
+        .from('programmes')
+        .select(base as '*')
+        .order('imported_at', { ascending: false }),
+    ),
+  )
+  return rows.map((r) => ({
+    id: r.id,
+    project_name: r.project_name,
+    start_date: r.start_date,
+    finish_date: r.finish_date,
+    job_id: r.job_id,
+    enquiry_id: r.enquiry_id ?? null,
+    owner: r.jobs
+      ? `${r.jobs.job_no} ${r.jobs.code} ${r.jobs.name}`
+      : r.enquiries
+        ? `E${String(r.enquiries.enquiry_no).padStart(3, '0')} ${r.enquiries.name} (estimate)`
+        : r.project_name || 'Programme',
+  }))
 }
-export async function deleteTask(id: string) {
-  await ok(supabase.from('programme_tasks').delete().eq('id', id))
+// another programme's tasks and settings, to copy
+export async function loadProgrammeById(id: string) {
+  const progs = await must<SavedProgramme[]>(supabase.from('programmes').select('*').eq('id', id).limit(1))
+  if (!progs[0]) throw new Error('That programme has been deleted.')
+  return { programme: progs[0], tasks: await loadTasks(id) }
 }
-export async function renameSection(programmeId: string, from: string | null, to: string) {
-  const q = supabase.from('programme_tasks').update({ section: to }).eq('programme_id', programmeId)
-  await ok(from == null ? q.is('section', null) : q.eq('section', from))
+
+// ---------- issued revisions (Initial issue, Rev A, Rev B…: script 026) ----------
+export interface ProgrammeRevision {
+  id: string
+  programme_id: string
+  rev_no: number
+  note: string | null
+  created_by: string | null
+  created_at: string
+  task_count: number
+  data?: unknown // the programme as issued, in Timeline's layout
 }
-// its name, overall dates, trade colours and shutdowns
-export async function updateProgramme(id: string, fields: Partial<Pick<SavedProgramme, 'project_name' | 'start_date' | 'finish_date' | 'trades' | 'shutdowns'>>) {
-  await ok(supabase.from('programmes').update(fields).eq('id', id))
+export function listRevisions(programmeId: string) {
+  return must<ProgrammeRevision[]>(
+    supabase
+      .from('programme_revisions')
+      .select('id, programme_id, rev_no, note, created_by, created_at, task_count')
+      .eq('programme_id', programmeId)
+      .order('rev_no', { ascending: false }),
+  )
+}
+export async function loadRevisionData(programmeId: string, revNos: number[]) {
+  return must<{ rev_no: number; data: unknown }[]>(supabase.from('programme_revisions').select('rev_no, data').eq('programme_id', programmeId).in('rev_no', revNos))
+}
+export async function issueRevision(programmeId: string, note: string, data: unknown, taskCount: number) {
+  const last = await must<{ rev_no: number }[]>(
+    supabase.from('programme_revisions').select('rev_no').eq('programme_id', programmeId).order('rev_no', { ascending: false }).limit(1),
+  )
+  const rev_no = (last[0]?.rev_no ?? 0) + 1
+  await ok(supabase.from('programme_revisions').insert({ programme_id: programmeId, rev_no, note: note || null, data, task_count: taskCount }))
+  return rev_no
+}
+
+// a won enquiry's programme becomes the job's (unless the job already has one)
+export async function moveEnquiryProgramme(enquiryId: string, jobId: string) {
+  const has = await must<{ id: string }[]>(supabase.from('programmes').select('id').eq('job_id', jobId).limit(1))
+  if (has.length) return
+  const r = await supabase.from('programmes').update({ job_id: jobId }).eq('enquiry_id', enquiryId).is('job_id', null)
+  if (r.error && !/enquiry_id/.test(r.error.message)) throw new Error(r.error.message) // before script 026 there's nothing to move
 }

@@ -23,7 +23,7 @@ import ProgrammeTab from './pages/ProgrammeTab'
 import ProcurementTab from './pages/ProcurementTab'
 import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
-import Estimating, { EnquiryForm, EnquiryPage } from './pages/Estimating'
+import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import MyDetails from './pages/MyDetails'
 import QuotationsRegister from './pages/QuotationsRegister'
@@ -99,6 +99,7 @@ export default function App() {
         <Route path="/estimating/new" element={<EnquiryForm />} />
         <Route path="/estimating/e/:enquiryId" element={<EnquiryPage />} />
         <Route path="/estimating/e/:enquiryId/edit" element={<EnquiryForm />} />
+        <Route path="/estimating/e/:enquiryId/programme" element={<EnquiryProgramme />} />
         <Route path="/estimating/q/:quoteId" element={<EstimatingQuotationEditor />} />
         <Route path="/estimating/:tab" element={<Estimating />} />
         <Route path="/contracts" element={<Contracts />} />
