@@ -68,27 +68,26 @@ export default function JobLayout() {
 
   return (
     <>
-      <div className="job-head">
-        <div>
-          <Link to="/jobs" className="link-button small">
-            ← Jobs
-          </Link>
-          <h1>
-            {job.job_no} {job.code} · {job.name}
-          </h1>
-          <div className="job-meta muted">
-            <span className={`tag ${job.status}`}>{JOB_STATUS_LABELS[job.status]}</span>
-            <span>Contract sum {money(job.contract_sum) || '–'}</span>
-            {job.pc_date && <span>PC {ukDate(job.pc_date)}</span>}
-            {job.sharepoint_site_url && (
-              <a href={job.sharepoint_site_url} target="_blank" rel="noreferrer">
-                SharePoint site ↗
-              </a>
-            )}
-          </div>
-        </div>
-        <Link to={`/jobs/${job.id}/edit`} className="button">
-          Edit job details
+      {/* one line (22 Nov): status, then the job, then PC, contract sum and SharePoint */}
+      <div className="job-head job-head-line">
+        <Link to="/jobs" className="job-back" title="All jobs" aria-label="All jobs">
+          ←
+        </Link>
+        <span className={`tag ${job.status}`}>{JOB_STATUS_LABELS[job.status]}</span>
+        <h1>
+          {job.job_no} {job.code} · {job.name}
+        </h1>
+        <span className="job-meta muted">
+          {job.pc_date && <span>PC {ukDate(job.pc_date)}</span>}
+          <span>{money(job.contract_sum) || 'No contract sum'}</span>
+          {job.sharepoint_site_url && (
+            <a href={job.sharepoint_site_url} target="_blank" rel="noreferrer">
+              SharePoint ↗
+            </a>
+          )}
+        </span>
+        <Link to={`/jobs/${job.id}/edit`} className="button small-button job-edit">
+          Edit job
         </Link>
       </div>
 

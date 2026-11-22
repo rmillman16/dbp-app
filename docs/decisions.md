@@ -162,6 +162,12 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 - **Live programmes:** Timeline saves them in a separate Supabase project (shared with the follow-up / Minutes app). They come across by exporting each one's .json from Timeline and importing it on the job's Programme tab.
 - **Importing a Timeline file** now reads its own Save layout (before, only its autosave layout), with links, trade colours and shutdowns.
 
+## Programme: critical tick box; job heading on one line (22 Nov, script 028)
+- **Critical path tick box** in the task form (new and existing tasks): the task always shows as critical (red, counted in Critical path (N), in the critical path view and on the print), as well as those the links make critical. Stored as `programme_tasks.critical` (script 028). Until 028 is run, saving leaves it out.
+- **RAG status** stays: a manual flag set at progress meetings (green on track / amber at risk / red off track). It doesn't move dates. The help page says so.
+- **The ＋ section button on each task row is removed.** New sections only come from + Section in the toolbar; tasks are dragged (or given a Section) to move into one.
+- **Job heading (every job tab) on one line:** ← back, the **status first** (Live etc.), the job number, code and name, then PC date · contract sum · SharePoint, and a small Edit job button. On a phone it wraps: status and buttons on top, name, then the details.
+
 ## Programme: toolbar on two lines (22 Nov)
 Richard: fewer buttons, icons for the obvious ones, two lines on a desktop.
 - **Line 1:**

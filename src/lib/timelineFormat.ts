@@ -28,6 +28,7 @@ export interface TLTask {
   baselineStart: string | null
   baselineDuration: number | null
   groupId: string | null
+  critical?: boolean // the app's own: marked as on the critical path
 }
 export interface TLGroup {
   id: string
@@ -98,6 +99,7 @@ export function fromTimeline(d: Partial<TLState>): ParsedProgramme {
         skeleton: !!t.skeleton,
         baseline_start: day(t.baselineStart),
         baseline_duration: t.baselineDuration != null ? Math.round(Number(t.baselineDuration)) : null,
+        critical: !!t.critical,
         predecessors: (t.predecessors ?? []).map((p) => ({
           code: String(p.id),
           type: p.type === 'SS' || p.type === 'FF' ? p.type : 'FS',
@@ -156,6 +158,7 @@ export function toTimeline(programme: SavedProgramme, tasks: ProgrammeTask[]): T
       baselineStart: t.baseline_start ?? null,
       baselineDuration: t.baseline_duration ?? null,
       groupId: groupOf(t.section),
+      critical: !!t.critical,
     })),
   }
 }

@@ -201,6 +201,12 @@ export function TaskModal({
         <label htmlFor="tl-ms">This is a milestone (renders as a diamond, not a bar)</label>
       </div>
       <div className="tl-field tl-check">
+        <input type="checkbox" id="tl-cp" checked={!!t.critical} onChange={(e) => setT({ ...t, critical: e.target.checked })} />
+        <label htmlFor="tl-cp">
+          <b>Critical path</b>: always show this task as critical (red), as well as any the links make critical
+        </label>
+      </div>
+      <div className="tl-field tl-check">
         <input type="checkbox" id="tl-sk" checked={!!t.skeleton} onChange={(e) => setT({ ...t, skeleton: e.target.checked })} />
         <label htmlFor="tl-sk">Skeleton crew: keeps working through shutdown periods (e.g. Christmas)</label>
       </div>

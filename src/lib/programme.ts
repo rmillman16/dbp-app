@@ -35,6 +35,7 @@ export interface ProgrammeTask {
   skeleton?: boolean // a skeleton crew works through shutdowns
   baseline_start?: string | null
   baseline_duration?: number | null // working days
+  critical?: boolean // marked as on the critical path (script 028), as well as those the links make critical
 }
 
 // a link to a task this one follows, by its activity code: finish to start, start to start or
@@ -311,6 +312,17 @@ const COLUMNS_025 = ['predecessors', 'progress'] as const
 const COLUMNS_026 = ['contractor', 'rag', 'prereq_confirmed', 'prereq_note', 'skeleton', 'baseline_start', 'baseline_duration'] as const
 export const has026 = (p: SavedProgramme | null) => !!p && 'sections' in p
 export const has027 = (p: SavedProgramme | null) => !!p && 'contract_rev' in p
+// script 028 (a task marked critical): until it's run, saving leaves the column out (found on the first save)
+let has028 = true
+async function withCritical(write: () => Promise<void>) {
+  try {
+    await write()
+  } catch (e) {
+    if (!has028 || !/critical/.test((e as Error).message)) throw e
+    has028 = false
+    await write()
+  }
+}
 function taskRow(t: ProgrammeTask, programmeId: string, with026: boolean) {
   const row: Record<string, unknown> = { programme_id: programmeId }
   for (const k of TASK_COLUMNS) row[k] = t[k] ?? (k === 'sort' ? 0 : null)
@@ -324,6 +336,7 @@ function taskRow(t: ProgrammeTask, programmeId: string, with026: boolean) {
     row.skeleton = !!t.skeleton
     row.baseline_start = t.baseline_start ?? null
     row.baseline_duration = t.baseline_duration ?? null
+    if (has028) row.critical = !!t.critical
   }
   return row
 }
@@ -377,8 +390,10 @@ export async function saveProgramme(owner: string | Owner, p: ParsedProgramme, f
   await insertTasks(id, p.tasks, with026)
 }
 async function insertTasks(programmeId: string, tasks: ProgrammeTask[], with026: boolean) {
-  const rows = tasks.map((t, i) => taskRow({ ...t, sort: i }, programmeId, with026))
-  for (let i = 0; i < rows.length; i += 500) await ok(supabase.from('programme_tasks').insert(rows.slice(i, i + 500)))
+  await withCritical(async () => {
+    const rows = tasks.map((t, i) => taskRow({ ...t, sort: i }, programmeId, with026))
+    for (let i = 0; i < rows.length; i += 500) await ok(supabase.from('programme_tasks').insert(rows.slice(i, i + 500)))
+  })
 }
 
 // ---------- saving edits (the Programme tab saves a moment after each change) ----------
@@ -388,7 +403,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 export async function syncProgramme(before: { programme: SavedProgramme; tasks: ProgrammeTask[] }, after: { programme: SavedProgramme; tasks: ProgrammeTask[] }) {
   const id = after.programme.id
   const with026 = has026(before.programme)
-  const keys = [...TASK_COLUMNS, ...COLUMNS_025, ...(with026 ? COLUMNS_026 : [])]
+  const keys = [...TASK_COLUMNS, ...COLUMNS_025, ...(with026 ? COLUMNS_026 : []), ...(with026 ? (['critical'] as const) : [])]
   const old = new Map(before.tasks.map((t) => [t.id, t]))
   const now = new Set(after.tasks.map((t) => t.id))
   const gone = before.tasks.filter((t) => t.id && !now.has(t.id)).map((t) => t.id!)
@@ -406,10 +421,14 @@ export async function syncProgramme(before: { programme: SavedProgramme; tasks: 
           .in('id', gone.slice(i, i + 200)),
       )
   if (added.length)
-    for (let i = 0; i < added.length; i += 500) await ok(supabase.from('programme_tasks').insert(added.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+    await withCritical(async () => {
+      for (let i = 0; i < added.length; i += 500) await ok(supabase.from('programme_tasks').insert(added.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+    })
   if (changed.length)
-    for (let i = 0; i < changed.length; i += 500)
-      await ok(supabase.from('programme_tasks').upsert(changed.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+    await withCritical(async () => {
+      for (let i = 0; i < changed.length; i += 500)
+        await ok(supabase.from('programme_tasks').upsert(changed.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
+    })
   const settings: Record<string, unknown> = {}
   for (const k of [...SETTINGS, ...(with026 ? SETTINGS_026 : []), ...(has027(before.programme) ? (['contract_rev'] as const) : [])])
     if (!same(before.programme[k], after.programme[k])) settings[k] = after.programme[k] ?? (k === 'trades' || k === 'shutdowns' || k === 'sections' ? [] : null)

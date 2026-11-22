@@ -290,8 +290,12 @@ export default function ProgrammeHelp() {
                 <Row k={<b>Contractor</b>}>Type or pick from the app's contractor list; used by the contractor filter and print.</Row>
                 <Row k={<b>Start date / Duration</b>}>Duration is working days. On a linked task, a new start becomes extra lag on its links.</Row>
                 <Row k={<b>Milestone</b>}>A single date, shown as a diamond.</Row>
+                <Row k={<b>Critical path</b>}>Tick to always show the task as critical (red, and in the critical path view and print), as well as any the links make critical.</Row>
                 <Row k={<b>Skeleton crew</b>}>Keeps working through shutdowns (e.g. security, a weekend pour).</Row>
-                <Row k={<b>RAG status</b>}>Green on track, amber at risk, red off track. Only amber and red show on the print.</Row>
+                <Row k={<b>RAG status</b>}>
+                  Your own judgement of the task, set by hand at progress meetings: green on track, amber at risk, red off track (e.g. waiting on drawings, a subbie behind). It
+                  doesn't move any dates; it flags the tasks to talk about. A small dot on the bar; only amber and red show on the print.
+                </Row>
                 <Row k={<b>Predecessors</b>}>The tasks it follows: FS, SS or FF, with a lag in working days (negative to overlap).</Row>
                 <Row k={<b>Prerequisite confirmed / note</b>}>Whatever must be in place first (drawings, a sample, an order); the Prereq column shows a tick or an amber !.</Row>
               </tbody>
@@ -315,7 +319,7 @@ export default function ProgrammeHelp() {
                   How far its finish has moved against the <b>original programme</b> (or the revision being compared): <span className="tl-red">+7d</span> later,{' '}
                   <span className="tl-green">−2d</span> earlier, on time, or <b>new</b> (not in the original). Hover for working days. Before the first commit it shows —.
                 </Row>
-                <Row k={<b>＋ ⋮⋮</b>}>＋ starts a new section at this task; drag ⋮⋮ to move the row.</Row>
+                <Row k={<b>⋮⋮</b>}>Drag to move the row (into another section, too).</Row>
               </tbody>
             </table>
             <p>Drag a column heading's right-hand edge to make it wider or narrower; the widths are remembered on this device.</p>
@@ -329,7 +333,7 @@ export default function ProgrammeHelp() {
                 <b>+ Section ▾</b> adds a blank section, or the <b>Precon</b> / <b>Close-out</b> starter tasks.
               </li>
               <li>Click a section's name to rename it; ▾ collapses it; ▲ ▼ (or drag the band) move it.</li>
-              <li>Hover a task and click ＋ at its right-hand end to split a section there.</li>
+              <li>To move tasks into a new section, add it with + Section, then drag the tasks into it (or change each task's Section).</li>
             </ul>
             <h3>Repeating floors, blocks or plots</h3>
             <ol>
@@ -443,7 +447,8 @@ export default function ProgrammeHelp() {
             <h2>Critical path</h2>
             <ul>
               <li>
-                The chain of tasks with <b>no float</b>: if any slips, completion slips. Worked out from the links and durations.
+                The chain of tasks with <b>no float</b>: if any slips, completion slips. Worked out from the links and durations, plus any task ticked <b>Critical path</b> in its
+                form (e.g. a long-lead order you know is critical before it's linked up).
               </li>
               <li>Critical tasks: red outline, red name, red arrows between them.</li>
               <li>

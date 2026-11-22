@@ -41,7 +41,6 @@ import {
   duplicateSection,
   duplicateTask,
   findTask,
-  insertSectionBefore,
   insertTemplate,
   addSection,
   lengthOf,
@@ -300,7 +299,13 @@ export default function ProgrammeEditor({
     )
   }, [contractRev, programmeId])
   const sd = w?.programme.shutdowns ?? []
-  const critical = useMemo(() => (w ? criticalPath(w.tasks, sd) : new Set<string>()), [w]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the critical path: worked out from the links, plus any task ticked as critical (script 028)
+  const critical = useMemo(() => {
+    if (!w) return new Set<string>()
+    const set = criticalPath(w.tasks, sd)
+    for (const t of w.tasks) if (t.critical) set.add(t.code)
+    return set
+  }, [w]) // eslint-disable-line react-hooks/exhaustive-deps
   const usedContractors = useMemo(() => {
     const out: string[] = []
     for (const t of w?.tasks ?? []) if (t.contractor?.trim() && !out.some((o) => sameName(o, t.contractor))) out.push(t.contractor.trim())
@@ -858,10 +863,6 @@ export default function ProgrammeEditor({
           const n = w.tasks.filter((t) => t.section === name).length
           if (n) return setDialog({ kind: 'del', section: name })
           if (confirm(`Delete the empty section "${name}"?`)) apply(deleteSection(w, name, 'header'), `delete section "${name}"`)
-        }}
-        onInsertSectionBefore={(code) => {
-          const name = prompt('New section name. This task and the ones after it (up to the next section) will move into it:')?.trim()
-          if (name) apply(insertSectionBefore(w, code, name), `new section "${name}"`)
         }}
         onAddFirst={() => setModal({ task: draftTask(w), isNew: true })}
         compare={compare}

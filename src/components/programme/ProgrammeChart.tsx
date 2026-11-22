@@ -80,7 +80,6 @@ export default function ProgrammeChart({
   onRenameSection,
   onDuplicateSection,
   onDeleteSection,
-  onInsertSectionBefore,
   onAddFirst,
   compare,
   slipBase,
@@ -103,7 +102,6 @@ export default function ProgrammeChart({
   onRenameSection: (name: string) => void
   onDuplicateSection: (name: string) => void
   onDeleteSection: (name: string) => void
-  onInsertSectionBefore: (code: string) => void
   onAddFirst: () => void
   compare?: Comparison | null // the original programme (or a revision) drawn under the bars
   slipBase?: Comparison | null // the original programme, for the Slip column when nothing's overlaid
@@ -611,9 +609,6 @@ export default function ProgrammeChart({
                 )}
                 {widths[7] > 0 && (
                   <div className="tl-actions">
-                    <button className="tl-icon insert-section-btn" title="Insert a section break above this task" onClick={() => onInsertSectionBefore(t.code)}>
-                      ＋
-                    </button>
                     <span className="tl-grip" title="Drag to reorder" onPointerDown={(e) => (e.stopPropagation(), startRowDrag(e, 'task', t.code, true))}>
                       ⋮⋮
                     </span>
