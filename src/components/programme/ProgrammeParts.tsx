@@ -1,7 +1,7 @@
 // The Programme tab's task form, menus and dialogs, as DBP Timeline's (reference/timeline-app-
 // 2026-11-21.html: the task modal, the section / shutdown / shift / legend / export menus, duplicate and
 // delete section, commit and history).
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Link, LinkType, ProgrammeTask, Shutdown } from '../../lib/programme'
 import { addDays, finishFor, nextWorkingDay } from '../../lib/programmeEdit'
 import { calendarOf, follows } from '../../lib/programmeLinks'
@@ -68,6 +68,19 @@ export function TaskModal({
     const n = Math.max(1, parseInt(days) || 1)
     onSave({ ...t, name: t.name.trim(), contractor: t.contractor?.trim() || null, start_date: start, finish_date: t.milestone ? start : finishFor(start, n, calendarOf(t, sd)) })
   }
+  // Ctrl + Enter saves from anywhere in the form
+  const saveRef = useRef(save)
+  saveRef.current = save
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        saveRef.current()
+      }
+    }
+    document.addEventListener('keydown', key)
+    return () => document.removeEventListener('keydown', key)
+  }, [])
   return (
     <Modal
       title={isNew ? (t.milestone ? 'Add milestone' : 'Add task') : 'Edit task'}
@@ -90,7 +103,7 @@ export function TaskModal({
             <button className="tl-btn" onClick={onClose}>
               Cancel
             </button>
-            <button className="tl-btn tl-btn-primary" onClick={save}>
+            <button className="tl-btn tl-btn-primary" onClick={save} title="Ctrl+Enter">
               Save task
             </button>
           </div>

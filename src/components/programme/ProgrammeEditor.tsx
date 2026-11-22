@@ -73,6 +73,7 @@ import type { Job } from '../../lib/types'
 import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
 import { DeleteSectionDialog, DuplicateSectionDialog, LegendMenu, Modal, Popover, ShiftMenu, ShutdownMenu, TaskModal } from './ProgrammeParts'
 import '../../programme.css'
+import { Keys, SHORTCUTS } from '../../pages/ProgrammeHelp'
 
 const COLWIDTHS_KEY = 'duboulay-timeline-colwidths-v1' // the same as Timeline's, so widths carry over
 const ZOOM_KEY = 'dbp-programme-zoom'
@@ -231,64 +232,62 @@ export default function ProgrammeEditor({
     return () => (window.removeEventListener('online', online), window.removeEventListener('beforeunload', leave))
   }, [flush])
 
-  // a change: kept for Undo, shown, saved shortly
+  // a change: kept for Undo, shown, saved shortly (a new change clears Redo)
+  const redo = useRef<{ label: string; w: Working }[]>([])
+  const [redoTop, setRedoTop] = useState<string | null>(null)
   const apply = useCallback((next: Working, label = 'change') => {
     const cur = live.current
     if (!cur || next === cur) return
     undo.current.push({ label, w: cur })
     if (undo.current.length > 30) undo.current.shift()
     setUndoTop(label)
+    redo.current = []
+    setRedoTop(null)
     live.current = next
     setW(next)
   }, [])
   const undoLast = useCallback(() => {
     const u = undo.current.pop()
     setUndoTop(undo.current.at(-1)?.label ?? null)
-    if (!u) return
+    if (!u || !live.current) return
+    redo.current.push({ label: u.label, w: live.current })
+    setRedoTop(u.label)
     live.current = u.w
     setW(u.w)
     flashToast(`Undone: ${u.label}`)
   }, [])
+  const redoLast = useCallback(() => {
+    const r = redo.current.pop()
+    setRedoTop(redo.current.at(-1)?.label ?? null)
+    if (!r || !live.current) return
+    undo.current.push({ label: r.label, w: live.current })
+    setUndoTop(r.label)
+    live.current = r.w
+    setW(r.w)
+    flashToast(`Redone: ${r.label}`)
+  }, [])
 
-  // keyboard: Ctrl+Z undo, N quick add, Esc ends link mode (Timeline's shortcuts)
+  // keyboard shortcuts (Help › Keyboard shortcuts): handled by keyAction, set once the programme is shown
+  const keyAction = useRef<((e: KeyboardEvent, typing: boolean) => void) | null>(null)
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName ?? '').toUpperCase()
-      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing && !modal && !dialog) {
-        e.preventDefault()
-        undoLast()
-      } else if (e.key === 'n' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing && !modal && !dialog) {
-        e.preventDefault()
-        quickName.current?.focus()
-      } else if (e.key === 'Escape' && linking) {
-        setLinking(false)
-        setLinkFrom(null)
-      }
+      keyAction.current?.(e, tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!(document.activeElement as HTMLElement | null)?.isContentEditable)
     }
     const shift = (e: PointerEvent) => (shiftKey.current = e.shiftKey)
     document.addEventListener('keydown', key)
     document.addEventListener('pointerdown', shift, true)
     return () => (document.removeEventListener('keydown', key), document.removeEventListener('pointerdown', shift, true))
-  }, [undoLast, linking, modal, dialog])
+  }, [])
 
-  // full screen
+  // full page: over the sidebar and the job's heading (not the browser's own full screen)
   useEffect(() => {
     if (!full) return
-    const left = () => !document.fullscreenElement && setFull(false)
-    document.addEventListener('fullscreenchange', left)
     document.body.classList.add('no-scroll')
-    return () => (document.removeEventListener('fullscreenchange', left), document.body.classList.remove('no-scroll'))
+    return () => document.body.classList.remove('no-scroll')
   }, [full])
-  const toggleFull = () => {
-    if (!full) {
-      setFull(true)
-      root.current?.requestFullscreen?.().catch(() => {})
-    } else {
-      setFull(false)
-      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
-    }
-  }
+  const toggleFull = () => setFull((f) => !f)
+  const [showKeys, setShowKeys] = useState(false)
 
   const sd = w?.programme.shutdowns ?? []
   const critical = useMemo(() => (w ? criticalPath(w.tasks, sd) : new Set<string>()), [w]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -348,6 +347,51 @@ export default function ProgrammeEditor({
   const programme = w.programme
   const tl = () => toTimeline(programme, w.tasks)
   const compareLabel = (no: number) => `${revName(no)}${no === programme.contract_rev ? ' (original programme)' : ''}`
+  const doPrint = () => {
+    if (!w.tasks.length) return alert('Add some tasks before printing.')
+    printProgramme(tl(), {
+      logoUrl: '/dbp-logo.png',
+      contractor: contractor || null,
+      criticalOnly: critOnly,
+      critical,
+      revision: lastRev ? revName(lastRev.rev_no) : undefined,
+      compare: compare ? { label: compareLabel(compare.rev_no), bars: compare.bars } : undefined,
+    }).catch((e) => setError((e as Error).message))
+  }
+  // the keyboard shortcuts (listed in Help and under ?)
+  keyAction.current = (e, typing) => {
+    const ctrl = e.ctrlKey || e.metaKey
+    const k = e.key.toLowerCase()
+    const busyElsewhere = !!modal || !!dialog || showKeys
+    if (ctrl && k === 's') return (e.preventDefault(), flush().then(() => flashToast('Saved.')))
+    if (ctrl && k === 'p' && !busyElsewhere) return (e.preventDefault(), doPrint())
+    if (ctrl && !typing && !busyElsewhere && ((k === 'z' && e.shiftKey) || k === 'y')) return (e.preventDefault(), redoLast())
+    if (ctrl && !typing && !busyElsewhere && k === 'z') return (e.preventDefault(), undoLast())
+    if (e.key === 'Escape') {
+      if (busyElsewhere) return // dialogs close themselves
+      if (pop) return setPop(null)
+      if (linking) return (setLinking(false), setLinkFrom(null))
+      if (full) return setFull(false)
+      return
+    }
+    if (ctrl || e.altKey || typing || busyElsewhere) return
+    const run = (f: () => void) => (e.preventDefault(), f())
+    if (k === 'n') return run(() => quickName.current?.focus())
+    if (k === 't') return run(() => setModal({ task: draftTask(w, false, contractor || null), isNew: true }))
+    if (k === 'm') return run(() => setModal({ task: draftTask(w, true, contractor || null), isNew: true }))
+    if (k === 'l')
+      return run(() => {
+        setLinking(!linking)
+        setLinkFrom(null)
+        setLinkMsg('Link mode. Click the task that comes first, then the task that depends on it. Shift-click the second for start-to-start. Esc to finish.')
+      })
+    if (k === 'c') return run(() => setCritOnly(!critOnly))
+    if (k === 'f') return run(toggleFull)
+    if (k === '.') return run(() => setTodayTick(todayTick + 1))
+    if (e.key === '?') return run(() => setShowKeys(true))
+    const z = ({ '1': 'Day', '2': 'Week', '3': 'Fortnight', '4': 'Month' } as Record<string, Zoom>)[e.key]
+    if (z) return run(() => setZoom(z))
+  }
   const showCompare = async (no: number) => {
     try {
       const data = await loadRevisionData(programme.id, [no])
@@ -474,11 +518,18 @@ export default function ProgrammeEditor({
           )}
         </div>
         <div className="tl-divider" />
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'new' })}>
-          New
+        <button
+          className={`tl-btn ${full ? 'is-on' : ''}`}
+          onClick={toggleFull}
+          title={full ? 'Back to the page (Esc or F)' : 'Fill the page with the programme, over the sidebar and job heading (F)'}
+        >
+          {full ? '✕ Exit full page' : '⛶ Full page'}
         </button>
-        <button className="tl-btn tl-btn-sm" onClick={undoLast} disabled={!undoTop} title={undoTop ? `Undo: ${undoTop} (Ctrl+Z)` : 'Nothing to undo'}>
+        <button className="tl-btn" onClick={undoLast} disabled={!undoTop} title={undoTop ? `Undo: ${undoTop} (Ctrl+Z)` : 'Nothing to undo'}>
           Undo
+        </button>
+        <button className="tl-btn" onClick={redoLast} disabled={!redoTop} title={redoTop ? `Redo: ${redoTop} (Ctrl+Y)` : 'Nothing to redo'}>
+          Redo
         </button>
         <button className="tl-btn" onClick={() => setDialog({ kind: 'previous' })} title="Start again from another job's or estimate's programme">
           Programmes
@@ -682,21 +733,7 @@ export default function ProgrammeEditor({
             onChange={(e) => (e.target.files?.[0] && onLogo(e.target.files[0]).catch((err) => setError(err.message)), (e.target.value = ''))}
           />
         </label>
-        <button
-          className="tl-btn"
-          onClick={() => {
-            if (!w.tasks.length) return alert('Add some tasks before printing.')
-            printProgramme(tl(), {
-              logoUrl: '/dbp-logo.png',
-              contractor: contractor || null,
-              criticalOnly: critOnly,
-              critical,
-              revision: lastRev ? revName(lastRev.rev_no) : undefined,
-              compare: compare ? { label: compareLabel(compare.rev_no), bars: compare.bars } : undefined,
-            }).catch((e) => setError((e as Error).message))
-          }}
-          title="A3 landscape, as many pages as it needs (save as PDF from the print window)"
-        >
+        <button className="tl-btn" onClick={doPrint} title="A3 landscape, as many pages as it needs (save as PDF from the print window) (Ctrl+P)">
           Print / PDF
         </button>
         <span className="tl-pop-wrap">
@@ -729,16 +766,16 @@ export default function ProgrammeEditor({
             </div>
           </Popover>
         </span>
-        <button className="tl-btn" onClick={toggleFull} title={full ? 'Back to the page' : 'Fill the screen'}>
-          {full ? '✕ Exit full screen' : '⛶ Full screen'}
+        <button className="tl-btn" onClick={() => setDialog({ kind: 'new' })} title="Clear this programme and start again">
+          New
         </button>
-        <span className="tl-pop-wrap tl-help-wrap">
-          <button className="tl-btn" onClick={() => setPop(pop === 'help' ? null : 'help')}>
-            Help
+        <span className="tl-help-wrap">
+          <button className="tl-btn" onClick={() => setShowKeys(true)} title="Keyboard shortcuts (?)">
+            ⌨
           </button>
-          <Popover open={pop === 'help'} onClose={() => setPop(null)} align="right" width={360}>
-            <Help />
-          </Popover>
+          <a className="tl-btn" href="/help/programme" target="_blank" rel="noopener" title="How to use the programme: help, tips and keyboard shortcuts (opens in a new tab)">
+            Help
+          </a>
         </span>
         {programme.client_logo && (
           <span className="tl-client-logo">
@@ -828,6 +865,7 @@ export default function ProgrammeEditor({
       />
 
       {toast && <div className="tl-toast">{toast}</div>}
+      {showKeys && <KeysDialog onClose={() => setShowKeys(false)} />}
 
       {modal && (
         <TaskModal
@@ -1034,35 +1072,30 @@ function ImportSummary({ p, name }: { p: ParsedProgramme; name: string }) {
   )
 }
 
-function Help() {
+// ? : the keyboard shortcuts (the same list as Help › Keyboard shortcuts)
+function KeysDialog({ onClose }: { onClose: () => void }) {
   return (
-    <div className="tl-help-pop">
-      <div className="tl-legend-title">Using the programme</div>
-      <ul>
-        <li>
-          <b>Add:</b> type in Quick add and press Enter (press <kbd>N</kbd> to jump there); it starts after the last task and links to it. Or + Task / + Milestone / + Section.
-        </li>
-        <li>
-          <b>Edit:</b> click a task; click its start or days in the list to type a new one (dates like 4/1 or 4/1/27); click the RAG dot to change it.
-        </li>
-        <li>
-          <b>Move:</b> drag a bar; drag its right-hand end to change its length; drag rows in the list to reorder (by the ⋮⋮ grip on a touch screen).
-        </li>
-        <li>
-          <b>Link:</b> Link tasks, then click the task that comes first and the one that follows it (Shift-click for start-to-start). Linked tasks move together.
-        </li>
-        <li>
-          <b>Undo:</b> <kbd>Ctrl</kbd>+<kbd>Z</kbd> or Undo (the last 30 changes).
-        </li>
-        <li>
-          <b>Saving:</b> automatic, for everyone. <b>Commit</b> locks a numbered copy (Initial issue, Rev A…), the first being the original programme; <b>Compare</b> overlays it to
-          show slippage; <b>History</b> shows what changed.
-        </li>
-        <li>
-          <b>Working days</b> are Monday to Friday, less shutdowns. Durations are working days.
-        </li>
-      </ul>
-    </div>
+    <Modal title="Keyboard shortcuts" onClose={onClose}>
+      <table className="tl-help-table">
+        <tbody>
+          {SHORTCUTS.map(([keys, what]) => (
+            <tr key={what}>
+              <td>
+                <Keys keys={keys} />
+              </td>
+              <td>{what}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="tl-p tl-light" style={{ marginTop: 12 }}>
+        Single letters work when you're not typing in a box. More in the{' '}
+        <a href="/help/programme" target="_blank" rel="noopener">
+          help page
+        </a>
+        .
+      </p>
+    </Modal>
   )
 }
 

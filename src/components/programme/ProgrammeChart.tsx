@@ -31,10 +31,10 @@ import {
 export type Zoom = 'Day' | 'Week' | 'Fortnight' | 'Month'
 export const DAY_W: Record<Zoom, number> = { Day: 38, Week: 20, Fortnight: 170 / 14, Month: 4 }
 const PAD: Record<Zoom, number> = { Day: 7, Week: 14, Fortnight: 28, Month: 62 }
-const ROW = 48 // Timeline's --row-h
-const HEAD = 70 // its two heading rows (42 + 28)
-const BAR = 24
-const MILESTONE_SCALE = 0.65
+const ROW = 30 // thinner than Timeline's 48 px (Richard, 22 Nov: "bars too large"), about 60% more tasks on screen
+const HEAD = 56 // the two heading rows (32 + 24)
+const BAR = 16
+const MILESTONE_SCALE = 0.9 // of the (thinner) bar: about Timeline's diamond
 const RAG_COLOR = { green: '#2e9914', amber: '#D4920A', red: '#D63030' }
 export const DEFAULT_COL_WIDTHS = [200, 90, 74, 40, 36, 36, 54, 50] // Task, Trade, Start, Days, RAG, Prereq, Slip, actions
 const COLS = ['Task', 'Trade', 'Start', 'Days', 'RAG', 'Prereq', 'Slip', '']
@@ -504,12 +504,12 @@ export default function ProgrammeChart({
           const s = slip(it.t)
           const was = compare?.bars.get(t.code)
           const cs = compare ? finishSlip(it.t, was, sd) : null
-          const barTop = compare ? 8 : (ROW - BAR) / 2
-          const barH = compare ? 22 : BAR
+          const barTop = compare ? 4 : (ROW - BAR) / 2
+          const barH = compare ? 14 : BAR
           const midY = barTop + barH / 2
           const len = lengthOf(it.t, sd)
           const side = (BAR * MILESTONE_SCALE) / 1.4142
-          const labelInside = !t.milestone && bw > t.name.length * 6.6 + 16
+          const labelInside = !t.milestone && bw > t.name.length * 6 + 16
           return (
             <div
               key={t.code}
@@ -649,7 +649,11 @@ export default function ProgrammeChart({
                     title={`${t.name}: ${fmtShort(t.start_date)} – ${fmtShort(t.finish_date)}, ${lengthOf(t, sd)} working days${t.skeleton ? ' (skeleton crew)' : ''}`}
                   >
                     {(t.progress ?? 0) > 0 && <div className="tl-progress" style={{ width: `${Math.min(100, t.progress ?? 0)}%` }} />}
-                    {labelInside && <span className="tl-bar-label inside">{t.name}</span>}
+                    {labelInside && (
+                      <span className="tl-bar-label inside" style={{ lineHeight: `${barH}px` }}>
+                        {t.name}
+                      </span>
+                    )}
                     <div className="tl-handle" onPointerDown={(e) => startDrag(e, t.code, 'end')} title="Drag to change its length" />
                   </div>
                   {!labelInside && (
@@ -663,11 +667,11 @@ export default function ProgrammeChart({
               {was && (
                 <>
                   {was.milestone ? (
-                    <span className="tl-ghost-mile" style={{ left: x(was.start_date) + dayW / 2 - 5, top: 34 }} title={`${compare!.label}: ${fmtShort(was.start_date)}`} />
+                    <span className="tl-ghost-mile" style={{ left: x(was.start_date) + dayW / 2 - 4, top: 19 }} title={`${compare!.label}: ${fmtShort(was.start_date)}`} />
                   ) : (
                     <span
                       className="tl-ghost"
-                      style={{ left: x(was.start_date), width: Math.max(dayW, (daysBetween(was.start_date, was.finish_date) + 1) * dayW), top: 35 }}
+                      style={{ left: x(was.start_date), width: Math.max(dayW, (daysBetween(was.start_date, was.finish_date) + 1) * dayW), top: 21 }}
                       title={`${compare!.label}: ${fmtShort(was.start_date)} – ${fmtShort(was.finish_date)}`}
                     />
                   )}
@@ -677,7 +681,7 @@ export default function ProgrammeChart({
                       style={{
                         left: x(t.finish_date < was.finish_date ? t.finish_date : was.finish_date) + (was.milestone || t.milestone ? dayW / 2 : dayW),
                         width: Math.abs(daysBetween(was.finish_date, t.finish_date)) * dayW,
-                        top: 35,
+                        top: 21,
                       }}
                       title={cs ? `${cs.days > 0 ? '+' : ''}${cs.days} days (${cs.working > 0 ? '+' : ''}${cs.working} working days) against ${compare!.label}` : ''}
                     />

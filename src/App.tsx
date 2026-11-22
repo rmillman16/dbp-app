@@ -20,6 +20,7 @@ import Contractors from './pages/Contractors'
 import EotTab from './pages/EotTab'
 import CashflowTab from './pages/CashflowTab'
 import ProgrammeTab from './pages/ProgrammeTab'
+import ProgrammeHelp from './pages/ProgrammeHelp'
 import ProcurementTab from './pages/ProcurementTab'
 import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
@@ -95,6 +96,7 @@ export default function App() {
           <Route path="cvr" element={<CvrTab />} />
           <Route path="cvr/:cvrId" element={<CvrEditor />} />
         </Route>
+        <Route path="/help/programme" element={<ProgrammeHelp />} />
         <Route path="/estimating" element={<Estimating />} />
         <Route path="/estimating/new" element={<EnquiryForm />} />
         <Route path="/estimating/e/:enquiryId" element={<EnquiryPage />} />
