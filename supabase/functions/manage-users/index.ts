@@ -30,20 +30,41 @@ function tempPassword() {
   return `Dbp-${pick(4)}-${pick(4)}-${pick(2)}`;
 }
 
+// the server key: the new-style secret key if the project has one (SUPABASE_SECRET_KEYS), else the older
+// service-role key. Both are given to Edge Functions by Supabase; neither is ever in the app.
+function serverKey() {
+  const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
+  if (raw) {
+    try {
+      const keys = JSON.parse(raw) as Record<string, string>;
+      const k = keys.default ?? Object.values(keys)[0];
+      if (k) return k;
+    } catch {
+      /* not JSON: fall through */
+    }
+  }
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!serviceKey) return fail("The server key isn't available to this function.");
-    const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const key = serverKey();
+    if (!key) return fail("The server key isn't available to this function.");
+    const admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    // who's calling, and are they an admin?
+    // who's calling, and are they an admin? Asked as the caller themselves (their own sign-in and the app's
+    // public key), the same check the database uses for admin-only changes (is_admin(), script 005)
     const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-    const { data: caller } = await admin.auth.getUser(token);
-    if (!caller?.user) return fail("Sign in first.", 401);
-    const { data: me } = await admin.from("profiles").select("is_admin").eq("id", caller.user.id).single();
-    if (!me?.is_admin) return fail("Only admins can manage logins.", 403);
+    const publicKey = req.headers.get("apikey") ?? "";
+    if (!token || !publicKey) return fail("Sign in first.", 401);
+    const asCaller = createClient(url, publicKey, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: caller, error: whoErr } = await asCaller.auth.getUser(token);
+    if (!caller?.user) return fail(`Sign in first.${whoErr ? ` (${whoErr.message})` : ""}`, 401);
+    const { data: isAdmin, error: adminErr } = await asCaller.rpc("is_admin");
+    if (adminErr) return fail(`Couldn't check you're an admin: ${adminErr.message}`);
+    if (!isAdmin) return fail("Only admins can manage logins.", 403);
 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action ?? "");
@@ -52,7 +73,7 @@ Deno.serve(async (req) => {
       const out: Record<string, { last_sign_in_at: string | null; disabled: boolean }> = {};
       for (let page = 1; page < 50; page++) {
         const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-        if (error) return fail(error.message);
+        if (error) return fail(`The server key was refused (${error.message}). Check Supabase › Settings › API keys has a secret key.`);
         for (const u of data.users)
           out[u.id] = { last_sign_in_at: u.last_sign_in_at ?? null, disabled: !!(u as { banned_until?: string }).banned_until && new Date((u as { banned_until?: string }).banned_until!) > new Date() };
         if (data.users.length < 200) break;
