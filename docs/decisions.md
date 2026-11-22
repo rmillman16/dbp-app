@@ -443,6 +443,11 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: headings caught properly; designer's reference removed (22 Nov)
+- **Headings:** heading rows still came in ("FABRIC" above FB-01) because they had something in another column (a ref, a level). A heading is now a code with no number and no description or specification, whatever else is on the row. A re-import deletes heading rows taken in before, by the same test (never touched: not requested, no supplier, no photo).
+- **Designer's reference removed** (Richard) from the tracker, side panel, Excel, PDF and the import's columns. If a schedule has only a ref column, it's still used as the code.
+- **Supplier from the spec:** with no dash or comma, only the first word ("Romo Linara Putty" → Romo; "Farrow & Ball" kept whole). Contractor-list names match without their Ltd / Limited / UK ending ("Stone Group Calacatta…" → Stone Group Ltd).
+
 ## Sampling: Submitted / Signed off; supplier from the schedule (22 Nov)
 - **Columns:** the tracker shows **Submitted** and **Signed off** (the designer's decision date) instead of Due and Submitted.
   - The due date stays in the side panel and still drives "overdue", now a small tag by the code (the due date in its tip).

@@ -317,9 +317,7 @@ export async function applySchedule(
         ),
     )
   // heading rows an earlier import took for samples (e.g. FABRIC): no number, nothing filled in, never touched. Always removed.
-  const junk = removed.filter(
-    (s) => !/\d/.test(s.code) && !s.description && !s.specification && !(s.locations ?? []).length && s.status === 'not_requested' && !s.supplier_company_id && !s.photo_path,
-  )
+  const junk = removed.filter((s) => !/\d/.test(s.code) && !s.description && !s.specification && s.status === 'not_requested' && !s.supplier_company_id && !s.photo_path)
   for (const s of junk) await deleteSample(s)
   const rest = removed.filter((s) => !junk.includes(s))
   if (removedAction === 'delete') for (const s of rest) await deleteSample(s)

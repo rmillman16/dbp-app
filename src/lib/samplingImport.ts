@@ -6,9 +6,8 @@
 import { MATERIAL_GROUPS, type ScheduleItem } from './sampling'
 
 export type Field = 'code' | 'designer_ref' | 'group' | 'location' | 'description' | 'manufacturer' | 'product' | 'finish' | 'specification' | 'quantity'
-export const FIELD_LABELS: Record<Field, string> = {
+export const FIELD_LABELS: Partial<Record<Field, string>> = {
   code: 'Code',
-  designer_ref: 'Designer ref',
   group: 'Category / material',
   location: 'Location / level',
   description: 'Description',
@@ -104,7 +103,14 @@ export function supplierFromSpec(text: string, known: string[] = []) {
   const t = text.trim()
   if (!t) return null
   const lower = t.toLowerCase()
-  const hit = known.filter((k) => k.trim() && lower.startsWith(k.trim().toLowerCase())).sort((a, b) => b.length - a.length)[0]
+  // a contractor-list name, matched without its Ltd / Limited / UK ending ("Stone Group Calacatta…" → Stone Group Ltd)
+  const base = (k: string) =>
+    k
+      .trim()
+      .toLowerCase()
+      .replace(/[\s,.]+(ltd|limited|plc|llp|inc|uk|\(uk\)|co)\.?$/g, '')
+      .replace(/[\s,.]+(ltd|limited|plc|llp|inc|uk|\(uk\)|co)\.?$/g, '')
+  const hit = known.filter((k) => base(k).length >= 3 && (lower + ' ').startsWith(base(k) + ' ')).sort((a, b) => b.length - a.length)[0]
   if (hit) return hit.trim()
   const labelled = /^(?:manufacturer|supplier|maker|brand)\s*[:\-]\s*([^,;\n·|]+)/i.exec(t)
   if (labelled) return labelled[1].trim()
@@ -112,7 +118,9 @@ export function supplierFromSpec(text: string, known: string[] = []) {
   if (NOT_A_SUPPLIER.test(t.split(/\s+/)[0])) return null
   const part = t.split(/\s[-–—·|:]\s|[,;\n(]/)[0].trim()
   const words = part.split(/\s+/)
-  const name = words.length <= 3 ? part : words[1] === '&' || words[1]?.toLowerCase() === 'and' ? words.slice(0, 3).join(' ') : words[0]
+  // a short part before a separator is the name ("Dinesen - …"); with no separator, just the first word ("Farrow & Ball" kept whole)
+  const separated = part.length < t.length
+  const name = separated && words.length <= 3 ? part : words[1] === '&' || words[1]?.toLowerCase() === 'and' ? words.slice(0, 3).join(' ') : words[0]
   return name.replace(/[.:;,\-–]+$/, '') || null
 }
 
@@ -124,7 +132,8 @@ export function buildItems(rows: unknown[][], m: Mapping, known: string[] = []):
   for (const r of rows) {
     const code = get(r, 'code')
     if (!code || code.length > 40) continue
-    const others = (['designer_ref', 'description', 'location', 'manufacturer', 'product', 'finish', 'specification', 'quantity'] as Field[]).map((f) => get(r, f))
+    // (only the description and specification count: a heading row can have something in the other columns)
+    const others = (['description', 'manufacturer', 'product', 'finish', 'specification'] as Field[]).map((f) => get(r, f))
     if (isHeading(code, others)) {
       heading = headingGroup(code)
       continue

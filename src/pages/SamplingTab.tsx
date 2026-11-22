@@ -342,7 +342,6 @@ export default function SamplingTab() {
                               <button className="proc-name" onClick={() => setPanel(s)} title="Open its details">
                                 {s.code}
                               </button>
-                              {s.designer_ref && <span className="muted small"> · {s.designer_ref}</span>}
                               {late && (
                                 <span className="late small" title={`Due ${ukDate(s.due_date)}${fromProg ? ' (from the programme)' : ''}, not yet submitted`}>
                                   {' '}
@@ -570,10 +569,6 @@ function SamplePanel({
           <label>
             Code
             <input value={s.code} onChange={(e) => set({ code: e.target.value })} placeholder="e.g. M-S102" autoFocus={isNew} />
-          </label>
-          <label>
-            Designer ref
-            <input value={s.designer_ref ?? ''} onChange={(e) => set({ designer_ref: e.target.value || null })} placeholder="e.g. SFF17" />
           </label>
           <label>
             Material group
@@ -1076,7 +1071,7 @@ async function printTracker(job: { job_no: number; code: string; name: string },
       return `<tr class="grp"><td colspan="9">${esc(g)} (${list.length})</td></tr>${list
         .map(
           (s) => `<tr class="${s.status === 'omitted' ? 'omit' : overdue(s, todayIso()) ? 'late' : s.changed_after_approval ? 'chg' : ''}">
-        <td><b>${esc(s.code)}</b>${s.designer_ref ? `<br><span class="m">${esc(s.designer_ref)}</span>` : ''}</td>
+        <td><b>${esc(s.code)}</b></td>
         <td>${esc(companies.find((c) => c.id === s.supplier_company_id)?.name ?? '')}</td>
         <td>${esc(s.description)}${s.specification ? `<br><span class="m">${esc(s.specification)}</span>` : ''}</td>
         <td>${esc((s.locations ?? []).join(', '))}</td>

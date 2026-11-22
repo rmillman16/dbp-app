@@ -30,7 +30,6 @@ export async function exportSampling(job: Job, samples: Sample[], companies: Com
   const cols: Col[] = [
     { head: 'Code', width: 11, value: (s) => s.code },
     { head: 'Subcontractor / supplier', width: 20, value: supplier, wrap: true },
-    { head: 'Designer ref', width: 10, value: (s) => s.designer_ref },
     { head: 'Description', width: 26, value: (s) => s.description, wrap: true },
     { head: 'Specification', width: 32, value: (s) => s.specification, wrap: true },
     { head: 'Locations', width: 14, value: (s) => (s.locations ?? []).join(', '), wrap: true },
