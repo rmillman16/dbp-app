@@ -39,6 +39,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `033_requisitions_instant.sql` | Requisitions: the bell updates instantly (Realtime on notifications); a buyer's question / requester's answer is due today so it shows straight away | ✅ Run |
 | `034_operations_user_type.sql` | Operations user type (admins tick it in Settings › Users); requisitions locked: Operations / admins see all, everyone else only their own | ✅ Run |
 | `035_profile_types.sql` | Profile types (project manager, commercial, site management, design, accounts, external, operations; admin as before) and the access grid admins tick in Settings › Access; no type yet = today's access | ✅ Run |
+| `036_access_requests.sql` | Request access: the no-access screen sends IT a request (bell); admins mark the IT login(s) in Settings › Users; requests listed in Settings | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

@@ -30,7 +30,8 @@
     - **Settings › Access** is a grid of what each type can open: Jobs, each job tab group (Programme, Commercial, Procurement, Sampling, EOT), Estimating, Contracts, Contractors, Site requisitions, and the material and hire buyer's lists. Admins see everything. Settings is admins only.
     - Starting ticks are in 035 and are Claude's suggestion, for Richard to adjust.
     - **No type yet = today's access** (everything but the buyer's lists), so nobody is locked out while types are given out.
-    - A part you can't open is hidden from the menus and job tabs. Going to it by link shows a **"You don't have access" screen**: the app is working, access is set by DBP's app admins not IT, here's who to ask (admins listed, with an email link).
+    - A part you can't open is hidden from the menus and job tabs. Going to it by link shows a padlock and **"You don't have access to this area"** with a **Request access** button (revised 22 Nov), with an optional note on why.
+    - **Requests go to IT** (036): admins tick **IT** on the admin login(s) IT uses (Settings › Users). The request goes on their bell and is listed in Settings › Access requests (Done / Decline tells the person). If nobody is ticked IT, every admin gets it. The app will ultimately be managed by IT through an admin account.
     - A page that crashes shows "This page hit a problem" with Reload / Go to Home instead of a blank screen.
     - **Database enforcement:** for requisitions it's the grid (your own, or all of a kind whose buyer's list you can open). The rest is screens only for now.
     - **⚠ Before External logins are handed out,** the database must also check each part (jobs, commercial, etc.).

@@ -785,3 +785,8 @@ select.req-status.req-ordered, select.req-status.req-delivered { background: #e2
 .no-access { max-width: 620px; margin: 24px auto; text-align: center; }
 .no-access-icon { color: var(--navy); margin-bottom: 4px; }
 .no-access .form-actions { justify-content: center; }
+.type-chip.it.on { background: #1d6b3a; border-color: #1d6b3a; color: #fff; }
+.no-access { padding: 40px 24px; }
+.no-access h2 { margin: 8px 0 18px; }
+.no-access-ask { max-width: 420px; margin: 0 auto; }
+.no-access-ask textarea { width: 100%; }

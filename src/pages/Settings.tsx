@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
 import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
-import { ROLES, SECTIONS, useAccess, type Role, type Section } from '../lib/access'
+import { ROLES, SECTIONS, roleLabel, useAccess, type Role, type Section } from '../lib/access'
 import AdminOnly from '../components/AdminOnly'
 import { Insurances, OmStandardDocuments } from './Sections'
 
@@ -14,6 +14,7 @@ export default function Settings() {
       <CompanyDetails />
       <Insurances />
       <OmStandardDocuments />
+      <AccessRequests />
       <Users />
       <AccessGrid />
       <ExportAll />
@@ -135,13 +136,25 @@ function Users() {
       setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 035 in Supabase first (supabase/README.md).' : r.error.message)
     } else reloadAccess()
   }
+  async function setIt(p: Profile, on: boolean) {
+    setErr(null)
+    const before = people
+    setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_it: on } : x)))
+    const r = await supabase.rpc('set_it', { person: p.id, on_off: on })
+    if (r.error) {
+      setPeople(before)
+      setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 036 in Supabase first (supabase/README.md).' : r.error.message)
+    }
+  }
+  const noIt = people != null && !people.some((p) => p.is_admin && p.is_it)
   const untyped = (people ?? []).filter((p) => !p.is_admin && !(p.roles ?? []).length).length
   return (
     <section className="card">
       <h2>Users and profile types</h2>
       <p className="muted small intro">
         Tick each person’s profile types (more than one is fine). What each type can open is set in Access below. Admins see everything.
-        {untyped > 0 && ` ${untyped} ${untyped === 1 ? 'person has' : 'people have'} no type yet, so they still see everything but the buyer’s lists.`}
+        {untyped > 0 && ` ${untyped} ${untyped === 1 ? 'person has' : 'people have'} no type yet, so they still see everything but the buyer’s lists.`} Tick <strong>IT</strong> on
+        the admin login IT uses: access requests go to it{noIt ? ' (until then they go to every admin)' : ''}.
       </p>
       <table className="table stack users-table">
         <thead>
@@ -163,6 +176,12 @@ function Users() {
                       Admin
                     </span>
                   )}
+                  {/* IT (script 036): the admin login(s) IT uses; access requests go to them */}
+                  {p.is_admin && (
+                    <button type="button" className={`type-chip it ${p.is_it ? 'on' : ''}`} onClick={() => setIt(p, !p.is_it)} title="Access requests go to IT">
+                      IT
+                    </button>
+                  )}
                   {ROLES.map(([r, label]) => (
                     <button key={r} type="button" className={`type-chip ${(p.roles ?? []).includes(r) ? 'on' : ''}`} onClick={() => toggle(p, r)}>
                       {label}
@@ -179,6 +198,92 @@ function Users() {
         Add a login in Supabase › Authentication › Users › Add user (tick Auto Confirm). To make someone an admin, run in Supabase › SQL Editor:{' '}
         <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
       </p>
+    </section>
+  )
+}
+
+// requests from the "no access" screen (script 036): shown while any are waiting
+interface AccessRequest {
+  id: string
+  profile_id: string
+  area: string
+  path: string | null
+  note: string | null
+  status: 'open' | 'done' | 'declined'
+  created_at: string
+}
+function AccessRequests() {
+  const [rows, setRows] = useState<AccessRequest[]>([])
+  const [people, setPeople] = useState<Map<string, Profile>>(new Map())
+  const [err, setErr] = useState<string | null>(null)
+  function load() {
+    supabase
+      .from('access_requests')
+      .select('*')
+      .eq('status', 'open')
+      .order('created_at')
+      .then(({ data }) => setRows((data ?? []) as AccessRequest[]))
+  }
+  useEffect(() => {
+    load()
+    cached('profiles', () => must<Profile[]>(supabase.from('profiles').select('*'))).then(
+      (ps) => setPeople(new Map(ps.map((p) => [p.id, p]))),
+      () => {},
+    )
+    if (location.hash === '#access-requests') setTimeout(() => document.getElementById('access-requests')?.scrollIntoView(), 300)
+  }, [])
+  async function handle(r: AccessRequest, status: 'done' | 'declined') {
+    setErr(null)
+    const { data } = await supabase.auth.getSession()
+    const u = await supabase.from('access_requests').update({ status, handled_by: data.session?.user.id, handled_at: new Date().toISOString() }).eq('id', r.id)
+    if (u.error) setErr(saveError(u.error))
+    else load()
+  }
+  if (rows.length === 0) return <span id="access-requests" />
+  return (
+    <section className="card" id="access-requests">
+      <h2>Access requests</h2>
+      <p className="muted small intro">Give the person the right profile type in Users below (or tick the area for their type in Access), then mark it done: they’re told.</p>
+      <table className="table stack">
+        <thead>
+          <tr>
+            <th>Who</th>
+            <th>Area</th>
+            <th>Why</th>
+            <th>Asked</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const p = people.get(r.profile_id)
+            return (
+              <tr key={r.id}>
+                <td className="stack-title">
+                  {p?.full_name && p.full_name !== p.email ? p.full_name : p?.email}
+                  {p && <div className="muted small">{(p.roles ?? []).map(roleLabel).join(', ') || 'No type'}</div>}
+                </td>
+                <td data-label="Area">{r.area}</td>
+                <td className={r.note ? '' : 'stack-hide'} data-label="Why">
+                  {r.note}
+                </td>
+                <td className="nowrap" data-label="Asked">
+                  {new Date(r.created_at).toLocaleDateString('en-GB')}
+                </td>
+                <td className="nowrap">
+                  <button className="small-button primary" onClick={() => handle(r, 'done')}>
+                    Done
+                  </button>{' '}
+                  <button className="small-button" onClick={() => handle(r, 'declined')}>
+                    Decline
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      {err && <p className="error">{err}</p>}
     </section>
   )
 }

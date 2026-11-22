@@ -1,49 +1,69 @@
 import { Component, useEffect, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { cached, must } from '../lib/offline'
-import { roleLabel, sectionLabel, useAccess, type Section } from '../lib/access'
+import { saveError } from '../lib/offline'
+import { sectionLabel, useAccess, type Section } from '../lib/access'
 
-// "You don't have access" (22 Nov): a part of the app your profile type can't open shows this instead of an
-// error, so nobody thinks the app is broken or calls IT. It says who to ask: DBP's admins, not IT.
+// "You don't have access to this area" (22 Nov): a padlock, that line, and Request access, which sends IT a
+// request (their bell; script 036). Shown instead of an error, so nobody thinks the app is broken.
 export function NoAccess({ what }: { what: string }) {
-  const { roles } = useAccess()
-  const [admins, setAdmins] = useState<{ full_name: string | null; email: string | null }[]>([])
+  const { pathname } = useLocation()
+  const [asking, setAsking] = useState(false)
+  const [note, setNote] = useState('')
+  const [sent, setSent] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  // asked already for this area and still waiting: say so rather than asking again
   useEffect(() => {
-    cached('admins', () =>
-      must<{ full_name: string | null; email: string | null }[]>(supabase.from('profiles').select('full_name,email').eq('is_admin', true).order('full_name')),
-    ).then(setAdmins, () => {})
-  }, [])
+    supabase
+      .from('access_requests')
+      .select('created_at')
+      .eq('area', what)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .then(({ data }) => data?.[0] && setSent(data[0].created_at as string))
+  }, [what])
+
+  async function send() {
+    setError(null)
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    setBusy(true)
+    const { data } = await supabase.auth.getSession()
+    const r = await supabase.from('access_requests').insert({ profile_id: data.session?.user.id, area: what, path: pathname, note: note.trim() || null })
+    setBusy(false)
+    if (r.error) return setError(/relation|schema cache|does not exist/i.test(r.error.message) ? 'Requests need script 036 run in Supabase first.' : saveError(r.error))
+    setSent(new Date().toISOString())
+    setAsking(false)
+  }
+
   return (
     <section className="card no-access">
       <div className="no-access-icon" aria-hidden>
-        <svg viewBox="0 0 24 24" width="40" height="40">
-          <path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+        <svg viewBox="0 0 24 24" width="56" height="56">
+          <path d="M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       </div>
-      <h2>You don’t have access to {what}</h2>
-      <p>
-        <strong>The app is working fine:</strong> this part just isn’t switched on for your login
-        {roles.length > 0 ? ` (${roles.map(roleLabel).join(', ')})` : ''}.
-      </p>
-      <p className="muted">
-        Access is set by DBP’s app admins, not IT. If you need it, ask
-        {admins.length === 0 && ' an admin'}
-        {admins.map((a, i) => (
-          <span key={a.email ?? i}>
-            {i === 0 ? ' ' : i === admins.length - 1 ? ' or ' : ', '}
-            {a.email ? (
-              <a href={`mailto:${a.email}?subject=${encodeURIComponent(`DBP app access: ${what}`)}`}>{a.full_name && a.full_name !== a.email ? a.full_name : a.email}</a>
-            ) : (
-              a.full_name
-            )}
-          </span>
-        ))}
-        .
-      </p>
-      <Link to="/" className="button primary">
-        Go to Home
-      </Link>
+      <h2>You don’t have access to this area</h2>
+      {sent ? (
+        <p className="muted">Access requested on {new Date(sent).toLocaleDateString('en-GB')}. IT will be in touch.</p>
+      ) : asking ? (
+        <div className="no-access-ask">
+          <textarea rows={2} value={note} placeholder="Why you need it (optional)" onChange={(e) => setNote(e.target.value)} />
+          <div className="form-actions">
+            <button className="primary" onClick={send} disabled={busy}>
+              {busy ? 'Sending…' : 'Send request'}
+            </button>
+            <button onClick={() => setAsking(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button className="primary" onClick={() => setAsking(true)}>
+          Request access
+        </button>
+      )}
+      {error && <p className="error">{error}</p>}
     </section>
   )
 }
