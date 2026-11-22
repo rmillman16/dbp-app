@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { addProcPackage, loadProcurement, rowDates, saveProcItem, saveSplit, type ProcItem, type ProcRow } from '../lib/procurement'
@@ -7,7 +8,6 @@ import { suggestTasks } from '../lib/cashflowCalc'
 import type { ProgrammeTask } from '../lib/programme'
 import JobSowCard from '../components/JobSow'
 import ContractorPicker from '../components/ContractorPicker'
-import GenerateProgramme from '../components/GenerateProgramme'
 import { GENERATED_FILE } from '../lib/programmeGen'
 import { addCompany } from '../lib/subcontracts'
 import type { Company } from '../lib/types'
@@ -24,8 +24,10 @@ export default function ProcurementTab() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  const [open, setOpen] = useState<string | null>(null)
+  const [panel, setPanel] = useState<{ key: string; vo: boolean } | null>(null) // the full details, in a side panel
+  const [view, setView] = useState<'packages' | 'variations' | 'lines'>('packages')
   const [adding, setAdding] = useState('')
+  const [saving, setSaving] = useState(0)
 
   const reload = () => loadProcurement(job).then(setData, (e: Error) => setError(e.message))
   useEffect(() => {
@@ -49,92 +51,146 @@ export default function ProcurementTab() {
   }
   const packageNames = data.contract.map((r) => r.description)
 
+  // a change made in the table: shown straight away and saved (the order date keeps following the lead
+  // time and on-site date until one's typed, as in the details)
+  const workedOut = (x: ProcRow) => {
+    if (x.lead_weeks == null) return null
+    const site = rowDates(x, data.tasks, today).onSite
+    return site ? latestOrderDate(site, x.lead_weeks, null) : null
+  }
+  const change = async (r: ProcRow, p: Partial<ProcItem>) => {
+    const next: ProcRow = { ...r, ...p }
+    if (!('order_date' in p) && (r.order_date == null || r.order_date === workedOut(r))) next.order_date = workedOut(next)
+    const list = r.section === 'variation' ? 'variations' : 'contract'
+    setData({ ...data, [list]: data[list].map((x) => (x.key === r.key ? next : x)) })
+    setError(null)
+    if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    setSaving((n) => n + 1)
+    try {
+      await saveProcItem(job.id, next)
+      if (!r.id) await reload() // first save: picks up its id
+    } catch (e) {
+      setError(saveError(e))
+      await reload()
+    } finally {
+      setSaving((n) => n - 1)
+    }
+  }
+
   const table = (rows: ProcRow[], vo: boolean) => (
-    <table className="table stack proc-table">
-      <thead>
-        <tr>
-          <th>{vo ? 'Variation' : 'Package'}</th>
-          <th>Subcontractor</th>
-          <th className="num">{vo ? 'Value' : 'Budget'}</th>
-          <th className="num">Order value</th>
-          <th className="num">Lead time</th>
-          <th>On site</th>
-          <th>Order by</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, n) => {
-          const { onSite, from, orderBy, flag } = rowDates(r, data.tasks, today)
-          const company = data.companies.find((c) => c.id === r.company_id)
-          return (
-            <Fragment key={r.key}>
-              {!vo && r.group !== rows[n - 1]?.group && (
-                <tr className="group-head">
-                  <td colSpan={8}>{r.group}</td>
-                </tr>
-              )}
-              <tr
-                className={`clickable ${flag === 'late' ? 'proc-late' : flag === 'soon' ? 'proc-soon' : ''} ${open === r.key ? 'selected' : ''}`}
-                onClick={() => setOpen(open === r.key ? null : r.key)}
-              >
-                <td className="stack-title">
-                  {r.label}
-                  {r.display_name && !vo && r.display_name !== r.description && <span className="muted small"> · SoW: {r.description}</span>}
-                </td>
-                <td data-label="Subcontractor">{company?.name ?? <span className="muted">–</span>}</td>
-                <td className="num" data-label={vo ? 'Value' : 'Budget'}>
-                  {money(r.budget)}
-                </td>
-                <td className="num" data-label="Order value">
-                  {r.order_value != null ? money(r.order_value) : <span className="muted">–</span>}
-                  {r.order_value != null && r.budget ? (
-                    <span className={`small ${r.order_value > r.budget ? 'late' : 'ok'}`}>
-                      {' '}
-                      {r.order_value > r.budget ? `+${money(r.order_value - r.budget)}` : `−${money(r.budget - r.order_value)}`}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="num" data-label="Lead time">
-                  {r.lead_weeks != null ? `${r.lead_weeks} wk${r.lead_weeks === 1 ? '' : 's'}` : <span className="muted">–</span>}
-                </td>
-                <td data-label="On site">
-                  {ukDate(onSite) || <span className="muted">–</span>}
-                  {from === 'provisional' && (
-                    <span className="muted small" title="From the programme activities that match its name: link its own, or type a date, to firm it up">
-                      {' '}
-                      provisional
-                    </span>
-                  )}
-                </td>
-                <td data-label="Order by">
-                  {ukDate(orderBy) || <span className="muted">–</span>}
-                  {flag === 'late' && <span className="late small"> late</span>}
-                  {flag === 'soon' && <span className="soon small"> due soon</span>}
-                </td>
-                <td data-label="Status">{STATUS_LABELS[r.status]}</td>
-              </tr>
-              {open === r.key && (
-                <tr className="editor-row">
-                  <td colSpan={8}>
-                    <ItemEditor
-                      row={r}
-                      vo={vo}
-                      data={data}
-                      onCancel={() => setOpen(null)}
-                      onSave={(item) => run(() => saveProcItem(job.id, item), `${r.label} saved.`).then(() => setOpen(null))}
+    <div className="proc-scroll">
+      <table className="table stack proc-table proc-inline">
+        <thead>
+          <tr>
+            <th>{vo ? 'Variation' : 'Package'}</th>
+            <th>Status</th>
+            <th>Subcontractor</th>
+            <th className="num">{vo ? 'Value' : 'Budget'}</th>
+            <th className="num">Order value</th>
+            <th className="num">Lead (wks)</th>
+            <th>On site</th>
+            <th>Order by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, n) => {
+            const { onSite, from, orderBy, flag } = rowDates(r, data.tasks, today)
+            const programme = rowDates({ ...r, required_on_site: null }, data.tasks, today).onSite
+            return (
+              <Fragment key={r.key}>
+                {!vo && r.group !== rows[n - 1]?.group && (
+                  <tr className="group-head">
+                    <td colSpan={8}>{r.group}</td>
+                  </tr>
+                )}
+                <tr className={`${flag === 'late' ? 'proc-late' : flag === 'soon' ? 'proc-soon' : ''} ${panel?.key === r.key ? 'selected' : ''}`}>
+                  <td className="stack-title">
+                    <button
+                      className="proc-name"
+                      onClick={() => setPanel({ key: r.key, vo })}
+                      title="Open its full details: name, order no. and date, programme activities, comments, SoW lines"
+                    >
+                      {r.label}
+                    </button>
+                    {r.display_name && !vo && r.display_name !== r.description && <span className="muted small"> · SoW: {r.description}</span>}
+                    {r.comments && (
+                      <span className="proc-note" title={r.comments}>
+                        {' '}
+                        💬
+                      </span>
+                    )}
+                  </td>
+                  <td data-label="Status">
+                    <select className={`proc-status st-${r.status}`} value={r.status} onChange={(e) => change(r, { status: e.target.value as ProcStatus })} aria-label="Status">
+                      {(vo ? VO_STATUSES : CONTRACT_STATUSES).map((s) => (
+                        <option key={s} value={s}>
+                          {STATUS_LABELS[s]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td data-label="Subcontractor" className="proc-sub">
+                    <ContractorPicker
+                      companies={data.companies}
+                      value={r.company_id}
+                      placeholder="Type or choose"
+                      onChange={(id) => id !== r.company_id && change(r, { company_id: id })}
+                      onAdd={async (name) => {
+                        const c = await addCompany(name, 'subcontractor', r.description)
+                        setData((d) => (d ? { ...d, companies: [...d.companies, c] } : d))
+                        return c
+                      }}
                     />
                   </td>
+                  <td className="num" data-label={vo ? 'Value' : 'Budget'}>
+                    {money(r.budget)}
+                  </td>
+                  <td className="num" data-label="Order value">
+                    <CellNumber value={r.order_value} step="0.01" onCommit={(v) => change(r, { order_value: v })} label="Order value" />
+                    {r.order_value != null && r.budget ? (
+                      <span className={`small proc-diff ${r.order_value > r.budget ? 'late' : 'ok'}`}>
+                        {r.order_value > r.budget ? `+${money(r.order_value - r.budget)}` : `−${money(r.budget - r.order_value)}`}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="num" data-label="Lead (wks)">
+                    <CellNumber value={r.lead_weeks} step="0.5" onCommit={(v) => change(r, { lead_weeks: v })} label="Lead time in weeks, including design" narrow />
+                  </td>
+                  <td data-label="On site">
+                    <input
+                      type="date"
+                      className={`proc-date ${r.required_on_site ? '' : 'from-programme'}`}
+                      value={r.required_on_site ?? onSite ?? ''}
+                      onChange={(e) => change(r, { required_on_site: e.target.value && e.target.value !== programme ? e.target.value : null })}
+                      title={
+                        r.required_on_site
+                          ? `Typed: clear it to use the programme${programme ? ` (${ukDate(programme)})` : ''}`
+                          : from === 'provisional'
+                            ? 'Provisional, from the programme activities matching its name: type a date, or link its activities in the details, to firm it up'
+                            : from === 'programme'
+                              ? 'From its linked programme activities'
+                              : 'No programme date: type one'
+                      }
+                      aria-label="Required on site"
+                    />
+                    {!r.required_on_site && from === 'provisional' && <span className="muted small proc-prov">provisional</span>}
+                  </td>
+                  <td data-label="Order by">
+                    {ukDate(orderBy) || <span className="muted">–</span>}
+                    {flag === 'late' && <span className="late small"> late</span>}
+                    {flag === 'soon' && <span className="soon small"> due soon</span>}
+                  </td>
                 </tr>
-              )}
-            </Fragment>
-          )
-        })}
-      </tbody>
-    </table>
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 
   const late = [...data.contract, ...data.variations].filter((r) => rowDates(r, data.tasks, today).flag === 'late').length
+  const soon = [...data.contract, ...data.variations].filter((r) => rowDates(r, data.tasks, today).flag === 'soon').length
   const exportExcel = async (copy: 'internal' | 'client') => {
     setError(null)
     try {
@@ -144,70 +200,142 @@ export default function ProcurementTab() {
       setError((e as Error).message)
     }
   }
+  const panelRow = panel ? (panel.vo ? data.variations : data.contract).find((r) => r.key === panel.key) : null
+  const splitLines = data.lines.filter((l) => l.split).length
 
   return (
     <>
-      {/* the job's one SoW: the packages come from its cost columns and line items */}
-      <JobSowCard onChanged={reload} />
+      {/* the job's one SoW, small (22 Nov: less clutter) */}
+      <JobSowCard compact onChanged={reload} />
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
-
-      {/* no programme yet (or only the simple one): the on-site dates need one (21 Nov) */}
       {(!data.programme || data.programme.file_name === GENERATED_FILE) && (
-        <section className="card">
-          <h2>Programme</h2>
-          <p className="muted small">
-            {data.programme
-              ? `Required on site dates come from a simple programme made from the SoW (${ukDate(data.programme.start_date)} to ${ukDate(data.programme.finish_date)}). Import the real programme on the Cashflow tab when there is one: it replaces this.`
-              : 'No programme on this job yet, so there are no required on site dates. Import it on the Cashflow tab, or make a simple one from the SoW to work from in the meantime.'}
-          </p>
-          <GenerateProgramme job={job} trades={data.contract.map((r) => r.label)} onSaved={() => run(async () => {}, 'Simple programme made from the SoW.')} />
-        </section>
+        <p className="warning small">
+          {data.programme
+            ? 'On site dates come from the simple programme made from the SoW. '
+            : 'No programme on this job yet, so there are no on site dates from it (type them, or '}
+          <Link to="../programme">{data.programme ? 'Import or edit the real programme on the Programme tab.' : 'start one on the Programme tab).'}</Link>
+        </p>
       )}
 
       <section className="card">
         <div className="pane-head">
-          <h2>A · Contract packages {late > 0 && <span className="late small">{late} late</span>}</h2>
+          <div className="proc-tabs segmented" role="tablist">
+            <button className={view === 'packages' ? 'on' : ''} onClick={() => setView('packages')} role="tab">
+              Packages <span className="seg-count">{data.contract.length}</span>
+            </button>
+            <button className={view === 'variations' ? 'on' : ''} onClick={() => setView('variations')} role="tab">
+              Variations <span className="seg-count">{data.variations.length}</span>
+            </button>
+            <button className={view === 'lines' ? 'on' : ''} onClick={() => setView('lines')} role="tab" title="Move or split SoW lines between packages">
+              SoW lines{splitLines ? <span className="seg-count">{splitLines} moved</span> : null}
+            </button>
+          </div>
+          <span className="proc-flags small">
+            {late > 0 && <span className="late">{late} late</span>}
+            {soon > 0 && <span className="soon">{soon} due soon</span>}
+            {saving > 0 && <span className="muted">Saving…</span>}
+          </span>
           <div className="form-actions">
-            <button className="primary" onClick={() => exportExcel('internal')} title="Everything: subcontractors, budgets, order values, dates and comments">
+            <button onClick={() => exportExcel('internal')} title="Everything: subcontractors, budgets, order values, dates and comments">
               Excel: internal
             </button>
-            <button onClick={() => exportExcel('client')} title="Package, status and lead time only: for the client / progress reports (no subcontractors, budgets or values)">
-              Excel: client copy
+            <button onClick={() => exportExcel('client')} title="Package, status and lead time only: for the client / progress reports">
+              Excel: client
             </button>
           </div>
         </div>
-        <p className="muted small">
-          From the office SoW: each priced package column, with the general columns (Subbie, Labour, Materials) read line by line into their trades. Budgets are cost. Move or split
-          any SoW line between packages in "SoW lines into packages" below. Required on site comes from the programme (provisionally from the activities matching the package, or
-          those you link, or a typed date); order by = on site − lead time (including design). Red when it's passed without an order, amber within 2 weeks.
-        </p>
-        {!data.hasLines && <p className="warning">The office SoW's lines aren't saved for this job yet: import it in Schedule of works above.</p>}
-        {data.contract.length > 0 && table(data.contract, false)}
-        <div className="stage-add">
-          <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a package, e.g. Mirrors" aria-label="New package" />
-          <button
-            disabled={!adding.trim() || packageNames.some((p) => p.toLowerCase() === adding.trim().toLowerCase())}
-            onClick={() => run(() => addProcPackage(job.id, adding.trim()), `${adding.trim()} added: split SoW lines into it below.`).then(() => setAdding(''))}
-          >
-            + Add package
-          </button>
+        <details className="proc-how">
+          <summary className="muted small">ⓘ How it works</summary>
+          <p className="muted small">
+            Packages come from the office SoW: each priced package column, with the general columns (Subbie, Labour, Materials) read line by line into their trades. Budgets are
+            cost. Change status, subcontractor, order value, lead time and on-site date right in the table: each saves as you go. Click a package's name for the rest (its own name,
+            order no. and date, programme activities, comments, SoW lines). On site comes from the programme (provisionally from the activities matching the package, or those you
+            link, or a typed date); order by = on site − lead time (including design). Red when it's passed without an order, amber within 2 weeks.
+          </p>
+        </details>
+
+        {view === 'packages' && (
+          <>
+            {!data.hasLines && <p className="warning">The office SoW's lines aren't saved for this job yet: import it in Schedule of works above.</p>}
+            {data.contract.length > 0 && table(data.contract, false)}
+            <div className="stage-add">
+              <input value={adding} onChange={(e) => setAdding(e.target.value)} placeholder="Add a package, e.g. Mirrors" aria-label="New package" />
+              <button
+                disabled={!adding.trim() || packageNames.some((p) => p.toLowerCase() === adding.trim().toLowerCase())}
+                onClick={() => run(() => addProcPackage(job.id, adding.trim()), `${adding.trim()} added: move SoW lines into it under SoW lines.`).then(() => setAdding(''))}
+              >
+                + Add package
+              </button>
+            </div>
+          </>
+        )}
+        {view === 'variations' &&
+          (data.variations.length ? (
+            <>
+              <p className="muted small">Issued and agreed VOs, each with what needs ordering: an order of its own, covered by an existing order, or nothing to order.</p>
+              {table(data.variations, true)}
+            </>
+          ) : (
+            <p className="muted small">No issued or agreed VOs on this job yet.</p>
+          ))}
+        {view === 'lines' && (
+          <LinesCard
+            embedded
+            lines={data.lines}
+            packages={packageNames}
+            labelOf={(p) => data.contract.find((r) => r.description === p)?.label ?? p}
+            onSave={(key, rows) => run(() => saveSplit(job.id, key, rows), 'Line saved.')}
+          />
+        )}
+      </section>
+
+      {/* the full details: a side panel, so the table stays put */}
+      {panelRow && panel && (
+        <div className="proc-panel-wrap" onClick={(e) => e.target === e.currentTarget && setPanel(null)}>
+          <aside className="proc-panel" role="dialog" aria-label={panelRow.label}>
+            <div className="proc-panel-head">
+              <h2>{panelRow.label}</h2>
+              <button className="link-button" onClick={() => setPanel(null)} aria-label="Close">
+                ✕
+              </button>
+            </div>
+            <ItemEditor
+              key={panelRow.key + (panelRow.id ?? '')}
+              row={panelRow}
+              vo={panel.vo}
+              data={data}
+              onCancel={() => setPanel(null)}
+              onSave={(item) => run(() => saveProcItem(job.id, item), `${panelRow.label} saved.`).then(() => setPanel(null))}
+            />
+          </aside>
         </div>
-      </section>
-
-      <LinesCard
-        lines={data.lines}
-        packages={packageNames}
-        labelOf={(p) => data.contract.find((r) => r.description === p)?.label ?? p}
-        onSave={(key, rows) => run(() => saveSplit(job.id, key, rows), 'Line saved.')}
-      />
-
-      <section className="card">
-        <h2>B · Variations</h2>
-        <p className="muted small">Issued and agreed VOs, each with what needs ordering: an order of its own, covered by an existing order, or nothing to order.</p>
-        {data.variations.length ? table(data.variations, true) : <p className="muted small">No issued or agreed VOs on this job yet.</p>}
-      </section>
+      )}
     </>
+  )
+}
+
+// a number typed into the table: saved when you leave the box or press Enter
+function CellNumber({ value, onCommit, step, label, narrow }: { value: number | null; onCommit: (v: number | null) => void; step: string; label: string; narrow?: boolean }) {
+  const [v, setV] = useState(value == null ? '' : String(value))
+  useEffect(() => setV(value == null ? '' : String(value)), [value])
+  const commit = () => {
+    const n = v.trim() === '' ? null : Number(v)
+    if (n !== value && (n === null || !Number.isNaN(n))) onCommit(n)
+  }
+  return (
+    <input
+      className={`proc-num ${narrow ? 'narrow' : ''}`}
+      type="number"
+      inputMode="decimal"
+      step={step}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      aria-label={label}
+      placeholder="–"
+    />
   )
 }
 
@@ -439,7 +567,9 @@ function LinesCard({
   packages,
   labelOf,
   onSave,
+  embedded,
 }: {
+  embedded?: boolean // inside the procurement page's SoW lines view
   lines: ProcLine[]
   packages: string[]
   labelOf: (p: string) => string // a package's own name where it's been renamed
@@ -451,6 +581,62 @@ function LinesCard({
   const shown = lines.filter((l) => !f || `${l.ref ?? ''} ${l.description} ${Object.keys(l.alloc).join(' ')}`.toLowerCase().includes(f))
   const sections = [...new Set(shown.map((l) => l.section))]
   const moved = lines.filter((l) => l.split).length
+  const body = (
+    <>
+      <p className="muted small">
+        Each SoW line's cost goes to the packages it's priced in (general columns read from the description). Move a whole line to another package, or split its £ across packages,
+        e.g. a bar into mirrors, joinery, metalwork and install when they're separate orders. Add a package under Packages if it isn't listed.
+      </p>
+      <input className="filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a line or package…" aria-label="Find a line" />
+      <div className="proc-lines">
+        <table className="table stack">
+          <tbody>
+            {sections.map((s) => (
+              <Fragment key={s}>
+                <tr className="group-head">
+                  <td colSpan={4}>{s || 'SoW'}</td>
+                </tr>
+                {shown
+                  .filter((l) => l.section === s)
+                  .map((l) => (
+                    <Fragment key={l.key}>
+                      <tr className={l.split ? 'moved' : ''}>
+                        <td className="stack-title">
+                          <span className="muted">{l.ref}</span> {l.description}
+                        </td>
+                        <td className="num" data-label="Cost">
+                          {money(l.value)}
+                        </td>
+                        <td data-label="Packages">
+                          {Object.entries(l.alloc)
+                            .filter(([, v]) => Math.abs(v) >= 0.005)
+                            .map(([p, v]) => (Object.keys(l.alloc).length > 1 ? `${labelOf(p)} ${money(v)}` : labelOf(p)))
+                            .join(' · ')}
+                          {l.split && <span className="muted small"> (changed)</span>}
+                        </td>
+                        <td>
+                          <button className="small-button" onClick={() => setOpen(open === l.key ? null : l.key)}>
+                            {open === l.key ? 'Close' : 'Move / split'}
+                          </button>
+                        </td>
+                      </tr>
+                      {open === l.key && (
+                        <tr className="editor-row">
+                          <td colSpan={4}>
+                            <SplitEditor line={l} packages={packages} labelOf={labelOf} onSave={(rows) => onSave(l.key, rows).then(() => setOpen(null))} />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+  if (embedded) return body
   return (
     <section className="card">
       <details className="fold">
@@ -460,57 +646,7 @@ function LinesCard({
             {lines.length} lines{moved ? ` · ${moved} moved or split` : ''}
           </span>
         </summary>
-        <p className="muted small">
-          Each SoW line's cost goes to the packages it's priced in (general columns read from the description). Move a whole line to another package, or split its £ across
-          packages, e.g. a bar into mirrors, joinery, metalwork and install when they're separate orders. Add a package above if it isn't listed.
-        </p>
-        <input className="filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a line or package…" aria-label="Find a line" />
-        <div className="proc-lines">
-          <table className="table stack">
-            <tbody>
-              {sections.map((s) => (
-                <Fragment key={s}>
-                  <tr className="group-head">
-                    <td colSpan={4}>{s || 'SoW'}</td>
-                  </tr>
-                  {shown
-                    .filter((l) => l.section === s)
-                    .map((l) => (
-                      <Fragment key={l.key}>
-                        <tr className={l.split ? 'moved' : ''}>
-                          <td className="stack-title">
-                            <span className="muted">{l.ref}</span> {l.description}
-                          </td>
-                          <td className="num" data-label="Cost">
-                            {money(l.value)}
-                          </td>
-                          <td data-label="Packages">
-                            {Object.entries(l.alloc)
-                              .filter(([, v]) => Math.abs(v) >= 0.005)
-                              .map(([p, v]) => (Object.keys(l.alloc).length > 1 ? `${labelOf(p)} ${money(v)}` : labelOf(p)))
-                              .join(' · ')}
-                            {l.split && <span className="muted small"> (changed)</span>}
-                          </td>
-                          <td>
-                            <button className="small-button" onClick={() => setOpen(open === l.key ? null : l.key)}>
-                              {open === l.key ? 'Close' : 'Move / split'}
-                            </button>
-                          </td>
-                        </tr>
-                        {open === l.key && (
-                          <tr className="editor-row">
-                            <td colSpan={4}>
-                              <SplitEditor line={l} packages={packages} labelOf={labelOf} onSave={(rows) => onSave(l.key, rows).then(() => setOpen(null))} />
-                            </td>
-                          </tr>
-                        )}
-                      </Fragment>
-                    ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {body}
       </details>
     </section>
   )

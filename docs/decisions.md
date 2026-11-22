@@ -368,6 +368,21 @@ Reference: `Contracts/24XX/2415LHMA - The Mall/6. Reports/1 Client Team Report/P
 - **Client copy (decided 19 Nov):** progress report section 3 shows **package, status and lead time only** — no subcontractor, budgets or values.
 - Export: Excel (internal, full) and PDF (client copy).
 
+## Procurement: less clunky (22 Nov)
+Richard: "procurement seems clunky after use". He chose "edit in the table" and "less clutter", and said status must be a dropdown on its own, without opening all of a package's details.
+- **Edit in the table:** each row has its own **Status** dropdown (coloured: amber while enquiring / quotes in / recommended, blue ordered, green on site / complete). Also editable in the row:
+  - **Subcontractor** (type-ahead, can add a new one);
+  - **Order value** (with ± against budget under it);
+  - **Lead (wks)**;
+  - **On site**: shows the programme's date in grey italics until one's typed; typing the programme's own date, or clearing it, goes back to the programme.
+- **Saving:** each change saves straight away ("Saving…" by the tabs). The order date keeps following lead time and on site until one's typed, as before.
+- **Details in a side panel:** clicking a package's name opens its full details from the right (name, order no. and date, from an order, programme activities, comments, SoW lines), so the table no longer jumps. 💬 by a name means it has comments (hover to read).
+- **Less clutter:**
+  - The SoW box is the small one.
+  - The no-programme note is one line, pointing at the **Programme** tab (it wrongly said the Cashflow tab).
+  - The explanation is folded under "ⓘ How it works".
+  - Packages, Variations and SoW lines (move / split) are tabs in one card, with late / due soon counts beside them.
+
 ## Procurement: built (21 Nov, script 023)
 **Packages (Richard, 21 Nov):** "based on SoW but group by package, not just from the pricing elements on the right-hand side under the packages, but read the line items in the SoW to determine how these should be grouped as well; like other packages have an override and a split section so a £ value can be apportioned to another package. This will be useful for, like, a bar which might have mirrors, joinery, metalwork, install etc. which might all be separate orders on some jobs."
 - **From the office SoW's lines** (the job's one SoW):
