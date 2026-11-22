@@ -658,3 +658,10 @@ body.no-scroll { overflow: hidden; }
   .proc-inline .proc-num, .proc-inline .proc-date, .proc-inline select { width: 100%; }
   .proc-panel .form-grid { grid-template-columns: 1fr; }
 }
+
+/* EOT: a programme task's slippage quoted on a delay event (22 Nov) */
+.slip-quote { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: #fafbfd; }
+.slip-head { font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+.slip-quote p { margin: 4px 0; }
+.slip-pick { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.slip-pick select { flex: 1 1 280px; min-width: 0; }

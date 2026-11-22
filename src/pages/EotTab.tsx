@@ -8,10 +8,15 @@ import { loadCompanies } from '../lib/subcontracts'
 import { loadMe } from '../lib/admin'
 import { loadContacts, type Contact } from '../components/ContactsEditor'
 import { latestRevisions, loadApplications } from '../lib/applications'
-import { DELAY_TYPE_LABELS, EOT_STATUS_LABELS, type DelayEvent, type DelayType, type EotClaim, type EotStatus, type Job, type TextTemplate } from '../lib/types'
+import { DELAY_TYPE_LABELS, EOT_STATUS_LABELS, type DelayEvent, type DelayType, type EotClaim, type EotStatus, type Job, type ProgrammeSlip, type TextTemplate } from '../lib/types'
+import { loadProgramme, loadRevisionData, type ProgrammeTask, type Shutdown } from '../lib/programme'
+import { comparisonFrom, finishSlip, type Comparison } from '../lib/programmeCompare'
+import { revName } from '../lib/timelineFormat'
 import { useJob } from './JobLayout'
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
+// the job's programme and its original (committed) programme, for quoting a task's slippage on an event
+type ProgInfo = { hasProgramme: boolean; tasks: ProgrammeTask[]; shutdowns: Shutdown[]; original: Comparison | null }
 
 export default function EotTab() {
   const { job, setJob } = useJob()
@@ -25,6 +30,7 @@ export default function EotTab() {
   const [openClaim, setOpenClaim] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [progInfo, setProgInfo] = useState<ProgInfo | null>(null)
 
   const reload = () =>
     loadEot(job.id).then(
@@ -44,6 +50,17 @@ export default function EotTab() {
       setContacts(cs)
       setPeople({ client, contact: cs.find((c) => c.id === job.client_contact_id) ?? null, signer: await loadMe() })
     })().catch(() => {})
+    loadProgramme(job.id)
+      .then(async (p) => {
+        const rev = p.programme?.contract_rev ?? null
+        let original: Comparison | null = null
+        if (p.programme && rev) {
+          const d = await loadRevisionData(p.programme.id, [rev])
+          if (d[0]) original = comparisonFrom(rev, `${revName(rev)} (original programme)`, d[0].data)
+        }
+        setProgInfo({ hasProgramme: !!p.programme, tasks: p.tasks, shutdowns: p.programme?.shutdowns ?? [], original })
+      })
+      .catch(() => setProgInfo(null))
     cached('text-templates', () => must<TextTemplate[]>(supabase.from('text_templates').select('*'))).then(
       (ts) => setWording(Object.fromEntries(ts.map((t) => [t.key, t.body]))),
       () => {},
@@ -67,7 +84,12 @@ export default function EotTab() {
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
     const { id, ...rest } = e
     const r = id.startsWith('new') ? await supabase.from('delay_events').insert({ ...rest, job_id: job.id }) : await supabase.from('delay_events').update(rest).eq('id', id)
-    if (r.error) return setError(saveError(r.error))
+    if (r.error)
+      return setError(
+        /programme_slip/.test(r.error.message)
+          ? 'Quoting programme slippage needs script 029 run in Supabase first (supabase/README.md). Remove the quote to save the rest.'
+          : saveError(r.error),
+      )
     setMsg('Saved.')
     setOpen(null)
     reload()
@@ -147,15 +169,20 @@ export default function EotTab() {
         </div>
         <p className="muted small">
           Notice of delay due {job.eot_notice_days != null ? `${job.eot_notice_days} days after an event` : '(no notice period set)'} · weekly prelims for prolongation{' '}
-          {job.weekly_prelims != null ? money(job.weekly_prelims) : '(not set)'} · <Link to={`/jobs/${job.id}/edit`}>set these in the job details</Link>. Letter wording:
-          Contracts › EOT.
+          {job.weekly_prelims != null ? money(job.weekly_prelims) : '(not set)'} · <Link to={`/jobs/${job.id}/edit`}>set these in the job details</Link>. Letter wording: Contracts
+          › EOT.
         </p>
       </section>
 
-      <ClauseBox job={job} contacts={contacts} clientName={people.client?.name ?? null} onSaved={(j) => {
-        setJob(j)
-        setPeople({ ...people, contact: contacts.find((c) => c.id === j.client_contact_id) ?? null })
-      }} />
+      <ClauseBox
+        job={job}
+        contacts={contacts}
+        clientName={people.client?.name ?? null}
+        onSaved={(j) => {
+          setJob(j)
+          setPeople({ ...people, contact: contacts.find((c) => c.id === j.client_contact_id) ?? null })
+        }}
+      />
 
       <section className="card">
         <div className="pane-head">
@@ -176,7 +203,9 @@ export default function EotTab() {
                   {eventRef(e)} · {e.description || 'New delay event'}
                 </span>
                 <span className="muted small">
-                  {DELAY_TYPE_LABELS[e.type]} {e.clause?.trim() ? `(cl. ${e.clause.trim()})` : <span className="late">(no clause)</span>} ·{ukDate(e.event_date)} · {e.days_claimed ?? '?'} days claimed
+                  {DELAY_TYPE_LABELS[e.type]} {e.clause?.trim() ? `(cl. ${e.clause.trim()})` : <span className="late">(no clause)</span>} ·{ukDate(e.event_date)} ·{' '}
+                  {e.days_claimed ?? '?'} days claimed
+                  {e.programme_slip ? ` · programme: ${e.programme_slip.name} ${e.programme_slip.days > 0 ? '+' : ''}${e.programme_slip.days}d` : ''}
                   {e.days_granted != null && ` · ${e.days_granted} granted`} · <span className={`eot-${e.status}`}>{EOT_STATUS_LABELS[e.status]}</span>
                   {e.notice_due && !e.notice_sent && <span className={e.notice_due < todayIso() ? 'late' : ''}> · notice due {ukDate(e.notice_due)}</span>}
                   {e.notice_sent && ` · notice sent ${ukDate(e.notice_sent)}`}
@@ -186,6 +215,7 @@ export default function EotTab() {
               {open === e.id && (
                 <EventEditor
                   e={e}
+                  prog={progInfo}
                   onSave={saveEvent}
                   onDelete={e.id.startsWith('new') || e.variation_id ? null : () => deleteEvent(e)}
                   onCancel={() => (e.id.startsWith('new') ? setEvents(events.filter((x) => x.id !== e.id)) : null, setOpen(null))}
@@ -240,7 +270,13 @@ export default function EotTab() {
 // This job's own clause numbers. No defaults: they differ job to job (agreed 20 Nov), and the
 // letters won't generate until they're filled in.
 function ClauseBox({ job, contacts, clientName, onSaved }: { job: Job; contacts: Contact[]; clientName: string | null; onSaved: (j: Job) => void }) {
-  const pick = (j: Job) => ({ contract_form: j.contract_form, notice_clause: j.notice_clause, eot_clause: j.eot_clause, le_clause: j.le_clause, client_contact_id: j.client_contact_id })
+  const pick = (j: Job) => ({
+    contract_form: j.contract_form,
+    notice_clause: j.notice_clause,
+    eot_clause: j.eot_clause,
+    le_clause: j.le_clause,
+    client_contact_id: j.client_contact_id,
+  })
   const [v, setV] = useState(pick(job))
   const [msg, setMsg] = useState<string | null>(null)
   const set = (k: keyof typeof v, x: string) => setV({ ...v, [k]: x.trim() ? x : null })
@@ -285,7 +321,9 @@ function ClauseBox({ job, contacts, clientName, onSaved }: { job: Job; contacts:
         <label className="span-2">
           Letters go Fao
           <select value={v.client_contact_id ?? ''} onChange={(x) => set('client_contact_id', x.target.value)} disabled={!contacts.length}>
-            <option value="">{contacts.length ? '– choose –' : clientName ? `No contacts for ${clientName} (add them in Contractors)` : 'No client chosen (Edit job details)'}</option>
+            <option value="">
+              {contacts.length ? '– choose –' : clientName ? `No contacts for ${clientName} (add them in Contractors)` : 'No client chosen (Edit job details)'}
+            </option>
             {contacts.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -313,7 +351,9 @@ function EventEditor({
   onCancel,
   onLetter,
   noticeDays,
+  prog,
 }: {
+  prog: ProgInfo | null
   e: DelayEvent
   onSave: (e: DelayEvent) => void
   onDelete: (() => void) | null
@@ -360,9 +400,24 @@ function EventEditor({
           Mitigation
           <textarea rows={2} value={e.mitigation ?? ''} onChange={(x) => set('mitigation', x.target.value || null)} placeholder="What we've done to reduce the delay" />
         </label>
+        <div className="span-3">
+          <SlipQuote
+            prog={prog}
+            slip={e.programme_slip ?? null}
+            onChange={(slip) => setE({ ...e, programme_slip: slip })}
+            onDays={(d) => set('days_claimed', d)}
+            onRecap={(line) => set('timeline', [e.timeline?.trim(), line].filter(Boolean).join('\n'))}
+            fromVo={fromVo}
+          />
+        </div>
         <label className="span-3">
           Short recap of events (one per line)
-          <textarea rows={3} value={e.timeline ?? ''} onChange={(x) => set('timeline', x.target.value || null)} placeholder={'02/06/2025 – RFI 042 issued\n16/06/2025 – drawings still awaited'} />
+          <textarea
+            rows={3}
+            value={e.timeline ?? ''}
+            onChange={(x) => set('timeline', x.target.value || null)}
+            placeholder={'02/06/2025 – RFI 042 issued\n16/06/2025 – drawings still awaited'}
+          />
         </label>
         <label>
           Event date
@@ -455,11 +510,22 @@ function ClaimEditor({
     setBusy(true)
     const { id, ...rest } = c
     const steps = [
-      () => supabase.from('eot_claims').update({ ...rest, days_claimed: days, days_granted: granted }).eq('id', id),
+      () =>
+        supabase
+          .from('eot_claims')
+          .update({ ...rest, days_claimed: days, days_granted: granted })
+          .eq('id', id),
       () => supabase.from('eot_claim_events').delete().eq('claim_id', id),
       () => (picked.size ? supabase.from('eot_claim_events').insert([...picked].map((event_id) => ({ claim_id: id, event_id }))) : null),
       // events in a submitted claim show as claimed
-      () => (c.status === 'claimed' && picked.size ? supabase.from('delay_events').update({ status: 'claimed' }).in('id', [...picked]).in('status', ['draft', 'notified']) : null),
+      () =>
+        c.status === 'claimed' && picked.size
+          ? supabase
+              .from('delay_events')
+              .update({ status: 'claimed' })
+              .in('id', [...picked])
+              .in('status', ['draft', 'notified'])
+          : null,
     ]
     for (const s of steps) {
       const r = await s()
@@ -479,7 +545,10 @@ function ClaimEditor({
     const latest = latestRevisions(apps).pop()
     if (!latest || latest.status !== 'draft') return setError('No draft client application to add it to: start the next application first (Applications tab).')
     if (!confirm(`Add ${money(prolong)} prolongation to Application ${latest.app_no} R${latest.revision}'s loss and expense?`)) return
-    const r = await supabase.from('applications').update({ loss_and_expense: Number(latest.loss_and_expense ?? 0) + prolong }).eq('id', latest.id)
+    const r = await supabase
+      .from('applications')
+      .update({ loss_and_expense: Number(latest.loss_and_expense ?? 0) + prolong })
+      .eq('id', latest.id)
     if (r.error) return setError(saveError(r.error))
     alert(`Added to Application ${latest.app_no} R${latest.revision}.`)
   }
@@ -533,8 +602,8 @@ function ClaimEditor({
         </label>
       </div>
       <p className="small">
-        <strong>{days}</strong> days claimed · <strong>{granted}</strong> granted (enter days granted on each event) · prolongation{' '}
-        <strong>{money(prolong)}</strong> ({Math.round((granted / 7) * 10) / 10} weeks × {money(c.weekly_prelims)})
+        <strong>{days}</strong> days claimed · <strong>{granted}</strong> granted (enter days granted on each event) · prolongation <strong>{money(prolong)}</strong> (
+        {Math.round((granted / 7) * 10) / 10} weeks × {money(c.weekly_prelims)})
       </p>
       <div className="form-actions">
         <button className="primary" onClick={save} disabled={busy}>
@@ -544,6 +613,138 @@ function ClaimEditor({
           Claim letter (Word)
         </button>
         {prolong > 0 && <button onClick={toApplication}>Add prolongation to application</button>}
+      </div>
+    </div>
+  )
+}
+
+// a programme task's slippage quoted on the event (Richard, 22 Nov): chosen by hand, because not every
+// slipped task is an EOT; kept as it was on the day it was quoted
+function SlipQuote({
+  prog,
+  slip,
+  onChange,
+  onDays,
+  onRecap,
+  fromVo,
+}: {
+  prog: ProgInfo | null
+  slip: ProgrammeSlip | null
+  onChange: (s: ProgrammeSlip | null) => void
+  onDays: (d: number) => void
+  onRecap: (line: string) => void
+  fromVo: boolean
+}) {
+  const [pick, setPick] = useState('')
+  if (!prog) return null
+  const head = <div className="slip-head">Programme slippage</div>
+  if (!prog.hasProgramme)
+    return (
+      <div className="slip-quote">
+        {head}
+        <p className="muted small">No programme on this job yet: start one on the Programme tab to quote a task's slippage here.</p>
+      </div>
+    )
+  if (!prog.original)
+    return (
+      <div className="slip-quote">
+        {head}
+        <p className="muted small">Commit the programme on the Programme tab first: the first commit is the original programme that slippage is measured against.</p>
+      </div>
+    )
+  const orig = prog.original
+  const slipOf = (t: ProgrammeTask) => finishSlip(t, orig.bars.get(t.code), prog.shutdowns)
+  const label = (d: number) => (d > 0 ? `+${d}d late` : d < 0 ? `${d}d early` : 'on time')
+  const quote = (code: string) => {
+    const t = prog.tasks.find((x) => x.code === code)
+    const was = orig.bars.get(code)
+    const sl = t && slipOf(t)
+    if (!t || !was || !sl) return
+    onChange({
+      code,
+      name: t.name,
+      compared_with: orig.label,
+      was_start: was.start_date,
+      was_finish: was.finish_date,
+      now_start: t.start_date,
+      now_finish: t.finish_date,
+      days: sl.days,
+      working_days: sl.working,
+      quoted_on: todayIso(),
+    })
+    setPick('')
+  }
+  // the task as it is now, if the programme has moved since it was quoted
+  const live = slip ? prog.tasks.find((t) => t.code === slip.code) : null
+  const liveSlip = live ? slipOf(live) : null
+  const moved = slip && liveSlip && (liveSlip.days !== slip.days || live!.finish_date !== slip.now_finish)
+  const recap = (q: ProgrammeSlip) =>
+    `${ukDate(q.quoted_on)} – Programme: ${q.name} now finishes ${ukDate(q.now_finish)}, ${Math.abs(q.days)} days (${Math.abs(q.working_days)} working days) ${q.days >= 0 ? 'later' : 'earlier'} than in the ${q.compared_with} (${ukDate(q.was_finish)})`
+  return (
+    <div className="slip-quote">
+      {head}
+      {slip ? (
+        <>
+          <p className="small">
+            <b>{slip.name}</b>: finishes <b>{ukDate(slip.now_finish)}</b>, against {ukDate(slip.was_finish)} in the {slip.compared_with}:{' '}
+            <span className={slip.days > 0 ? 'late' : 'ok'}>
+              {slip.days > 0 ? '+' : ''}
+              {slip.days} days ({slip.working_days > 0 ? '+' : ''}
+              {slip.working_days} working days)
+            </span>
+            . <span className="muted">Quoted {ukDate(slip.quoted_on)}.</span>
+          </p>
+          {moved && (
+            <p className="warning small">
+              The programme has moved since: it's now {label(liveSlip!.days)} ({ukDate(live!.finish_date)}).{' '}
+              <button className="link-button" onClick={() => quote(slip.code)}>
+                Update the quote
+              </button>
+            </p>
+          )}
+          <div className="form-actions">
+            {!fromVo && slip.days > 0 && (
+              <>
+                <button className="small-button" onClick={() => onDays(slip.days)} title="Put this in Days claimed">
+                  Claim {slip.days} days
+                </button>
+                <button className="small-button" onClick={() => onDays(slip.working_days)} title="Put this in Days claimed">
+                  Claim {slip.working_days} working days
+                </button>
+              </>
+            )}
+            <button className="small-button" onClick={() => onRecap(recap(slip))} title="Add a line to the recap of events (it goes in the notice letter)">
+              Add to recap
+            </button>
+            <button className="small-button" onClick={() => onChange(null)}>
+              Remove
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="muted small">If this event delayed a task on the programme, quote its slippage against the {orig.label}. Only the task you choose is quoted.</p>
+      )}
+      <div className="slip-pick">
+        <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Programme task">
+          <option value="">{slip ? 'Quote a different task…' : 'Choose the task it affected…'}</option>
+          {[...new Set(prog.tasks.map((t) => t.section ?? 'No section'))].map((sec) => (
+            <optgroup key={sec} label={sec}>
+              {prog.tasks
+                .filter((t) => (t.section ?? 'No section') === sec)
+                .map((t) => {
+                  const sl = slipOf(t)
+                  return (
+                    <option key={t.code} value={t.code} disabled={!sl}>
+                      {t.name} · {sl ? label(sl.days) : 'not in the original'}
+                    </option>
+                  )
+                })}
+            </optgroup>
+          ))}
+        </select>
+        <button className="small-button" disabled={!pick} onClick={() => quote(pick)}>
+          Quote it
+        </button>
       </div>
     </div>
   )

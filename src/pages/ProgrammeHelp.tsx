@@ -527,6 +527,11 @@ export default function ProgrammeHelp() {
               <li>
                 <b>Print</b> while comparing prints the overlay, with “Compared with …” in the header: ready to go with an extension of time claim.
               </li>
+              <li>
+                <b>On an EOT:</b> slippage isn't claimed automatically (some delays are ours or a subcontractor's). In the job's <b>EOT</b> tab, open a delay event and use{' '}
+                <b>Programme slippage</b> to pick the task it affected: its slip against the original programme is quoted on the event, kept as it was that day. Then choose{' '}
+                <b>Claim … days</b> / <b>working days</b> and <b>Add to recap</b> (it goes in the notice letter) if you want them.
+              </li>
             </ul>
           </section>
 

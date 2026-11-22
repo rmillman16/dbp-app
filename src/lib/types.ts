@@ -103,6 +103,21 @@ export interface DelayEvent {
   area: string | null // works affected, e.g. "the ground floor"
   mitigation: string | null
   timeline: string | null // "A short recap of events", one per line
+  programme_slip?: ProgrammeSlip | null // a programme task's slippage, quoted for this event (script 029)
+}
+
+// a programme task's slippage against the original programme, as quoted on a delay event (22 Nov)
+export interface ProgrammeSlip {
+  code: string
+  name: string
+  compared_with: string // e.g. "Initial issue (original programme)"
+  was_start: string
+  was_finish: string
+  now_start: string
+  now_finish: string
+  days: number // calendar days later (negative: earlier)
+  working_days: number
+  quoted_on: string
 }
 
 export interface EotClaim {

@@ -609,6 +609,15 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
   - The KOSH lines rebuild every package budget and the £947,680.16 SoW total. OH&P is £113,978.56, 1p from the sheet's £113,978.57 because lines are kept to the penny.
 - **Logo:** left off these two sheets for now. Top right is where the KOSH sheet has Date prepared and Tender Values, so the 60 × 15 mm logo would cover them. Richard to confirm.
 
+## EOT: quoting a programme task's slippage (22 Nov, script 029)
+- Richard: an automatic EOT from programme slippage is wrong, because some slippage is the contractor's own or a subcontractor's. So it works the other way round.
+- **Programme slippage** box on each delay event (EOT tab): choose the programme task the event affected. The list shows every task's slip against the original programme (+7d late, on time…), grouped by section.
+- **Quote it:** records the task, its finish in the original and now, and the days and working days, with the date quoted (`delay_events.programme_slip`, script 029). It's kept as quoted, so later programme changes don't alter a notice already sent. If the programme moves afterwards, the box says so and offers **Update the quote**.
+- **Optional buttons, never automatic:**
+  - **Claim N days** / **Claim N working days** fill Days claimed.
+  - **Add to recap** adds a line, which goes in the notice letter: "22/11/2026 – Programme: Joinery install now finishes 05/03/2027, 7 days (5 working days) later than in the Initial issue (original programme) (26/02/2027)".
+- The events list shows the quoted task and its slip. With no programme, or nothing committed yet, the box says what's needed first.
+
 ## EOT clauses and DBP's letter style (20 Nov, script 014)
 - **Clauses are typed in per job, with no defaults** (Richard: they differ on every job, and defaults promote laziness). EOT tab › **Contract clauses**: form of contract, notice of delay clause, extension of time clause, loss and expense clause. Each **delay event has its own Relevant Event clause**, blank until typed (VO events too).
 - **A letter won't generate until the clauses it needs are filled in.** The app says what's missing instead. The notice also needs the event's days claimed and the job's PC date.

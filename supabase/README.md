@@ -32,6 +32,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `026_programme_timeline_features.sql` | Programme: every Timeline feature (programme start, Wk 1, client logo, section order; contractor, RAG, prerequisites, skeleton crew, baseline per task; issued revisions with history); programmes for Estimating enquiries (move to the job when won) | ✅ Run 22 Nov 2026 |
 | `027_programme_original.sql` | Programme: which committed revision is the original (contract) programme, for the overlay and slip against it (e.g. for an EOT) | ⬜ Not yet |
 | `028_programme_critical.sql` | Programme: a task can be marked as on the critical path (ticked in the task form), as well as those the links make critical | ⬜ Not yet |
+| `029_eot_programme_slip.sql` | EOT: a delay event can quote one programme task's slippage against the original programme (kept as quoted) | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
