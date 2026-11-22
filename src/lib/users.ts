@@ -9,7 +9,8 @@ export interface LoginStatus {
   disabled: boolean
 }
 
-const NOT_DEPLOYED = 'Adding users needs the manage-users function deployed in Supabase first (docs: supabase/README.md › Edge Functions).'
+const NOT_DEPLOYED =
+  'Can’t reach the manage-users function. If it isn’t deployed yet: Supabase › Edge Functions › deploy it (supabase/README.md). If it is: open it in Supabase and turn Verify JWT off (the function checks admins itself).'
 
 async function call<T>(body: Record<string, unknown>): Promise<T> {
   if (!navigator.onLine) throw new Error('You’re offline: this needs a connection.')
