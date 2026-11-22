@@ -306,7 +306,7 @@ export function BuyerList() {
   const shown = (rows ?? [])
     .filter((r) => inFilter(filter, r.status))
     .filter((r) => !jobId || r.job_id === jobId)
-    .filter((r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.requester_name ?? ''} ${r.po_number ?? ''} ${r.supplier ?? ''}`.toLowerCase().includes(q))
+    .filter((r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.requester_name ?? ''} ${r.supplier ?? ''}`.toLowerCase().includes(q))
   const today = todayIso()
   const soon = addDaysIso(today, 3)
 
@@ -326,7 +326,7 @@ export function BuyerList() {
         </div>
         {kind === 'hire' && <p className="muted small intro">The hire requisition form is coming next; hire requisitions will be listed here.</p>}
         <div className="toolbar">
-          <input className="search" placeholder="Search ref, element, materials, requester or PO" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="search" placeholder="Search ref, element, materials, requester or supplier" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
             <option value="">All sites</option>
             {jobs.map((j) => (
@@ -357,7 +357,6 @@ export function BuyerList() {
                 <th>Requested by</th>
                 <th>Required by</th>
                 <th>Status</th>
-                <th>PO</th>
                 <th>Delivery</th>
               </tr>
             </thead>
@@ -385,9 +384,6 @@ export function BuyerList() {
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td className={r.po_number ? '' : 'stack-hide'} data-label="PO">
-                      {r.po_number}
                     </td>
                     <td className={`nowrap ${r.delivery_date ? '' : 'stack-hide'}`} data-label="Delivery">
                       {ukDate(r.delivery_date)}
@@ -426,7 +422,7 @@ export function RequisitionPage() {
         setReq(r)
         setMessages(m)
         setFiles(f)
-        setOrder({ supplier: r.supplier, po_number: r.po_number, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
+        setOrder({ supplier: r.supplier, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
       },
       (e: Error) => setError(e.message),
     )
@@ -471,7 +467,6 @@ export function RequisitionPage() {
     try {
       const patch: Partial<Requisition> = {
         supplier: order.supplier?.trim() || null,
-        po_number: order.po_number?.trim() || null,
         order_value: order.order_value == null || String(order.order_value) === '' ? null : Number(order.order_value),
         order_date: order.order_date || null,
         delivery_date: order.delivery_date || null,
@@ -545,14 +540,10 @@ export function RequisitionPage() {
               <dd className="pre">{linkify(req.notes)}</dd>
             </>
           )}
-          {(req.po_number || req.delivery_date) && !asBuyer && (
+          {req.delivery_date && !asBuyer && (
             <>
-              <dt>Order</dt>
-              <dd>
-                {req.po_number && `PO ${req.po_number}`}
-                {req.po_number && req.delivery_date && ' · '}
-                {req.delivery_date && `Delivery ${ukDate(req.delivery_date)}`}
-              </dd>
+              <dt>Delivery</dt>
+              <dd>{ukDate(req.delivery_date)}</dd>
             </>
           )}
           <dt>Attachments</dt>
@@ -618,10 +609,6 @@ export function RequisitionPage() {
               Supplier
               <input value={order.supplier ?? ''} onChange={(e) => setOrder({ ...order, supplier: e.target.value })} />
               {/* typed, not a list (22 Nov) */}
-            </label>
-            <label>
-              PO number
-              <input value={order.po_number ?? ''} onChange={(e) => setOrder({ ...order, po_number: e.target.value })} />
             </label>
             <label>
               Order value (£)
