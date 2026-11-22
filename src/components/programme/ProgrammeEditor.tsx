@@ -49,7 +49,6 @@ import {
   quickAdd,
   renameSection,
   saveTask,
-  setBaseline,
   setSetting,
   setShutdowns,
   setStart,
@@ -73,7 +72,6 @@ import type { Job } from '../../lib/types'
 import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
 import { DeleteSectionDialog, DuplicateSectionDialog, LegendMenu, Modal, Popover, ShiftMenu, ShutdownMenu, TaskModal } from './ProgrammeParts'
 import '../../programme.css'
-import { Keys, SHORTCUTS } from '../../pages/ProgrammeHelp'
 
 const COLWIDTHS_KEY = 'duboulay-timeline-colwidths-v1' // the same as Timeline's, so widths carry over
 const ZOOM_KEY = 'dbp-programme-zoom'
@@ -95,7 +93,7 @@ const store = {
     }
   },
 }
-type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'help' | 'compare' | null
+type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'compare' | 'tools' | 'print' | null
 type Dialog =
   | { kind: 'dup'; section: string }
   | { kind: 'del'; section: string }
@@ -153,6 +151,7 @@ export default function ProgrammeEditor({
   const [companies, setCompanies] = useState<string[]>([])
   const [revisions, setRevisions] = useState<ProgrammeRevision[]>([])
   const [compare, setCompare] = useState<Comparison | null>(null) // the original (or a revision) drawn under the bars
+  const [original, setOriginal] = useState<Comparison | null>(null) // the original programme, for the Slip column
   const [compact, setCompact] = useState(() => window.innerWidth < 700)
   const [full, setFull] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -288,8 +287,18 @@ export default function ProgrammeEditor({
     return () => document.body.classList.remove('no-scroll')
   }, [full])
   const toggleFull = () => setFull((f) => !f)
-  const [showKeys, setShowKeys] = useState(false)
+  const [printToday, setPrintToday] = useState(true) // the today line on the print (on unless unticked)
 
+  // the original programme's dates, for the Slip column (replaces Timeline's per-task baseline)
+  const contractRev = w?.programme.contract_rev ?? null
+  const programmeId = w?.programme.id ?? null
+  useEffect(() => {
+    if (!contractRev || !programmeId) return setOriginal(null)
+    loadRevisionData(programmeId, [contractRev]).then(
+      (d) => setOriginal(d[0] ? comparisonFrom(contractRev, `${revName(contractRev)} (original programme)`, d[0].data) : null),
+      () => setOriginal(null),
+    )
+  }, [contractRev, programmeId])
   const sd = w?.programme.shutdowns ?? []
   const critical = useMemo(() => (w ? criticalPath(w.tasks, sd) : new Set<string>()), [w]) // eslint-disable-line react-hooks/exhaustive-deps
   const usedContractors = useMemo(() => {
@@ -346,7 +355,7 @@ export default function ProgrammeEditor({
     )
 
   const programme = w.programme
-  const tl = () => toTimeline(programme, w.tasks)
+  const tl = () => ({ ...toTimeline(programme, w.tasks), projectName: ownerName })
   const compareLabel = (no: number) => `${revName(no)}${no === programme.contract_rev ? ' (original programme)' : ''}`
   const doPrint = () => {
     if (!w.tasks.length) return alert('Add some tasks before printing.')
@@ -355,6 +364,7 @@ export default function ProgrammeEditor({
       contractor: contractor || null,
       criticalOnly: critOnly,
       critical,
+      todayLine: printToday,
       revision: lastRev ? revName(lastRev.rev_no) : undefined,
       compare: compare ? { label: compareLabel(compare.rev_no), bars: compare.bars } : undefined,
     }).catch((e) => setError((e as Error).message))
@@ -363,7 +373,7 @@ export default function ProgrammeEditor({
   keyAction.current = (e, typing) => {
     const ctrl = e.ctrlKey || e.metaKey
     const k = e.key.toLowerCase()
-    const busyElsewhere = !!modal || !!dialog || showKeys
+    const busyElsewhere = !!modal || !!dialog
     if (ctrl && k === 's') return (e.preventDefault(), flush().then(() => flashToast('Saved.')))
     if (ctrl && k === 'p' && !busyElsewhere) return (e.preventDefault(), doPrint())
     if (ctrl && !typing && !busyElsewhere && ((k === 'z' && e.shiftKey) || k === 'y')) return (e.preventDefault(), redoLast())
@@ -389,7 +399,7 @@ export default function ProgrammeEditor({
     if (k === 'c') return run(() => setCritOnly(!critOnly))
     if (k === 'f') return run(toggleFull)
     if (k === '.') return run(() => setTodayTick(todayTick + 1))
-    if (e.key === '?') return run(() => setShowKeys(true))
+    if (e.key === '?') return run(() => window.open('/help/programme#keys', '_blank', 'noopener'))
     const z = ({ '1': 'Day', '2': 'Week', '3': 'Fortnight', '4': 'Month' } as Record<string, Zoom>)[e.key]
     if (z) return run(() => setZoom(z))
   }
@@ -452,19 +462,22 @@ export default function ProgrammeEditor({
     })
     apply(setSetting(w, { client_logo: url }), 'client logo')
   }
+  const lastWhen = lastRev ? ukDate(lastRev.created_at.slice(0, 10)) : null
   const statusChip =
     status === 'saving' ? (
-      <span className="tl-cloud-chip">Saving…</span>
-    ) : status === 'error' ? (
-      <span className="tl-cloud-chip behind" title={saveMsg ?? ''}>
-        Not saved{' '}
-        <button className="tl-link-btn" onClick={() => flush()}>
-          retry
-        </button>
+      <span className="tl-status saving" title="Saving…">
+        ⟳ <span>{lastRev ? revName(lastRev.rev_no) : 'Draft'}</span>
       </span>
+    ) : status === 'error' ? (
+      <button className="tl-status error" onClick={() => flush()} title={`Not saved: ${saveMsg ?? ''} Click to try again.`}>
+        ! Retry
+      </button>
     ) : (
-      <span className="tl-cloud-chip linked" title="Every change is saved for everyone straight away">
-        Saved{lastRev ? ` · ${revName(lastRev.rev_no)} committed ${ukDate(lastRev.created_at.slice(0, 10))}` : ' · not yet committed'}
+      <span
+        className="tl-status saved"
+        title={`Saved: every change is saved for everyone straight away. ${lastRev ? `Last commit: ${revName(lastRev.rev_no)}, ${lastWhen}${lastRev.rev_no === programme.contract_rev ? ' (the original programme)' : ''}.` : 'Not committed yet.'}`}
+      >
+        ✓ <span>{lastRev ? revName(lastRev.rev_no) : 'Draft'}</span>
       </span>
     )
 
@@ -480,79 +493,27 @@ export default function ProgrammeEditor({
       )}
       {programme.file_name === GENERATED_FILE && <p className="warning small">A simple programme made from the SoW: edit it here, or use Open file… to import the real one.</p>}
 
-      {/* the toolbar (Timeline's) */}
+      {/* the toolbar: two lines on a desktop (22 Nov: icons first, then Tools, then the dates) */}
       <div className="tl-toolbar">
-        <div className="tl-proj">
-          <label>Project</label>
-          <input
-            type="text"
-            className="tl-proj-name"
-            value={programme.project_name ?? ''}
-            onChange={(e) => {
-              const next = setSetting(w, { project_name: e.target.value })
-              live.current = next // typing isn't an Undo step per letter
-              setW(next)
-            }}
-          />
-          {statusChip}
-        </div>
-        <div
-          className="tl-proj"
-          title="The date of the very first task (e.g. LOI / precon). New tasks begin here, and dates typed without a year (e.g. 4/1) resolve to the first matching date on or after it. This is separate from Wk 1 (start on site)."
-        >
-          <label htmlFor="tl-start">Programme starts</label>
-          <input
-            id="tl-start"
-            type="date"
-            value={programme.project_start ?? ''}
-            onChange={(e) => apply(setSetting(w, { project_start: e.target.value || null }), 'programme start')}
-          />
-        </div>
-        <div className="tl-proj" title="The date Week 1 starts, e.g. start on site. Weeks before it count down (Wk -1, -2...). Leave blank for automatic.">
-          <label htmlFor="tl-wk1">Start on site (Wk 1)</label>
-          <input id="tl-wk1" type="date" value={programme.week_start ?? ''} onChange={(e) => apply(setSetting(w, { week_start: e.target.value || null }), 'Wk 1')} />
-          <span className="tl-wk1-hint">{monday ? (programme.week_start ? `wk of ${fmtShort(monday)}` : `auto: wk of ${fmtShort(monday)}`) : ''}</span>
-          {programme.week_start && (
-            <button className="tl-icon" onClick={() => apply(setSetting(w, { week_start: null }), 'Wk 1')} title="Go back to automatic week numbering">
-              ✕
-            </button>
-          )}
-        </div>
-        <div className="tl-divider" />
         <button
-          className={`tl-btn ${full ? 'is-on' : ''}`}
+          className={`tl-btn tl-icon-btn ${full ? 'is-on' : ''}`}
           onClick={toggleFull}
-          title={full ? 'Back to the page (Esc or F)' : 'Fill the page with the programme, over the sidebar and job heading (F)'}
+          title={full ? 'Back to the page (Esc or F)' : 'Full page: fill the page with the programme (F)'}
+          aria-label="Full page"
         >
-          {full ? '✕ Exit full page' : '⛶ Full page'}
+          <Icon name={full ? 'shrink' : 'expand'} />
         </button>
-        <button className="tl-btn" onClick={undoLast} disabled={!undoTop} title={undoTop ? `Undo: ${undoTop} (Ctrl+Z)` : 'Nothing to undo'}>
-          Undo
+        <button className="tl-btn tl-icon-btn" onClick={() => setDialog({ kind: 'new' })} title="New: clear this programme and start again" aria-label="New">
+          <Icon name="new" />
         </button>
-        <button className="tl-btn" onClick={redoLast} disabled={!redoTop} title={redoTop ? `Redo: ${redoTop} (Ctrl+Y)` : 'Nothing to redo'}>
-          Redo
+        <button className="tl-btn tl-icon-btn" onClick={undoLast} disabled={!undoTop} title={undoTop ? `Undo: ${undoTop} (Ctrl+Z)` : 'Nothing to undo'} aria-label="Undo">
+          <Icon name="undo" />
         </button>
-        {job && (
-          <button className="tl-btn" onClick={() => setDialog({ kind: 'sow' })} title="Make a simple programme from the SoW's trades: replaces this one">
-            From SoW…
-          </button>
-        )}
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'previous' })} title="Start again from another job's or estimate's programme">
-          Programmes
+        <button className="tl-btn tl-icon-btn" onClick={redoLast} disabled={!redoTop} title={redoTop ? `Redo: ${redoTop} (Ctrl+Y)` : 'Nothing to redo'} aria-label="Redo">
+          <Icon name="redo" />
         </button>
-        <button
-          className="tl-btn tl-btn-primary"
-          onClick={() => setDialog({ kind: 'issue' })}
-          disabled={!has026(programme)}
-          title="Lock the programme as it is now as a numbered revision (Initial issue, Rev A, Rev B…); the first is the original programme to compare against"
-        >
-          Commit
-        </button>
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Committed revisions and what changed between them">
-          History{revisions.length ? ` (${revisions.length})` : ''}
-        </button>
-        <label className="tl-btn tl-btn-sm" title="Open a programme from a file (DBP Timeline .json, P6 .xer, MS Project .xml): replaces this one">
-          Open file…
+        <label className="tl-btn tl-icon-btn" title="Open file: a DBP Timeline .json, P6 .xer or MS Project .xml (replaces this programme)" aria-label="Open file">
+          <Icon name="folder" />
           <input
             type="file"
             hidden
@@ -569,18 +530,198 @@ export default function ProgrammeEditor({
             }}
           />
         </label>
-        <button
-          className="tl-btn tl-btn-sm"
-          onClick={() => downloadFile(exportFileName(tl(), '.json'), JSON.stringify(tl(), null, 2), 'application/json')}
-          title="Save to a file on this computer (opens in DBP Timeline too)"
+        <span className="tl-pop-wrap">
+          <button className="tl-btn tl-icon-btn" onClick={() => setPop(pop === 'print' ? null : 'print')} title="Print / PDF: A3 landscape (Ctrl+P)" aria-label="Print">
+            <Icon name="print" />
+          </button>
+          <Popover open={pop === 'print'} onClose={() => setPop(null)} width={250}>
+            <div className="tl-legend-title">Print / PDF (A3 landscape)</div>
+            <label className="tl-legend-item">
+              <input type="checkbox" checked={printToday} onChange={(e) => setPrintToday(e.target.checked)} /> Today line
+            </label>
+            <div className="tl-help" style={{ marginTop: 4 }}>
+              Follows the contractor filter, critical path view and Compare overlay.
+            </div>
+            <button className="tl-btn tl-btn-primary" onClick={() => (setPop(null), doPrint())}>
+              Print…
+            </button>
+          </Popover>
+        </span>
+        <span className="tl-pop-wrap">
+          <button
+            className="tl-btn tl-icon-btn"
+            onClick={() => setPop(pop === 'export' ? null : 'export')}
+            title="Export: Primavera P6, MS Project or DBP Timeline file"
+            aria-label="Export"
+          >
+            <Icon name="export" />
+          </button>
+          <Popover open={pop === 'export'} onClose={() => setPop(null)}>
+            <div className="tl-legend-title">Export</div>
+            <div
+              className="tl-menu-item"
+              onClick={() => {
+                setPop(null)
+                if (!w.tasks.length) return alert('Add some tasks before exporting.')
+                downloadFile(exportFileName(tl(), ' (MS Project).xml'), buildMSProjectXML(tl()), 'application/xml')
+              }}
+            >
+              MS Project (.xml)
+            </div>
+            <div
+              className="tl-menu-item"
+              onClick={() => {
+                setPop(null)
+                if (!w.tasks.length) return alert('Add some tasks before exporting.')
+                downloadFile(exportFileName(tl(), '.xer'), buildXER(tl()), 'application/octet-stream')
+              }}
+            >
+              Primavera P6 (.xer)
+            </div>
+            <div className="tl-menu-item" onClick={() => (setPop(null), downloadFile(exportFileName(tl(), '.json'), JSON.stringify(tl(), null, 2), 'application/json'))}>
+              DBP Timeline file (.json)
+            </div>
+          </Popover>
+        </span>
+        {/* Tools: shutdowns, shift, compare, legend, client logo */}
+        <span className="tl-pop-wrap">
+          <button className={`tl-btn ${compare ? 'is-on' : ''}`} onClick={() => setPop(pop && ['tools', 'shutdown', 'shift', 'compare', 'legend'].includes(pop) ? null : 'tools')}>
+            Tools{suggestedXmas(w) && <span className="tl-attn" title="Programme runs over Christmas: add the shutdown" />} ▾
+          </button>
+          <Popover open={pop === 'tools'} onClose={() => setPop(null)} width={260}>
+            <div className="tl-menu-item" onClick={() => setPop('shutdown')} title="Block out Christmas (or any other) shutdown period">
+              Shutdown{sd.length ? ` (${sd.length})` : ''}… {suggestedXmas(w) && <span className="tl-attn" />}
+            </div>
+            <div className="tl-menu-item" onClick={() => setPop('shift')} title="Move the whole programme, or one section, forward or back">
+              Shift…
+            </div>
+            <div
+              className={`tl-menu-item ${revisions.length ? '' : 'disabled'}`}
+              onClick={() => revisions.length && setPop('compare')}
+              title={
+                revisions.length ? 'Overlay the original programme (or any revision) to see slippage' : 'Commit the programme first: the first commit is the original programme'
+              }
+            >
+              Compare{compare ? `: ${revName(compare.rev_no)}` : ''}…
+            </div>
+            <div className="tl-menu-item" onClick={() => setPop('legend')} title="Trade colours and what the symbols mean">
+              Legend…
+            </div>
+            <label className="tl-menu-item" title="The client's logo, shown on the programme and its print">
+              {programme.client_logo ? 'Change client logo…' : 'Add client logo…'}
+              <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => (setPop(null), e.target.files?.[0] && onLogo(e.target.files[0]).catch((err) => setError(err.message)), (e.target.value = ''))}
+              />
+            </label>
+            {programme.client_logo && (
+              <div className="tl-menu-item" onClick={() => (setPop(null), apply(setSetting(w, { client_logo: null }), 'remove client logo'))}>
+                Remove client logo
+              </div>
+            )}
+          </Popover>
+          <Popover open={pop === 'shutdown'} onClose={() => setPop(null)} width={520}>
+            <ShutdownMenu w={w} onChange={(list) => apply(setShutdowns(w, list), 'shutdowns')} />
+          </Popover>
+          <Popover open={pop === 'shift'} onClose={() => setPop(null)} width={340}>
+            <ShiftMenu
+              w={w}
+              onShift={(scope, days) => {
+                setPop(null)
+                if (scope === undefined)
+                  apply(shiftProgramme(w, days), `shift programme ${days > 0 ? 'forward' : 'back'} by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`)
+                else {
+                  if (!w.tasks.some((t) => t.section === scope)) return alert('That section has no tasks.')
+                  apply(
+                    shiftSection(w, scope, days),
+                    `shift "${scope ?? 'ungrouped tasks'}" ${days > 0 ? 'forward' : 'back'} by ${Math.abs(days)} working day${Math.abs(days) === 1 ? '' : 's'}`,
+                  )
+                }
+              }}
+            />
+          </Popover>
+          <Popover open={pop === 'compare'} onClose={() => setPop(null)} width={300}>
+            <div className="tl-legend-title">Overlay a committed revision</div>
+            <div className={`tl-menu-item ${!compare ? 'on' : ''}`} onClick={() => (setPop(null), setCompare(null))}>
+              Off
+            </div>
+            {[...revisions]
+              .sort((a, b) => Number(b.rev_no === programme.contract_rev) - Number(a.rev_no === programme.contract_rev) || b.rev_no - a.rev_no)
+              .map((r) => (
+                <div key={r.id} className={`tl-menu-item ${compare?.rev_no === r.rev_no ? 'on' : ''}`} onClick={() => (setPop(null), showCompare(r.rev_no))}>
+                  {revName(r.rev_no)}
+                  {r.rev_no === programme.contract_rev ? ' (original programme)' : ''} <span className="muted">· {ukDate(r.created_at.slice(0, 10))}</span>
+                </div>
+              ))}
+          </Popover>
+          <Popover open={pop === 'legend'} onClose={() => setPop(null)}>
+            <LegendMenu
+              w={w}
+              onColor={(name, color) => apply(setTradeColor(w, name, color), `${name} colour`)}
+              onBrand={() => (setPop(null), apply(brandColours(w), 'apply brand colours'))}
+              onToneDown={() => (setPop(null), apply(toneDown(w), 'tone down trade colours'))}
+            />
+          </Popover>
+        </span>
+        <div className="tl-divider" />
+        {statusChip}
+        <div
+          className="tl-proj"
+          title="The date of the very first task (e.g. LOI / precon). New tasks begin here, and dates typed without a year (e.g. 4/1) resolve to the first matching date on or after it. This is separate from Wk 1 (start on site)."
         >
-          Save file
+          <label htmlFor="tl-start">Start</label>
+          <input
+            id="tl-start"
+            type="date"
+            value={programme.project_start ?? ''}
+            onChange={(e) => apply(setSetting(w, { project_start: e.target.value || null }), 'programme start')}
+          />
+        </div>
+        <div
+          className="tl-proj"
+          title={`The date Week 1 starts, e.g. start on site. Weeks before it count down (Wk -1, -2…). Leave blank to work it out${monday && !programme.week_start ? ` (now the week of ${fmtShort(monday)})` : ''}.`}
+        >
+          <label htmlFor="tl-wk1">Start on site (Wk 1)</label>
+          <input id="tl-wk1" type="date" value={programme.week_start ?? ''} onChange={(e) => apply(setSetting(w, { week_start: e.target.value || null }), 'Wk 1')} />
+          {programme.week_start && (
+            <button className="tl-icon" onClick={() => apply(setSetting(w, { week_start: null }), 'Wk 1')} title="Go back to automatic week numbering">
+              ✕
+            </button>
+          )}
+        </div>
+        {programme.client_logo && (
+          <span className="tl-client-logo">
+            <img src={programme.client_logo} alt="Client logo" />
+          </span>
+        )}
+      </div>
+      <div className="tl-toolbar tl-toolbar-2">
+        <button className="tl-btn" onClick={() => setDialog({ kind: 'previous' })} title="Start again from another job's or estimate's programme">
+          Programmes
+        </button>
+        {job && (
+          <button className="tl-btn" onClick={() => setDialog({ kind: 'sow' })} title="Make a simple programme from the SoW's trades: replaces this one">
+            From SoW…
+          </button>
+        )}
+        <button
+          className="tl-btn tl-btn-primary"
+          onClick={() => setDialog({ kind: 'issue' })}
+          disabled={!has026(programme)}
+          title="Lock the programme as it is now as a numbered revision (Initial issue, Rev A, Rev B…); the first is the original programme to compare against"
+        >
+          Commit
+        </button>
+        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Committed revisions and what changed between them">
+          History{revisions.length ? ` (${revisions.length})` : ''}
         </button>
         <div className="tl-divider" />
-        <button className="tl-btn tl-btn-primary" onClick={() => setModal({ task: draftTask(w, false, contractor || null), isNew: true })}>
+        <button className="tl-btn tl-btn-primary" onClick={() => setModal({ task: draftTask(w, false, contractor || null), isNew: true })} title="New task (T)">
           + Task
         </button>
-        <button className="tl-btn" onClick={() => setModal({ task: draftTask(w, true, contractor || null), isNew: true })}>
+        <button className="tl-btn" onClick={() => setModal({ task: draftTask(w, true, contractor || null), isNew: true })} title="New milestone (M)">
           + Milestone
         </button>
         <span className="tl-pop-wrap">
@@ -609,64 +750,20 @@ export default function ProgrammeEditor({
         </span>
         <div className="tl-divider" />
         <div className="tl-seg" role="group" aria-label="Zoom">
-          {(['Day', 'Week', 'Fortnight', 'Month'] as Zoom[]).map((z) => (
-            <button key={z} className={zoom === z ? 'active' : ''} onClick={() => setZoom(z)}>
-              {z}
+          {(
+            [
+              ['Day', 'D'],
+              ['Week', 'W'],
+              ['Fortnight', '2W'],
+              ['Month', 'M'],
+            ] as [Zoom, string][]
+          ).map(([z, short], i) => (
+            <button key={z} className={zoom === z ? 'active' : ''} onClick={() => setZoom(z)} title={`${z} (${i + 1})`}>
+              {short}
             </button>
           ))}
         </div>
-        <button className="tl-btn tl-btn-sm" onClick={() => setTodayTick(todayTick + 1)}>
-          Today
-        </button>
         <div className="tl-divider" />
-        <span className="tl-pop-wrap">
-          <button className="tl-btn" onClick={() => setPop(pop === 'shutdown' ? null : 'shutdown')} title="Block out Christmas (or any other) shutdown period">
-            Shutdown{sd.length ? ` (${sd.length})` : ''}
-            {suggestedXmas(w) && <span className="tl-attn" title="Programme runs over Christmas" />} ▾
-          </button>
-          <Popover open={pop === 'shutdown'} onClose={() => setPop(null)} width={520}>
-            <ShutdownMenu w={w} onChange={(list) => apply(setShutdowns(w, list), 'shutdowns')} />
-          </Popover>
-        </span>
-        <span className="tl-pop-wrap">
-          <button
-            className="tl-btn"
-            onClick={() => setPop(pop === 'shift' ? null : 'shift')}
-            title="Move the whole programme, or just one section, forward or back by a number of days"
-          >
-            Shift ▾
-          </button>
-          <Popover open={pop === 'shift'} onClose={() => setPop(null)} width={340}>
-            <ShiftMenu
-              w={w}
-              onShift={(scope, days) => {
-                setPop(null)
-                if (scope === undefined)
-                  apply(shiftProgramme(w, days), `shift programme ${days > 0 ? 'forward' : 'back'} by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`)
-                else {
-                  if (!w.tasks.some((t) => t.section === scope)) return alert('That section has no tasks.')
-                  apply(
-                    shiftSection(w, scope, days),
-                    `shift "${scope ?? 'ungrouped tasks'}" ${days > 0 ? 'forward' : 'back'} by ${Math.abs(days)} working day${Math.abs(days) === 1 ? '' : 's'}`,
-                  )
-                }
-              }}
-            />
-          </Popover>
-        </span>
-        <button
-          className="tl-btn"
-          onClick={() => {
-            if (!w.tasks.length) return alert('Add some tasks first.')
-            const already = w.tasks.filter((t) => t.baseline_start).length
-            const msg = already
-              ? `${already} task(s) already have a baseline and will be left untouched. Set baseline for the remaining ${w.tasks.length - already} task(s)?`
-              : `Set the current schedule as the baseline for all ${w.tasks.length} task(s)? This is normally done once, at the start of the project.`
-            if (confirm(msg)) apply(setBaseline(w).w, 'set baseline')
-          }}
-        >
-          Set baseline
-        </button>
         <button
           className={`tl-btn ${linking ? 'is-on' : ''}`}
           onClick={() => {
@@ -674,41 +771,13 @@ export default function ProgrammeEditor({
             setLinkFrom(null)
             setLinkMsg('Link mode. Click the task that comes first, then the task that depends on it. Shift-click the second for start-to-start. Esc to finish.')
           }}
-          title="Click a task, then the task that depends on it, to link them (in the chart or the list)"
+          title="Click a task, then the task that depends on it, to link them (L)"
         >
           Link tasks
         </button>
-        <button className={`tl-btn ${critOnly ? 'is-on' : ''}`} onClick={() => setCritOnly(!critOnly)} title="Fade everything that isn't on the critical path">
+        <button className={`tl-btn ${critOnly ? 'is-on' : ''}`} onClick={() => setCritOnly(!critOnly)} title="Fade everything that isn't on the critical path (C)">
           Critical path ({critical.size})
         </button>
-        <span className="tl-pop-wrap">
-          <button
-            className={`tl-btn ${compare ? 'is-on' : ''}`}
-            onClick={() => setPop(pop === 'compare' ? null : 'compare')}
-            disabled={!revisions.length}
-            title={
-              revisions.length
-                ? 'Show the original programme (or any revision) under the bars, with the slippage'
-                : 'Commit the programme first: the first commit is the original programme'
-            }
-          >
-            Compare{compare ? `: ${revName(compare.rev_no)}` : ''} ▾
-          </button>
-          <Popover open={pop === 'compare'} onClose={() => setPop(null)} width={300}>
-            <div className="tl-legend-title">Overlay a committed revision</div>
-            <div className={`tl-menu-item ${!compare ? 'on' : ''}`} onClick={() => (setPop(null), setCompare(null))}>
-              Off
-            </div>
-            {[...revisions]
-              .sort((a, b) => Number(b.rev_no === programme.contract_rev) - Number(a.rev_no === programme.contract_rev) || b.rev_no - a.rev_no)
-              .map((r) => (
-                <div key={r.id} className={`tl-menu-item ${compare?.rev_no === r.rev_no ? 'on' : ''}`} onClick={() => (setPop(null), showCompare(r.rev_no))}>
-                  {revName(r.rev_no)}
-                  {r.rev_no === programme.contract_rev ? ' (original programme)' : ''} <span className="muted">· {ukDate(r.created_at.slice(0, 10))}</span>
-                </div>
-              ))}
-          </Popover>
-        </span>
         <select className="tl-btn tl-select" value={contractor} onChange={(e) => setContractor(e.target.value)} title="Show (and print) only one contractor's tasks">
           <option value="">All contractors</option>
           {usedContractors.map((c) => (
@@ -717,82 +786,10 @@ export default function ProgrammeEditor({
             </option>
           ))}
         </select>
-        <span className="tl-pop-wrap">
-          <button className="tl-btn" onClick={() => setPop(pop === 'legend' ? null : 'legend')}>
-            Legend
-          </button>
-          <Popover open={pop === 'legend'} onClose={() => setPop(null)}>
-            <LegendMenu
-              w={w}
-              onColor={(name, color) => apply(setTradeColor(w, name, color), `${name} colour`)}
-              onBrand={() => (setPop(null), apply(brandColours(w), 'apply brand colours'))}
-              onToneDown={() => (setPop(null), apply(toneDown(w), 'tone down trade colours'))}
-            />
-          </Popover>
-        </span>
-        <label className="tl-btn" title="The client's logo, shown on the programme and its print">
-          Client logo…
-          <input
-            type="file"
-            hidden
-            accept="image/*"
-            onChange={(e) => (e.target.files?.[0] && onLogo(e.target.files[0]).catch((err) => setError(err.message)), (e.target.value = ''))}
-          />
-        </label>
-        <button className="tl-btn" onClick={doPrint} title="A3 landscape, as many pages as it needs (save as PDF from the print window) (Ctrl+P)">
-          Print / PDF
-        </button>
-        <span className="tl-pop-wrap">
-          <button className="tl-btn" onClick={() => setPop(pop === 'export' ? null : 'export')} title="Download the programme for Primavera P6 or MS Project">
-            Export ▾
-          </button>
-          <Popover open={pop === 'export'} onClose={() => setPop(null)} align="right">
-            <div
-              className="tl-menu-item"
-              onClick={() => {
-                setPop(null)
-                if (!w.tasks.length) return alert('Add some tasks before exporting.')
-                downloadFile(exportFileName(tl(), ' (MS Project).xml'), buildMSProjectXML(tl()), 'application/xml')
-              }}
-            >
-              MS Project (.xml)
-            </div>
-            <div
-              className="tl-menu-item"
-              onClick={() => {
-                setPop(null)
-                if (!w.tasks.length) return alert('Add some tasks before exporting.')
-                downloadFile(exportFileName(tl(), '.xer'), buildXER(tl()), 'application/octet-stream')
-              }}
-            >
-              Primavera P6 (.xer)
-            </div>
-            <div className="tl-menu-item" onClick={() => (setPop(null), downloadFile(exportFileName(tl(), '.json'), JSON.stringify(tl(), null, 2), 'application/json'))}>
-              DBP Timeline file (.json)
-            </div>
-          </Popover>
-        </span>
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'new' })} title="Clear this programme and start again">
-          New
-        </button>
-        <span className="tl-help-wrap">
-          <button className="tl-btn" onClick={() => setShowKeys(true)} title="Keyboard shortcuts (?)">
-            ⌨
-          </button>
-          <a className="tl-btn" href="/help/programme" target="_blank" rel="noopener" title="How to use the programme: help, tips and keyboard shortcuts (opens in a new tab)">
-            Help
-          </a>
-        </span>
-        {programme.client_logo && (
-          <span className="tl-client-logo">
-            <img src={programme.client_logo} alt="Client logo" />
-            <button className="tl-icon" title="Remove the client logo" onClick={() => apply(setSetting(w, { client_logo: null }), 'remove client logo')}>
-              ✕
-            </button>
-          </span>
-        )}
+        <a className="tl-btn tl-help-wrap" href="/help/programme" target="_blank" rel="noopener" title="Help, tips and keyboard shortcuts (?) (opens in a new tab)">
+          Help
+        </a>
       </div>
-
       {compare && <CompareBar w={w} c={compare} onClose={() => setCompare(null)} />}
       {linking && (
         <div className="tl-banner">
@@ -868,10 +865,10 @@ export default function ProgrammeEditor({
         }}
         onAddFirst={() => setModal({ task: draftTask(w), isNew: true })}
         compare={compare}
+        slipBase={original}
       />
 
       {toast && <div className="tl-toast">{toast}</div>}
-      {showKeys && <KeysDialog onClose={() => setShowKeys(false)} />}
 
       {modal && (
         <TaskModal
@@ -1090,33 +1087,6 @@ function ImportSummary({ p, name }: { p: ParsedProgramme; name: string }) {
       {p.start_date ? `, ${ukDate(p.start_date)} to ${ukDate(p.finish_date)}` : ''}
       {p.shutdowns?.length ? ` · shutdowns: ${p.shutdowns.map((s) => s.name).join(', ')}` : ''}.
     </p>
-  )
-}
-
-// ? : the keyboard shortcuts (the same list as Help › Keyboard shortcuts)
-function KeysDialog({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal title="Keyboard shortcuts" onClose={onClose}>
-      <table className="tl-help-table">
-        <tbody>
-          {SHORTCUTS.map(([keys, what]) => (
-            <tr key={what}>
-              <td>
-                <Keys keys={keys} />
-              </td>
-              <td>{what}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="tl-p tl-light" style={{ marginTop: 12 }}>
-        Single letters work when you're not typing in a box. More in the{' '}
-        <a href="/help/programme" target="_blank" rel="noopener">
-          help page
-        </a>
-        .
-      </p>
-    </Modal>
   )
 }
 
@@ -1580,4 +1550,34 @@ function SowGenerator({ job, onSaved }: { job: Job; onSaved: () => void }) {
   }, [job])
   if (!trades) return <p className="muted small">Reading the SoW…</p>
   return <GenerateProgramme job={job} trades={trades} onSaved={onSaved} />
+}
+
+// the toolbar's icons (16 px, drawn in the button's colour)
+function Icon({ name }: { name: 'expand' | 'shrink' | 'new' | 'undo' | 'redo' | 'folder' | 'print' | 'export' }) {
+  const paths: Record<typeof name, string> = {
+    expand: 'M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5',
+    shrink: 'M8 3v5H3M17 8h-5V3M12 17v-5h5M3 12h5v5',
+    new: 'M5 2.5h6.5L15 6v11.5H5zM11.5 2.5V6H15M10 9v6M7 12h6',
+    undo: 'M7.5 4.5 4 8l3.5 3.5M4 8h8a4.5 4.5 0 0 1 0 9H9',
+    redo: 'M12.5 4.5 16 8l-3.5 3.5M16 8H8a4.5 4.5 0 0 0 0 9h3',
+    folder: 'M2.5 5.5h5l1.8 1.8h8.2v9.2h-15zM2.5 9h15',
+    print: 'M5.5 7.5v-5h9v5M5.5 14H3.5V7.5h13V14h-2M5.5 11.5h9v6h-9z',
+    export: 'M10 2.5v10M6 8.5l4 4 4-4M3.5 13v4h13v-4',
+  }
+  return (
+    <svg
+      className="tl-svg-icon"
+      viewBox="0 0 20 20"
+      width="16"
+      height="16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={paths[name]} />
+    </svg>
+  )
 }

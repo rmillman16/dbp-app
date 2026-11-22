@@ -267,15 +267,6 @@ export function TaskModal({
           placeholder="e.g. Needs 3D model from subcontractor before this can be priced/started"
         />
       </div>
-      {!isNew && task.baseline_start && (
-        <div className="tl-field">
-          <label>Baseline</label>
-          <div className="tl-baseline-note">
-            Baselined at {fmtShort(task.baseline_start)}, {task.baseline_duration} working day{task.baseline_duration === 1 ? '' : 's'}. Read-only. Use "Set baseline" in the
-            toolbar to baseline tasks added since.
-          </div>
-        </div>
-      )}
     </Modal>
   )
 }

@@ -297,3 +297,27 @@ kbd { display: inline-block; font: 600 11.5px/1.5 ui-monospace, Consolas, monosp
   .tl-help-toc { position: static; }
   .tl-help-table td:first-child { white-space: normal; }
 }
+
+/* the two-line toolbar (22 Nov): icon buttons, Tools menu */
+.tl .tl-toolbar .tl-btn.tl-icon-btn { width: 30px; padding: 0; justify-content: center; }
+.tl .tl-toolbar .tl-btn .tl-svg-icon { flex-shrink: 0; }
+.tl-toolbar-2 { border-top: none; padding-top: 0; }
+.tl .tl-toolbar .tl-client-logo { margin-left: auto; }
+.tl-menu-item.disabled { opacity: 0.45; cursor: not-allowed; }
+label.tl-menu-item { display: block; margin: 0; font-weight: 400; }
+.tl-menu-item .tl-attn { margin-left: 4px; }
+.tl-help-toc-group + .tl-help-toc-group { margin-top: 8px; }
+.tl-help-toc-group { display: flex; flex-direction: column; gap: 1px; }
+.tl-help-toc { max-height: calc(100vh - 24px); overflow-y: auto; }
+.tl-help-group { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: #7a789a; margin: 10px 0 -4px; }
+.tl-help-group:first-child { margin-top: 0; }
+
+/* the saved badge (22 Nov: smaller): ✓ and the last commit, details on hover */
+.tl-status { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; }
+.tl-status.saved { background: #e8f5e2; color: #1e7a10; }
+.tl-status.saving { background: #ebf5fa; color: #1f1246; }
+.tl-status.error { background: #fdf3dc; color: #7a5000; cursor: pointer; min-height: 0; }
+.tl-status span { color: #1f1246; font-weight: 600; }
+.tl-popover .tl-btn { margin-top: 8px; }
+.tl-popover label.tl-legend-item { flex-direction: row; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.tl-popover label.tl-legend-item input { width: auto; margin: 0; }

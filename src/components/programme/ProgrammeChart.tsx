@@ -19,7 +19,6 @@ import {
   parseUKDate,
   setDuration,
   setStart,
-  slip,
   sortByStart,
   toggleCollapse,
   tradeColorOf,
@@ -84,6 +83,7 @@ export default function ProgrammeChart({
   onInsertSectionBefore,
   onAddFirst,
   compare,
+  slipBase,
 }: {
   w: Working
   zoom: Zoom
@@ -106,6 +106,7 @@ export default function ProgrammeChart({
   onInsertSectionBefore: (code: string) => void
   onAddFirst: () => void
   compare?: Comparison | null // the original programme (or a revision) drawn under the bars
+  slipBase?: Comparison | null // the original programme, for the Slip column when nothing's overlaid
 }) {
   const sd = w.programme.shutdowns ?? []
   const today = new Date().toISOString().slice(0, 10)
@@ -501,9 +502,9 @@ export default function ProgrammeChart({
           const color = tradeColorOf(w, t.trade)
           const bx = x(t.start_date)
           const bw = Math.max(dayW, (daysBetween(t.start_date, t.finish_date) + 1) * dayW)
-          const s = slip(it.t)
           const was = compare?.bars.get(t.code)
-          const cs = compare ? finishSlip(it.t, was, sd) : null
+          const base = compare ?? slipBase ?? null
+          const cs = base ? finishSlip(it.t, base.bars.get(t.code), sd) : null
           const barTop = compare ? 4 : (ROW - BAR) / 2
           const barH = compare ? 14 : BAR
           const midY = barTop + barH / 2
@@ -585,30 +586,26 @@ export default function ProgrammeChart({
                 )}
                 {widths[6] > 0 && (
                   <div>
-                    {compare ? (
+                    {base ? (
                       !cs ? (
-                        <span className="slip-badge slip-new" title={`Not in ${compare.label}`}>
+                        <span className="slip-badge slip-new" title={`Not in ${base.label}`}>
                           new
                         </span>
                       ) : cs.days > 0 ? (
-                        <span className="slip-badge slip-behind" title={`Finishes ${cs.working} working days later than in ${compare.label}`}>
+                        <span className="slip-badge slip-behind" title={`Finishes ${cs.working} working days later than in ${base.label}`}>
                           +{cs.days}d
                         </span>
                       ) : cs.days < 0 ? (
-                        <span className="slip-badge slip-ahead" title={`Finishes ${-cs.working} working days earlier than in ${compare.label}`}>
+                        <span className="slip-badge slip-ahead" title={`Finishes ${-cs.working} working days earlier than in ${base.label}`}>
                           {cs.days}d
                         </span>
                       ) : (
                         <span className="slip-badge slip-none">on time</span>
                       )
-                    ) : s === null ? (
-                      <span className="slip-badge slip-none">—</span>
-                    ) : s > 0 ? (
-                      <span className="slip-badge slip-behind">+{s}d</span>
-                    ) : s < 0 ? (
-                      <span className="slip-badge slip-ahead">{s}d</span>
                     ) : (
-                      <span className="slip-badge slip-none">on track</span>
+                      <span className="slip-badge slip-none" title="Commit the programme: slip then shows against the original programme">
+                        —
+                      </span>
                     )}
                   </div>
                 )}

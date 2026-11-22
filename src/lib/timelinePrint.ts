@@ -32,6 +32,7 @@ export interface PrintOptions {
   printedBy?: string
   now?: Date // "today" (the Today line and printed date)
   // the original programme (or a revision) drawn under each bar, with the slippage shaded (22 Nov)
+  todayLine?: boolean // the dashed today line (default on)
   compare?: { label: string; bars: Map<string, { start_date: string; finish_date: string; milestone: boolean }> }
 }
 
@@ -105,6 +106,7 @@ interface PrintCtx {
   getTrade: (name: string) => { name: string; color: string }
   today: Date
   compare?: PrintOptions['compare']
+  todayLine: boolean
 }
 
 function computePrintAxis(ctx: PrintCtx, m: PrintMetrics): PrintAxis {
@@ -181,13 +183,6 @@ function buildRulerAndGrid(ctx: PrintCtx, axis: PrintAxis, w: number, totalH: nu
       out += svgText(x + 3, PP.rulerPx - 8, fmtMon(d), 'start', '#7a789a', 7)
       d = new Date(d.getFullYear(), d.getMonth() + 1, 1)
     }
-  }
-  const today = new Date(ctx.today)
-  today.setHours(0, 0, 0, 0)
-  if (today >= masterStart && today <= masterEnd) {
-    const x = dateToX(today)
-    out += `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${totalH}" stroke="#007abe" stroke-width="1"/>`
-    out += svgText(x + 2, PP.rulerPx + 8, 'Today', 'start', '#007abe', 6.5, 700)
   }
   out += `<line x1="0" y1="${PP.rulerPx}" x2="${w}" y2="${PP.rulerPx}" stroke="#c7cbdd" stroke-width="0.75"/>`
   return out
@@ -308,7 +303,18 @@ function buildPageSVG(ctx: PrintCtx, axis: PrintAxis, m: PrintMetrics, chunk: TL
     rowLines += `<line x1="0" y1="${y.toFixed(2)}" x2="${m.ganttW}" y2="${y.toFixed(2)}" stroke="#dfe3ee" stroke-width="0.6"/>`
   }
   const bars = buildBarsForChunk(ctx, axis, m, chunk, taskPageMap, pageIndex)
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${m.ganttW}" height="${totalH}" viewBox="0 0 ${m.ganttW} ${totalH}" style="display:block">${grid}${rowLines}${bars}</svg>`
+  // today: a dashed line dropped down the whole page over everything, dated in the ruler (22 Nov)
+  let todayLine = ''
+  const today = new Date(ctx.today)
+  today.setHours(0, 0, 0, 0)
+  if (ctx.todayLine && today >= axis.masterStart && today <= axis.masterEnd) {
+    const x = axis.dateToX(today) + axis.dateToX(addDays(today, 1)) / 2 - axis.dateToX(today) / 2
+    const label = `Today ${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getFullYear()).slice(2)}`
+    todayLine += `<line x1="${x.toFixed(1)}" y1="${PP.rulerPx - 12}" x2="${x.toFixed(1)}" y2="${totalH}" stroke="#D63030" stroke-width="1" stroke-dasharray="3,2"/>`
+    todayLine += `<rect x="${(x - 26).toFixed(1)}" y="${PP.rulerPx - 21}" width="52" height="10" rx="2" fill="#D63030"/>`
+    todayLine += svgText(x, PP.rulerPx - 16, label, 'middle', '#fff', 6, 700)
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${m.ganttW}" height="${totalH}" viewBox="0 0 ${m.ganttW} ${totalH}" style="display:block">${grid}${rowLines}${bars}${todayLine}</svg>`
 }
 function buildPrintTable(ctx: PrintCtx, chunk: TLRenderItem[], taskPageMap: TaskPageMap, pageIndex: number) {
   const { state, criticalSet } = ctx
@@ -349,7 +355,7 @@ export function buildPrintPagesHtml(state: TLState, opts: PrintOptions): string 
   const taskVisible = (t: TLTask) => (!contractor || sameName(t.contractor, contractor)) && (!opts.criticalOnly || criticalSet.has(t.id))
   const filtering = !!contractor || !!opts.criticalOnly
   const visible = state.tasks.filter(taskVisible)
-  const ctx: PrintCtx = { state, visible, criticalSet, getTrade: tradeResolver(state), today: now, compare: opts.compare }
+  const ctx: PrintCtx = { state, visible, criticalSet, getTrade: tradeResolver(state), today: now, compare: opts.compare, todayLine: opts.todayLine !== false }
 
   // Document-control details for the title block and header strapline
   const contractorText =
