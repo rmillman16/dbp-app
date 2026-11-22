@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
 import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
-import { useIsAdmin } from '../lib/admin'
+import { ROLES, SECTIONS, useAccess, type Role, type Section } from '../lib/access'
 import AdminOnly from '../components/AdminOnly'
 import { Insurances, OmStandardDocuments } from './Sections'
 
@@ -15,6 +15,7 @@ export default function Settings() {
       <Insurances />
       <OmStandardDocuments />
       <Users />
+      <AccessGrid />
       <ExportAll />
     </AdminOnly>
   )
@@ -114,33 +115,40 @@ function CompanyDetails() {
   )
 }
 
+// Users and their profile types (script 035): admins tick each person's types here; what each type can open
+// is the grid below (Access). No type yet = today's access, so nobody is locked out while types are given out.
 function Users() {
   const [people, setPeople] = useState<Profile[] | null>(null)
-  const isAdmin = useIsAdmin()
+  const { reload: reloadAccess } = useAccess()
   const [err, setErr] = useState<string | null>(null)
-  // Operations (script 034): sees Site's buyer's lists. Admins tick it here.
-  async function setOps(p: Profile, on: boolean) {
-    setErr(null)
-    setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_operations: on } : x)))
-    const r = await supabase.rpc('set_operations', { person: p.id, on_off: on })
-    if (r.error) {
-      setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_operations: !on } : x)))
-      setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 034 in Supabase first (supabase/README.md).' : r.error.message)
-    }
-  }
   useEffect(() => {
     cached('profiles', () => must<Profile[]>(supabase.from('profiles').select('*').order('email'))).then(setPeople, () => setPeople([]))
   }, [])
+  async function toggle(p: Profile, role: Role) {
+    setErr(null)
+    const before = people
+    const roles = (p.roles ?? []).includes(role) ? (p.roles ?? []).filter((r) => r !== role) : [...(p.roles ?? []), role]
+    setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, roles } : x)))
+    const r = await supabase.rpc('set_roles', { person: p.id, new_roles: roles })
+    if (r.error) {
+      setPeople(before)
+      setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 035 in Supabase first (supabase/README.md).' : r.error.message)
+    } else reloadAccess()
+  }
+  const untyped = (people ?? []).filter((p) => !p.is_admin && !(p.roles ?? []).length).length
   return (
     <section className="card">
-      <h2>Users</h2>
-      <table className="table stack">
+      <h2>Users and profile types</h2>
+      <p className="muted small intro">
+        Tick each person’s profile types (more than one is fine). What each type can open is set in Access below. Admins see everything.
+        {untyped > 0 && ` ${untyped} ${untyped === 1 ? 'person has' : 'people have'} no type yet, so they still see everything but the buyer’s lists.`}
+      </p>
+      <table className="table stack users-table">
         <thead>
           <tr>
             <th>Name</th>
             <th>Email</th>
-            <th>Admin</th>
-            <th>Operations</th>
+            <th>Profile types</th>
           </tr>
         </thead>
         <tbody>
@@ -148,19 +156,19 @@ function Users() {
             <tr key={p.id}>
               <td className="stack-title">{p.full_name && p.full_name !== p.email ? p.full_name : '–'}</td>
               <td data-label="Email">{p.email}</td>
-              <td data-label="Admin">{p.is_admin ? <span className="tag live">Admin</span> : ''}</td>
-              <td data-label="Operations">
-                {p.is_admin ? (
-                  <span className="muted small">Yes (admin)</span>
-                ) : (
-                  <input
-                    type="checkbox"
-                    checked={!!p.is_operations}
-                    disabled={!isAdmin}
-                    onChange={(e) => setOps(p, e.target.checked)}
-                    title="Sees the material and hire buyer's lists"
-                  />
-                )}
+              <td data-label="Types">
+                <div className="type-chips">
+                  {p.is_admin && (
+                    <span className="type-chip on fixed" title="Admin is changed in Supabase's SQL Editor">
+                      Admin
+                    </span>
+                  )}
+                  {ROLES.map(([r, label]) => (
+                    <button key={r} type="button" className={`type-chip ${(p.roles ?? []).includes(r) ? 'on' : ''}`} onClick={() => toggle(p, r)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </td>
             </tr>
           ))}
@@ -168,9 +176,71 @@ function Users() {
       </table>
       {err && <p className="error">{err}</p>}
       <p className="muted small">
-        Operations logins see Site's material and hire buyer's lists; everyone else sees only the requisitions they raised. Add a login in Supabase › Authentication › Users › Add
-        user (tick Auto Confirm). To make someone an admin, run in Supabase › SQL Editor: <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
+        Add a login in Supabase › Authentication › Users › Add user (tick Auto Confirm). To make someone an admin, run in Supabase › SQL Editor:{' '}
+        <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
       </p>
+    </section>
+  )
+}
+
+// which profile types can open which parts of the app (role_access, script 035)
+function AccessGrid() {
+  const { grid, reload } = useAccess()
+  const [ticks, setTicks] = useState<Set<string>>(new Set())
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => setTicks(new Set(grid.map((g) => `${g.role}|${g.section}`))), [grid])
+  async function toggle(role: Role, section: Section) {
+    setErr(null)
+    const key = `${role}|${section}`
+    const on = !ticks.has(key)
+    const next = new Set(ticks)
+    if (on) next.add(key)
+    else next.delete(key)
+    setTicks(next)
+    const r = on ? await supabase.from('role_access').insert({ role, section }) : await supabase.from('role_access').delete().eq('role', role).eq('section', section)
+    if (r.error) {
+      setTicks(ticks)
+      setErr(/relation|schema cache|does not exist/i.test(r.error.message) ? 'Run script 035 in Supabase first (supabase/README.md).' : r.error.message)
+    } else reload()
+  }
+  return (
+    <section className="card">
+      <h2>Access</h2>
+      <p className="muted small intro">What each profile type can open. Someone with several types gets everything any of them allows. Settings is for admins only.</p>
+      <div className="table-scroll">
+        <table className="table access-grid">
+          <thead>
+            <tr>
+              <th>Part of the app</th>
+              {ROLES.map(([r, label]) => (
+                <th key={r} className="centre">
+                  {label}
+                </th>
+              ))}
+              <th className="centre">Admin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SECTIONS.map(([s, label, note]) => (
+              <tr key={s}>
+                <td>
+                  {label}
+                  {note && <div className="muted small">{note}</div>}
+                </td>
+                {ROLES.map(([r, rl]) => (
+                  <td key={r} className="centre">
+                    <input type="checkbox" checked={ticks.has(`${r}|${s}`)} onChange={() => toggle(r, s)} aria-label={`${rl}: ${label}`} />
+                  </td>
+                ))}
+                <td className="centre">
+                  <input type="checkbox" checked disabled aria-label={`Admin: ${label}`} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {err && <p className="error">{err}</p>}
     </section>
   )
 }

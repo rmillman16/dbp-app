@@ -505,6 +505,7 @@ export interface Profile {
   initials: string | null
   job_title: string | null // signature, e.g. Quantity Surveyor
   is_admin: boolean
+  roles?: string[] // script 035: profile types (src/lib/access.tsx)
   is_operations?: boolean // script 034: sees the requisition buyer's lists (admins tick it in Settings › Users)
 }
 

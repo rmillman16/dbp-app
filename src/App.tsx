@@ -3,6 +3,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { configError, supabase } from './lib/supabase'
 import Layout from './components/Layout'
+import { AccessProvider } from './lib/access'
+import { RequireAccess as A } from './components/NoAccess'
 import JobsTable from './components/JobsTable'
 import SignIn from './pages/SignIn'
 import Home from './pages/Home'
@@ -74,51 +76,165 @@ export default function App() {
   if (email == null) return <SignIn />
 
   return (
-    <Layout email={email}>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/jobs" element={<JobsTable title="All jobs" />} />
-        <Route path="/jobs/new" element={<JobForm />} />
-        <Route path="/jobs/:id/edit" element={<JobForm />} />
-        <Route path="/jobs/:id" element={<JobLayout />}>
-          <Route index element={<JobOverview />} />
-          <Route path="variations" element={<VariationsRegister />} />
-          <Route path="variations/:voId" element={<VariationEditor />} />
-          <Route path="quotations" element={<QuotationsRegister />} />
-          <Route path="quotations/:quoteId" element={<QuotationEditor />} />
-          <Route path="applications" element={<ApplicationsTab />} />
-          <Route path="applications/:appId" element={<ApplicationEditor />} />
-          <Route path="payment-notices" element={<SubcontractsTab />} />
-          <Route path="payment-notices/:orderId" element={<OrderPage />} />
-          <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
-          <Route path="programme" element={<ProgrammeTab />} />
-          <Route path="cashflow" element={<CashflowTab />} />
-          <Route path="procurement" element={<ProcurementTab />} />
-          <Route path="sampling" element={<SamplingTab />} />
-          <Route path="eot" element={<EotTab />} />
-          <Route path="cvr" element={<CvrTab />} />
-          <Route path="cvr/:cvrId" element={<CvrEditor />} />
-        </Route>
-        <Route path="/help/programme" element={<ProgrammeHelp />} />
-        <Route path="/estimating" element={<Estimating />} />
-        <Route path="/estimating/new" element={<EnquiryForm />} />
-        <Route path="/estimating/e/:enquiryId" element={<EnquiryPage />} />
-        <Route path="/estimating/e/:enquiryId/edit" element={<EnquiryForm />} />
-        <Route path="/estimating/e/:enquiryId/programme" element={<EnquiryProgramme />} />
-        <Route path="/estimating/q/:quoteId" element={<EstimatingQuotationEditor />} />
-        <Route path="/estimating/:tab" element={<Estimating />} />
-        <Route path="/contracts" element={<Contracts />} />
-        <Route path="/contractors" element={<Contractors />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/me" element={<MyDetails />} />
-        <Route path="/site" element={<Site />} />
-        <Route path="/site/buyer" element={<Navigate to="/site/buyer/material" replace />} />
-        <Route path="/site/buyer/:kind" element={<BuyerList />} />
-        <Route path="/site/requisitions/new" element={<MaterialRequisitionForm />} />
-        <Route path="/site/requisitions/:reqId" element={<RequisitionPage />} />
-        <Route path="/project-management" element={<Navigate to="/site" replace />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+    <AccessProvider>
+      <Layout email={email}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route
+            path="/jobs"
+            element={
+              <A section="jobs">
+                <JobsTable title="All jobs" />
+              </A>
+            }
+          />
+          <Route
+            path="/jobs/new"
+            element={
+              <A section="jobs">
+                <JobForm />
+              </A>
+            }
+          />
+          <Route
+            path="/jobs/:id/edit"
+            element={
+              <A section="jobs">
+                <JobForm />
+              </A>
+            }
+          />
+          <Route
+            path="/jobs/:id"
+            element={
+              <A section="jobs">
+                <JobLayout />
+              </A>
+            }
+          >
+            <Route index element={<JobOverview />} />
+            <Route path="variations" element={<VariationsRegister />} />
+            <Route path="variations/:voId" element={<VariationEditor />} />
+            <Route path="quotations" element={<QuotationsRegister />} />
+            <Route path="quotations/:quoteId" element={<QuotationEditor />} />
+            <Route path="applications" element={<ApplicationsTab />} />
+            <Route path="applications/:appId" element={<ApplicationEditor />} />
+            <Route path="payment-notices" element={<SubcontractsTab />} />
+            <Route path="payment-notices/:orderId" element={<OrderPage />} />
+            <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
+            <Route path="programme" element={<ProgrammeTab />} />
+            <Route path="cashflow" element={<CashflowTab />} />
+            <Route path="procurement" element={<ProcurementTab />} />
+            <Route path="sampling" element={<SamplingTab />} />
+            <Route path="eot" element={<EotTab />} />
+            <Route path="cvr" element={<CvrTab />} />
+            <Route path="cvr/:cvrId" element={<CvrEditor />} />
+          </Route>
+          <Route path="/help/programme" element={<ProgrammeHelp />} />
+          <Route
+            path="/estimating"
+            element={
+              <A section="estimating">
+                <Estimating />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/new"
+            element={
+              <A section="estimating">
+                <EnquiryForm />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId"
+            element={
+              <A section="estimating">
+                <EnquiryPage />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/edit"
+            element={
+              <A section="estimating">
+                <EnquiryForm />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/programme"
+            element={
+              <A section="estimating">
+                <EnquiryProgramme />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/q/:quoteId"
+            element={
+              <A section="estimating">
+                <EstimatingQuotationEditor />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/:tab"
+            element={
+              <A section="estimating">
+                <Estimating />
+              </A>
+            }
+          />
+          <Route
+            path="/contracts"
+            element={
+              <A section="contracts">
+                <Contracts />
+              </A>
+            }
+          />
+          <Route
+            path="/contractors"
+            element={
+              <A section="contractors">
+                <Contractors />
+              </A>
+            }
+          />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/me" element={<MyDetails />} />
+          <Route
+            path="/site"
+            element={
+              <A section="site">
+                <Site />
+              </A>
+            }
+          />
+          <Route path="/site/buyer" element={<Navigate to="/site/buyer/material" replace />} />
+          <Route path="/site/buyer/:kind" element={<BuyerList />} />
+          <Route
+            path="/site/requisitions/new"
+            element={
+              <A section="site" what="the requisition forms">
+                <MaterialRequisitionForm />
+              </A>
+            }
+          />
+          <Route
+            path="/site/requisitions/:reqId"
+            element={
+              <A section="site" what="requisitions">
+                <RequisitionPage />
+              </A>
+            }
+          />
+          <Route path="/project-management" element={<Navigate to="/site" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Layout>
+    </AccessProvider>
   )
 }

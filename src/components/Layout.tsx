@@ -5,15 +5,27 @@ import { NotificationsProvider } from '../lib/notifications'
 import { clearOfflineCopy, useOnline } from '../lib/offline'
 import { useIsAdmin } from '../lib/admin'
 import Bell from './Bell'
+import { useAccess, type Section } from '../lib/access'
+import { PageErrorBoundary } from './NoAccess'
 
 // Company-wide areas (agreed 20 Nov). Each job's modules are tabs inside the job (see JobLayout).
-const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: boolean }[] = [
+const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: boolean; section?: Section }[] = [
   { to: '/', label: 'Home', icon: 'M3 11 12 3l9 8v10h-6v-6H9v6H3z' },
-  { to: '/jobs', label: 'Jobs', icon: 'M4 7h16v13H4zM9 7V4h6v3' },
-  { to: '/estimating', label: 'Estimating', icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 7h6M9 11h2M13 11h2M9 15h2M13 15h2' },
-  { to: '/contracts', label: 'Contracts', icon: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7' },
-  { to: '/site', label: 'Site', icon: 'M4 6h10M4 12h16M4 18h7M17 4v4M20 10v4M14 16v4' },
-  { to: '/contractors', label: 'Contractors', icon: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3 3-5 6-5s6 2 6 5m0-5c1-.6 2-1 3-1 3 0 5 2 5 5' },
+  { to: '/jobs', label: 'Jobs', icon: 'M4 7h16v13H4zM9 7V4h6v3', section: 'jobs' },
+  {
+    to: '/estimating',
+    label: 'Estimating',
+    icon: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1ZM9 7h6M9 11h2M13 11h2M9 15h2M13 15h2',
+    section: 'estimating',
+  },
+  { to: '/contracts', label: 'Contracts', icon: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7', section: 'contracts' },
+  { to: '/site', label: 'Site', icon: 'M4 6h10M4 12h16M4 18h7M17 4v4M20 10v4M14 16v4', section: 'site' },
+  {
+    to: '/contractors',
+    label: 'Contractors',
+    icon: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3 3-5 6-5s6 2 6 5m0-5c1-.6 2-1 3-1 3 0 5 2 5 5',
+    section: 'contractors',
+  },
   {
     to: '/settings',
     label: 'Settings',
@@ -40,11 +52,12 @@ export default function Layout({ email, children }: { email: string; children: R
   const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const isAdmin = useIsAdmin()
+  const { can } = useAccess()
 
   // close the phone menu whenever you move to another page
   useEffect(() => setMenuOpen(false), [pathname])
 
-  const navItems = NAV.filter((n) => !n.admin || isAdmin).map((n) =>
+  const navItems = NAV.filter((n) => (!n.admin || isAdmin) && (!n.section || can(n.section))).map((n) =>
     n.soon ? (
       <span key={n.to} className="nav-item disabled" title="Coming soon">
         <NavIcon d={n.icon} />
@@ -114,7 +127,9 @@ export default function Layout({ email, children }: { email: string; children: R
             <div>{offlinePill}</div>
             <Bell />
           </header>
-          <main className="page">{children}</main>
+          <main className="page">
+            <PageErrorBoundary resetKey={pathname}>{children}</PageErrorBoundary>
+          </main>
         </div>
       </div>
     </NotificationsProvider>

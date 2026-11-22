@@ -33,23 +33,3 @@ export function useIsAdmin(): boolean | null {
   }, [])
   return admin
 }
-
-// Operations (script 034): an Operations login or an admin. Sees Site's buyer's lists; the database enforces it too.
-let opsPending: Promise<boolean> | null = null
-export function loadIsOperations(): Promise<boolean> {
-  opsPending ??= (async () => {
-    const { data } = await supabase.auth.getSession()
-    const id = data.session?.user.id
-    if (!id) return false
-    const row = await cached('me-ops', () => must<Profile>(supabase.from('profiles').select('*').eq('id', id).single()))
-    return !!(row.is_admin || row.is_operations)
-  })().catch(() => false)
-  return opsPending
-}
-export function useIsOperations(): boolean | null {
-  const [ops, setOps] = useState<boolean | null>(null)
-  useEffect(() => {
-    loadIsOperations().then(setOps)
-  }, [])
-  return ops
-}

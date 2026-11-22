@@ -3,11 +3,13 @@ import { useNotifications } from '../lib/notifications'
 import NotificationList from '../components/NotificationList'
 import JobsTable from '../components/JobsTable'
 import { BellIcon } from '../components/Bell'
+import { useAccess } from '../lib/access'
 
 // Home = what needs me today, then the jobs.
 export default function Home() {
   const { attention, upcoming, worst, error } = useNotifications()
   const [showUpcoming, setShowUpcoming] = useState(false)
+  const { can } = useAccess()
 
   return (
     <>
@@ -33,7 +35,7 @@ export default function Home() {
         )}
       </section>
 
-      <JobsTable />
+      {can('jobs') && <JobsTable />}
     </>
   )
 }

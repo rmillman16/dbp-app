@@ -4,7 +4,8 @@ import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { loadCompanies } from '../lib/subcontracts'
 import { useNotifications } from '../lib/notifications'
-import { useIsOperations } from '../lib/admin'
+import { useAccess } from '../lib/access'
+import { NoAccess } from '../components/NoAccess'
 import {
   OPEN_STATUSES,
   REQ_STATUS_LABELS,
@@ -33,7 +34,7 @@ import type { Company, Job } from '../lib/types'
 // Operations logins and admins (script 034; the database enforces it too).
 
 function SiteNav() {
-  const ops = useIsOperations()
+  const { can } = useAccess()
   return (
     <>
       <h1>Site</h1>
@@ -60,15 +61,15 @@ function SiteNav() {
         <NavLink to="/site" end className="pill">
           My requisitions
         </NavLink>
-        {ops && (
-          <>
-            <NavLink to="/site/buyer/material" className="pill">
-              Material buyer's list
-            </NavLink>
-            <NavLink to="/site/buyer/hire" className="pill">
-              Hire buyer's list
-            </NavLink>
-          </>
+        {can('buyer_material') && (
+          <NavLink to="/site/buyer/material" className="pill">
+            Material buyer's list
+          </NavLink>
+        )}
+        {can('buyer_hire') && (
+          <NavLink to="/site/buyer/hire" className="pill">
+            Hire buyer's list
+          </NavLink>
         )}
       </nav>
     </>
@@ -275,7 +276,7 @@ const inFilter = (f: Filter, s: ReqStatus) => (f === 'all' ? true : f === 'open'
 export function BuyerList() {
   const { kind: kindParam } = useParams()
   const kind: ReqKind = kindParam === 'hire' ? 'hire' : 'material'
-  const ops = useIsOperations()
+  const { can } = useAccess()
   const navigate = useNavigate()
   const [rows, setRows] = useState<Requisition[] | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -310,12 +311,11 @@ export function BuyerList() {
   const today = todayIso()
   const soon = addDaysIso(today, 3)
 
-  if (ops === null) return <SiteNav />
-  if (!ops)
+  if (!can(kind === 'hire' ? 'buyer_hire' : 'buyer_material'))
     return (
       <>
         <SiteNav />
-        <p className="muted">The buyer's lists are for Operations. Ask an admin if you need access.</p>
+        <NoAccess what={`the ${kind} buyer's list`} />
       </>
     )
   return (
@@ -407,7 +407,7 @@ export function BuyerList() {
 // ---------- one requisition: the details, the conversation, and the buyer's order details ----------
 export function RequisitionPage() {
   const { reqId } = useParams()
-  const ops = useIsOperations()
+  const { can } = useAccess()
   const [params] = useSearchParams()
   const { reload: reloadBell } = useNotifications()
   const [req, setReq] = useState<Requisition | null>(null)
@@ -449,7 +449,7 @@ export function RequisitionPage() {
 
   if (!req) return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>
   const isRequester = userId != null && userId === req.requested_by
-  const asBuyer = !!ops
+  const asBuyer = can(req.kind === 'hire' ? 'buyer_hire' : 'buyer_material')
 
   async function send(e: FormEvent) {
     e.preventDefault()

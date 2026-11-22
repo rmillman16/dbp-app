@@ -24,9 +24,20 @@
   - which jobs each person sees.
 
   Today every signed-in user sees and edits everything, except that admins alone change templates (script 005).
-  - **Operations user type: built 22 Nov (script 034).** Admins tick "Operations" against a login in Settings › Users (admins count as Operations). Only Operations and admins see Site's material and hire buyer's lists; anyone else sees only the requisitions they raised. The database enforces this too.
-  - **⚠ Reminder for Richard: tick Operations for the buyers** in Settings › Users once 034 is run.
-  - **Still to come:** a **Requester** type for site managers, who would see only the requisition forms and their own requests and nothing else in the app.
+  - **Profile types: built 22 Nov (scripts 034, 035).**
+    - Types: **Project manager, Commercial, Site management, Design, Accounts, Operations, External**, plus **Admin** (`profiles.is_admin`, changed only in Supabase's SQL Editor). A person can have several types.
+    - Admins tick each person's types in **Settings › Users and profile types**.
+    - **Settings › Access** is a grid of what each type can open: Jobs, each job tab group (Programme, Commercial, Procurement, Sampling, EOT), Estimating, Contracts, Contractors, Site requisitions, and the material and hire buyer's lists. Admins see everything. Settings is admins only.
+    - Starting ticks are in 035 and are Claude's suggestion, for Richard to adjust.
+    - **No type yet = today's access** (everything but the buyer's lists), so nobody is locked out while types are given out.
+    - A part you can't open is hidden from the menus and job tabs. Going to it by link shows a **"You don't have access" screen**: the app is working, access is set by DBP's app admins not IT, here's who to ask (admins listed, with an email link).
+    - A page that crashes shows "This page hit a problem" with Reload / Go to Home instead of a blank screen.
+    - **Database enforcement:** for requisitions it's the grid (your own, or all of a kind whose buyer's list you can open). The rest is screens only for now.
+    - **⚠ Before External logins are handed out,** the database must also check each part (jobs, commercial, etc.).
+  - **Still to come:**
+    - Which jobs each person sees.
+    - Add / reset / remove users from the app (needs a small Edge Function; Richard to say go).
+    - A requester-only view for site managers can now be a type ticked for Site requisitions only.
 - **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
   - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.
   - **Sign-in: "Sign in with Microsoft"** with their DBP account, once per phone (it remembers them, so it's effectively no sign-in after that).
@@ -46,7 +57,7 @@
     - **My requisitions:** the requester's own, with their status.
     - **Big buttons** for Material requisition and Hire requisition (hire marked "soon").
     - **Attachments:** a "Take photo" button opens the phone's camera straight away (iPhone and Android), next to choosing photos or files.
-    - **Separate buyer's lists for material and hire** (`/site/buyer/material`, `/site/buyer/hire`), for Operations and admins only (034). Each lists every requisition of its kind across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
+    - **Separate buyer's lists for material and hire** (`/site/buyer/material`, `/site/buyer/hire`), each shown to the types ticked for it in Settings › Access (Operations by default) and admins. Each lists every requisition of its kind across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
     - **Each requisition:** its details, attachments, a questions-and-answers conversation, and the buyer's order details (supplier, PO, value, order and delivery dates).
     - **Notifications** (the database does this):
       - A buyer's message sets it to "Query raised" and puts a reminder, due today, on the requester's bell and the job Overview's To-do box.

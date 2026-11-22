@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router-dom'
+import { useAccess, type Section } from '../lib/access'
+import { NoAccess } from '../components/NoAccess'
 import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { cached, must } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 
 // Each module is a tab inside the job; new modules are added here.
-const TABS: { to: string; label: string; soon?: boolean }[] = [
+const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] = [
   { to: '', label: 'Overview' },
-  { to: 'programme', label: 'Programme' },
-  { to: 'variations', label: 'Variations' },
-  { to: 'quotations', label: 'Quotations' },
-  { to: 'applications', label: 'Applications' },
-  { to: 'payment-notices', label: 'Payment notices' },
-  { to: 'cashflow', label: 'Cashflow' },
-  { to: 'procurement', label: 'Procurement' },
-  { to: 'sampling', label: 'Sampling' },
-  { to: 'eot', label: 'EOT' },
-  { to: 'cvr', label: 'CVR' },
+  { to: 'programme', label: 'Programme', section: 'job_programme' },
+  { to: 'variations', label: 'Variations', section: 'job_commercial' },
+  { to: 'quotations', label: 'Quotations', section: 'job_commercial' },
+  { to: 'applications', label: 'Applications', section: 'job_commercial' },
+  { to: 'payment-notices', label: 'Payment notices', section: 'job_commercial' },
+  { to: 'cashflow', label: 'Cashflow', section: 'job_commercial' },
+  { to: 'procurement', label: 'Procurement', section: 'job_procurement' },
+  { to: 'sampling', label: 'Sampling', section: 'job_sampling' },
+  { to: 'eot', label: 'EOT', section: 'job_eot' },
+  { to: 'cvr', label: 'CVR', section: 'job_commercial' },
   { to: 'om', label: 'O&M', soon: true },
 ]
 
@@ -36,6 +38,7 @@ export default function JobLayout() {
   const [error, setError] = useState<string | null>(null)
   const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const { can } = useAccess()
 
   // close the sections dropdown whenever you move to another section
   useEffect(() => setMenuOpen(false), [pathname])
@@ -54,7 +57,7 @@ export default function JobLayout() {
   const section = pathname.split('/')[3] ?? ''
   const current = TABS.find((t) => t.to === section) ?? TABS[0]
   const tabs = (cls: string) =>
-    TABS.map((t) =>
+    TABS.filter((t) => !t.section || can(t.section)).map((t) =>
       t.soon ? (
         <span key={t.label} className={`${cls} disabled`} title="Coming soon">
           {t.label}
@@ -113,7 +116,7 @@ export default function JobLayout() {
         )}
       </div>
 
-      <Outlet context={{ job, setJob } satisfies JobContext} />
+      {current.section && !can(current.section) ? <NoAccess what={`${current.label} on jobs`} /> : <Outlet context={{ job, setJob } satisfies JobContext} />}
     </>
   )
 }
