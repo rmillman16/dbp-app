@@ -83,7 +83,7 @@
       - Hire statuses run Ordered → **On hire** → **Off-hired** (or Voided).
       - Hire Req - ADMIN filters: Open, Awaiting answer, On hire, Off-hired, All. Hire ends within 3 days are shown red.
       - The buyer can change the **Hire end** on the requisition to extend a hire.
-      - **3 days before a hire ends**, everyone whose type can open Hire Req - ADMIN (the ops team; the admins if nobody can) gets a reminder on their bell and in that job's To-do. It moves if the end date changes and closes when off-hired or voided.
+      - **3 days before a hire ends**, everyone whose type can open Hire Req - ADMIN (the ops team; the admins if nobody can) gets a reminder on their bell and in that job's To-do, and so does whoever raised the hire (040). It moves if the end date changes and closes when off-hired or voided.
     - **Both lists:** **Buyer notes** can be typed straight into the list. "Cancelled" is shown as **Voided**, as on SharePoint.
     - **Still to do:**
       - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
