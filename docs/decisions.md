@@ -15,6 +15,16 @@
     - It needs the app on a public web address (with IT).
   - About one session to build.
 - **Submittals and RFIs** (Richard, 22 Nov): to scope. Technical submittals (drawings, data sheets, method statements) and requests for information, tracked per job. The 19 Nov sampling scope noted SubmittalLink covers technical submissions and drawings today, so agree first whether this replaces it or links to it. Progress report 2.2 shows the submittals summary (before samples) and design queries.
+- **Enquiry generator** (Richard, 22 Nov): as in his "Enquiry Generator Preview" artifact. It drafts subcontractor enquiries in Outlook and never sends them (drafts only, as for all email). Read the artifact before scoping.
+- **Archiving jobs** (Richard, 22 Nov): a finished job becomes read-only and leaves the live lists. Defects and retention reminders keep running on the bell.
+- **SOPs and how-to guides per module** (Richard, 22 Nov), like the programme's help page (`/help/programme`), for each module.
+- **Permissions** (Richard, 22 Nov):
+  - roles;
+  - what each role can see and do;
+  - which jobs each person sees.
+
+  Today every signed-in user sees and edits everything, except that admins alone change templates (script 005).
+- **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
@@ -432,6 +442,11 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **CDP taken out** (Richard, 21 Nov), from the screen and the Excel. The buttons read "Excel: internal" and "Excel: client copy".
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
+
+## Sampling: schedule import reads the file directly (22 Nov)
+- Richard's first schedule import failed with "Cannot read properties…". The ExcelJS library chokes on some designers' files (pictures in cells, tables, shapes and similar).
+- The import now reads just the text straight out of the file (`src/lib/xlsxText.ts`): shared strings, typed text and the values Excel saved for formulas. Pictures, shapes, comments and errors are skipped.
+- Tested on Excel-made schedules with floating pictures, a shape, a comment, a merged title and a formula.
 
 ## Sampling tracker: built (22 Nov, script 030)
 Job › **Sampling** tab, after Procurement. Richard chose photo and approval uploads into the app, and due dates from the programme.

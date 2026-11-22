@@ -110,19 +110,9 @@ export function buildItems(rows: unknown[][], m: Mapping): ScheduleItem[] {
   return [...out.values()]
 }
 
-// a worksheet as rows of cell text (merged and formula cells as Excel shows them)
+// the workbook's sheets as rows of cell text: read straight from the file (xlsxText.ts), not through the
+// Excel library, which failed on a designer's schedule (22 Nov: "Cannot read properties…")
 export async function readWorkbook(file: File) {
-  const { loadXlsx } = await import('./xlsxLoad')
-  const wb = await loadXlsx(await file.arrayBuffer())
-  return wb.worksheets
-    .map((ws) => {
-      const rows: string[][] = []
-      ws.eachRow({ includeEmpty: true }, (row, n) => {
-        const cells: string[] = []
-        row.eachCell({ includeEmpty: true }, (cell, c) => (cells[c - 1] = (cell.text ?? '').toString().trim()))
-        rows[n - 1] = cells
-      })
-      return { name: ws.name, rows: Array.from(rows, (r) => r ?? []) }
-    })
-    .filter((s) => s.rows.some((r) => r.some(Boolean)))
+  const { readSheets } = await import('./xlsxText')
+  return readSheets(await file.arrayBuffer())
 }
