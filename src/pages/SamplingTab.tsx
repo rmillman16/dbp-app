@@ -455,12 +455,22 @@ function SamplePanel({
           </label>
           <label>
             Material group
-            <select value={s.material_group} onChange={(e) => set({ material_group: e.target.value })}>
-              {[...new Set([...MATERIAL_GROUPS, s.material_group])].map((g) => (
+            <select
+              value={s.material_group}
+              onChange={(e) => {
+                if (e.target.value !== '__new__') return set({ material_group: e.target.value })
+                // a group of the job's own (22 Nov), e.g. "Sanitaryware": it joins the list for every sample here
+                const name = prompt('New material group (e.g. Sanitaryware, Signage):')?.trim()
+                if (name) set({ material_group: name })
+              }}
+            >
+              {/* the standard groups, any this job has added, and this sample's own */}
+              {[...new Set([...MATERIAL_GROUPS, ...data.samples.map((x) => x.material_group), s.material_group])].map((g) => (
                 <option key={g} value={g}>
                   {g}
                 </option>
               ))}
+              <option value="__new__">+ Add a group…</option>
             </select>
           </label>
           <label>
