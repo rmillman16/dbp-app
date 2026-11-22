@@ -39,7 +39,7 @@
       - **Switch off / on** a login. Leavers are switched off, not deleted, so their name stays on what they did. You can't switch yourself off.
       - **Last signed in** is shown for each user.
       - My details has **Change password**.
-      - Admin itself is still only set in the SQL Editor.
+      - **Admin and IT** are buttons too (037). Making someone an admin asks you to confirm. You can't take admin off yourself, and the last admin can't be removed. IT can only be ticked on admins.
       - The server key stays inside Supabase and is never in the app.
     - **Database enforcement:** for requisitions it's the grid (your own, or all of a kind whose buyer's list you can open). The rest is screens only for now.
     - **⚠ Before External logins are handed out,** the database must also check each part (jobs, commercial, etc.).

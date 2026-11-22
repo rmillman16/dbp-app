@@ -798,3 +798,7 @@ select.req-status.req-ordered, select.req-status.req-delivered { background: #e2
 .user-actions { display: flex; gap: 10px; }
 .link-button.danger { color: var(--red); }
 tr.login-off td { opacity: 0.6; }
+.type-chip.admin.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+.type-chip:disabled { cursor: default; opacity: 0.45; }
+.type-chip.on:disabled { opacity: 1; }
+.type-sep { width: 1px; background: var(--line); margin: 0 4px; align-self: stretch; }

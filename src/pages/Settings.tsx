@@ -147,6 +147,20 @@ function Users() {
       setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 035 in Supabase first (supabase/README.md).' : r.error.message)
     } else reloadAccess()
   }
+  // admin (script 037): admins make other people admins; not yourself off, never the last admin (the database checks)
+  async function setAdmin(p: Profile, on: boolean) {
+    const who = p.full_name ?? p.email
+    if (on && !confirm(`Make ${who} an admin? Admins see everything and can change Settings, users and access.`)) return
+    if (!on && !confirm(`Take admin off ${who}?`)) return
+    setErr(null)
+    const before = people
+    setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_admin: on, is_it: on ? x.is_it : false } : x)))
+    const r = await supabase.rpc('set_admin', { person: p.id, on_off: on })
+    if (r.error) {
+      setPeople(before)
+      setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 037 in Supabase first (supabase/README.md).' : r.error.message)
+    }
+  }
   async function setIt(p: Profile, on: boolean) {
     setErr(null)
     const before = people
@@ -230,17 +244,27 @@ function Users() {
                 </td>
                 <td data-label="Types">
                   <div className="type-chips">
-                    {p.is_admin && (
-                      <span className="type-chip on fixed" title="Admin is changed in Supabase's SQL Editor">
-                        Admin
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      className={`type-chip admin ${p.is_admin ? 'on' : ''}`}
+                      onClick={() => setAdmin(p, !p.is_admin)}
+                      disabled={p.is_admin && p.id === me?.id}
+                      title={p.is_admin && p.id === me?.id ? 'You can’t take admin off yourself' : 'Admins see everything and can change Settings'}
+                    >
+                      Admin
+                    </button>
                     {/* IT (script 036): the admin login(s) IT uses; access requests go to them */}
-                    {p.is_admin && (
-                      <button type="button" className={`type-chip it ${p.is_it ? 'on' : ''}`} onClick={() => setIt(p, !p.is_it)} title="Access requests go to IT">
-                        IT
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className={`type-chip it ${p.is_it ? 'on' : ''}`}
+                      onClick={() => setIt(p, !p.is_it)}
+                      disabled={!p.is_admin}
+                      title={p.is_admin ? 'Access requests go to IT' : 'Make them an admin first'}
+                    >
+                      IT
+                    </button>
+                    <span className="type-sep" aria-hidden />
+
                     {ROLES.map(([r, label]) => (
                       <button key={r} type="button" className={`type-chip ${(p.roles ?? []).includes(r) ? 'on' : ''}`} onClick={() => toggle(p, r)}>
                         {label}
@@ -277,8 +301,7 @@ function Users() {
       </table>
       {err && <p className="error">{err}</p>}
       <p className="muted small">
-        Someone who leaves: switch their login off (nothing they did is deleted). To make someone an admin, run in Supabase › SQL Editor:{' '}
-        <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
+        Someone who leaves: switch their login off (nothing they did is deleted). Admin and IT: you can’t take admin off yourself, and there’s always at least one admin.
       </p>
     </section>
   )
