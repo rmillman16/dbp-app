@@ -52,9 +52,9 @@
     - **Database enforcement: built 22 Nov (043).** The database applies the grid to every part of the app, so a part you can't open comes back empty. Quotations and programmes follow the job's part, or Estimating for an enquiry's.
       - Left open to all staff because several parts use them: contractors, O&M standard documents, wording, company settings, profiles and reminders.
       - The requisition forms get just each site's number, code and name.
-      - **Before External logins:** check the External ticks in Settings › Access, and decide which jobs each person sees (still to build).
+      - **Before External logins:** check the External ticks in Settings › Access. Everyone sees every job for now (Richard, 22 Nov).
   - **Still to come:**
-    - Which jobs each person sees.
+    - Which jobs each person sees: **not needed for now** (Richard, 22 Nov: everyone sees every job). Revisit before External logins see jobs.
     - A requester-only view for site managers can now be a type ticked for Site requisitions only.
 - **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
   - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.
