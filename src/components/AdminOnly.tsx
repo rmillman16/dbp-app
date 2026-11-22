@@ -1,15 +1,10 @@
 import type { ReactNode } from 'react'
 import { useIsAdmin } from '../lib/admin'
+import { NoAccess } from './NoAccess'
 
-export default function AdminOnly({ children }: { children: ReactNode }) {
+export default function AdminOnly({ children, what = 'Settings' }: { children: ReactNode; what?: string }) {
   const admin = useIsAdmin()
   if (admin === null) return <p className="muted">Loading…</p>
-  if (!admin)
-    return (
-      <section className="card">
-        <h2>Admins only</h2>
-        <p className="muted">This area is for admins. Ask an admin if something here needs changing.</p>
-      </section>
-    )
+  if (!admin) return <NoAccess what={what} />
   return <>{children}</>
 }
