@@ -91,6 +91,7 @@ export interface SavedProgramme {
   project_start?: string | null // "Programme starts"
   week_start?: string | null // "Start on site (Wk 1)"; blank = worked out
   client_logo?: string | null // data URL
+  contract_rev?: number | null // the original (contract) programme: a committed revision's number (script 027)
   sections?: Section[]
 }
 
@@ -309,6 +310,7 @@ const TASK_COLUMNS = ['code', 'name', 'section', 'trade', 'start_date', 'finish_
 const COLUMNS_025 = ['predecessors', 'progress'] as const
 const COLUMNS_026 = ['contractor', 'rag', 'prereq_confirmed', 'prereq_note', 'skeleton', 'baseline_start', 'baseline_duration'] as const
 export const has026 = (p: SavedProgramme | null) => !!p && 'sections' in p
+export const has027 = (p: SavedProgramme | null) => !!p && 'contract_rev' in p
 function taskRow(t: ProgrammeTask, programmeId: string, with026: boolean) {
   const row: Record<string, unknown> = { programme_id: programmeId }
   for (const k of TASK_COLUMNS) row[k] = t[k] ?? (k === 'sort' ? 0 : null)
@@ -409,7 +411,7 @@ export async function syncProgramme(before: { programme: SavedProgramme; tasks: 
     for (let i = 0; i < changed.length; i += 500)
       await ok(supabase.from('programme_tasks').upsert(changed.slice(i, i + 500).map((t) => ({ id: t.id, ...taskRow(t, id, with026) }))))
   const settings: Record<string, unknown> = {}
-  for (const k of [...SETTINGS, ...(with026 ? SETTINGS_026 : [])])
+  for (const k of [...SETTINGS, ...(with026 ? SETTINGS_026 : []), ...(has027(before.programme) ? (['contract_rev'] as const) : [])])
     if (!same(before.programme[k], after.programme[k])) settings[k] = after.programme[k] ?? (k === 'trades' || k === 'shutdowns' || k === 'sections' ? [] : null)
   if (Object.keys(settings).length) await ok(supabase.from('programmes').update(settings).eq('id', id))
 }

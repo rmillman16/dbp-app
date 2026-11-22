@@ -661,7 +661,7 @@ export function parseUKDate(str: string, fallbackYear: number, anchor: string | 
 }
 
 // ---------- programme settings ----------
-export function setSetting(w0: Working, fields: Partial<Pick<SavedProgramme, 'project_name' | 'project_start' | 'week_start' | 'client_logo'>>) {
+export function setSetting(w0: Working, fields: Partial<Pick<SavedProgramme, 'project_name' | 'project_start' | 'week_start' | 'client_logo' | 'contract_rev'>>) {
   const w = clone(w0)
   Object.assign(w.programme, fields)
   return w

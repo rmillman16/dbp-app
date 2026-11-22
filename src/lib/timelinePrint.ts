@@ -31,6 +31,8 @@ export interface PrintOptions {
   status?: string // e.g. 'Committed'; default 'Draft'
   printedBy?: string
   now?: Date // "today" (the Today line and printed date)
+  // the original programme (or a revision) drawn under each bar, with the slippage shaded (22 Nov)
+  compare?: { label: string; bars: Map<string, { start_date: string; finish_date: string; milestone: boolean }> }
 }
 
 // Milestone diamonds at this fraction of the bar height (as in the interactive chart)
@@ -102,6 +104,7 @@ interface PrintCtx {
   criticalSet: Set<string>
   getTrade: (name: string) => { name: string; color: string }
   today: Date
+  compare?: PrintOptions['compare']
 }
 
 function computePrintAxis(ctx: PrintCtx, m: PrintMetrics): PrintAxis {
@@ -220,6 +223,26 @@ function buildBarsForChunk(ctx: PrintCtx, axis: PrintAxis, m: PrintMetrics, chun
       svg += `<rect x="${bx1.toFixed(1)}" y="${(barY + barH - 2.5).toFixed(1)}" width="${Math.max(2, bx2 - bx1).toFixed(1)}" height="3.5" fill="none" stroke="#b8bcd0" stroke-width="0.8" stroke-dasharray="2,1.5"/>`
     }
 
+    // the comparison under the bar: grey where it was, red (late) or green (early) between its finish and now
+    const was = ctx.compare?.bars.get(t.id)
+    if (was) {
+      const gy = barY + barH + 0.8
+      const gx1 = axis.dateToX(fromISO(was.start_date))
+      const gx2 = was.milestone ? gx1 : axis.dateToX(addDays(fromISO(was.finish_date), 1))
+      if (was.milestone)
+        svg += `<rect x="${(gx1 - 2.2).toFixed(1)}" y="${gy.toFixed(1)}" width="4.4" height="4.4" fill="#fff" stroke="#7a789a" stroke-width="0.8" transform="rotate(45 ${gx1.toFixed(1)} ${(gy + 2.2).toFixed(1)})"/>`
+      else
+        svg += `<rect x="${gx1.toFixed(1)}" y="${gy.toFixed(1)}" width="${Math.max(2, gx2 - gx1).toFixed(1)}" height="3.6" rx="1" fill="#c9c8d8" stroke="#9aa0bb" stroke-width="0.5"/>`
+      const nowEnd = t.milestone ? fromISO(t.start) : addDays(taskEndDate(state, t), 1)
+      const wasEnd = was.milestone ? fromISO(was.finish_date) : addDays(fromISO(was.finish_date), 1)
+      const a = axis.dateToX(wasEnd)
+      const b = axis.dateToX(nowEnd)
+      if (Math.abs(b - a) > 0.5) {
+        const late = b > a
+        svg += `<rect x="${Math.min(a, b).toFixed(1)}" y="${gy.toFixed(1)}" width="${Math.abs(b - a).toFixed(1)}" height="3.6" fill="${late ? '#f4b6b6' : '#bfe3b4'}" stroke="${late ? '#D63030' : '#2e9914'}" stroke-width="0.6"/>`
+      }
+    }
+
     let ragDotX: number
     if (t.milestone) {
       const cx = x1,
@@ -326,10 +349,11 @@ export function buildPrintPagesHtml(state: TLState, opts: PrintOptions): string 
   const taskVisible = (t: TLTask) => (!contractor || sameName(t.contractor, contractor)) && (!opts.criticalOnly || criticalSet.has(t.id))
   const filtering = !!contractor || !!opts.criticalOnly
   const visible = state.tasks.filter(taskVisible)
-  const ctx: PrintCtx = { state, visible, criticalSet, getTrade: tradeResolver(state), today: now }
+  const ctx: PrintCtx = { state, visible, criticalSet, getTrade: tradeResolver(state), today: now, compare: opts.compare }
 
   // Document-control details for the title block and header strapline
-  const contractorText = (contractor ? ` · ${contractor} only` : '') + (opts.criticalOnly ? ' · critical path only' : '')
+  const contractorText =
+    (contractor ? ` · ${contractor} only` : '') + (opts.criticalOnly ? ' · critical path only' : '') + (opts.compare ? ` · compared with ${opts.compare.label}` : '')
   const revText = opts.revision || 'Not issued'
   const statusText = opts.status || 'Draft'
   const printedOn = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })

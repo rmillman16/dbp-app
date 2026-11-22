@@ -3,12 +3,15 @@
 // often needs a programme too). Laid out as Timeline: the toolbar, quick add, then the task list and
 // chart. Every change is kept in memory (Undo goes back up to 30), and saved a moment later, so the
 // cashflow and procurement always work from the latest programme. Timeline's Save / Commit become
-// automatic saving / Issue revision (Initial issue, Rev A, Rev B…, with history and what changed).
+// automatic saving / Commit (Initial issue, Rev A, Rev B…, with history and what changed). One committed
+// revision is the original (contract) programme; Compare draws it (or any revision) under the bars, with the
+// slippage shaded, for an EOT (22 Nov, script 027).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ukDate } from '../../lib/format'
 import { saveError } from '../../lib/offline'
 import {
   has026,
+  has027,
   issueRevision,
   listProgrammes,
   listRevisions,
@@ -61,6 +64,7 @@ import {
 import { GENERATED_FILE } from '../../lib/programmeGen'
 import { fromTimeline, revName, toTimeline, type TLState } from '../../lib/timelineFormat'
 import { diffProgrammeData } from '../../lib/timelineDiff'
+import { compareSummary, comparisonFrom, type Comparison } from '../../lib/programmeCompare'
 import { buildMSProjectXML, buildXER, downloadFile, exportFileName } from '../../lib/timelineExport'
 import { printProgramme } from '../../lib/timelinePrint'
 import { loadCompanies } from '../../lib/subcontracts'
@@ -90,7 +94,7 @@ const store = {
     }
   },
 }
-type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'help' | null
+type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'help' | 'compare' | null
 type Dialog =
   | { kind: 'dup'; section: string }
   | { kind: 'del'; section: string }
@@ -146,6 +150,7 @@ export default function ProgrammeEditor({
   const [todayTick, setTodayTick] = useState(0)
   const [companies, setCompanies] = useState<string[]>([])
   const [revisions, setRevisions] = useState<ProgrammeRevision[]>([])
+  const [compare, setCompare] = useState<Comparison | null>(null) // the original (or a revision) drawn under the bars
   const [compact, setCompact] = useState(() => window.innerWidth < 700)
   const [full, setFull] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -342,6 +347,15 @@ export default function ProgrammeEditor({
 
   const programme = w.programme
   const tl = () => toTimeline(programme, w.tasks)
+  const compareLabel = (no: number) => `${revName(no)}${no === programme.contract_rev ? ' (original programme)' : ''}`
+  const showCompare = async (no: number) => {
+    try {
+      const data = await loadRevisionData(programme.id, [no])
+      setCompare(comparisonFrom(no, compareLabel(no), data[0]?.data))
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   const monday = weekOneMonday(w)
   const lastRev = revisions[0]
   const openTask = (code: string) => {
@@ -405,7 +419,7 @@ export default function ProgrammeEditor({
       </span>
     ) : (
       <span className="tl-cloud-chip linked" title="Every change is saved for everyone straight away">
-        Saved{lastRev ? ` · ${revName(lastRev.rev_no)} issued ${ukDate(lastRev.created_at.slice(0, 10))}` : ' · not yet issued'}
+        Saved{lastRev ? ` · ${revName(lastRev.rev_no)} committed ${ukDate(lastRev.created_at.slice(0, 10))}` : ' · not yet committed'}
       </span>
     )
 
@@ -416,7 +430,7 @@ export default function ProgrammeEditor({
       {!has026(programme) && (
         <p className="warning small">
           Run script <strong>026</strong> in Supabase (supabase/README.md) so contractor, RAG, prerequisites, skeleton crew, baselines, section order, Wk 1, the client logo and
-          issued revisions are saved. Tasks, dates, links and shutdowns save already.
+          committed revisions are saved. Tasks, dates, links and shutdowns save already.
         </p>
       )}
       {programme.file_name === GENERATED_FILE && <p className="warning small">A simple programme made from the SoW: edit it here, or use Open file… to import the real one.</p>}
@@ -473,11 +487,11 @@ export default function ProgrammeEditor({
           className="tl-btn tl-btn-primary"
           onClick={() => setDialog({ kind: 'issue' })}
           disabled={!has026(programme)}
-          title="Issue the programme as a numbered revision (Initial issue, Rev A, Rev B…)"
+          title="Lock the programme as it is now as a numbered revision (Initial issue, Rev A, Rev B…); the first is the original programme to compare against"
         >
-          Issue revision
+          Commit
         </button>
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Issued revisions and what changed between them">
+        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Committed revisions and what changed between them">
           History{revisions.length ? ` (${revisions.length})` : ''}
         </button>
         <label className="tl-btn tl-btn-sm" title="Open a programme from a file (DBP Timeline .json, P6 .xer, MS Project .xml): replaces this one">
@@ -610,6 +624,34 @@ export default function ProgrammeEditor({
         <button className={`tl-btn ${critOnly ? 'is-on' : ''}`} onClick={() => setCritOnly(!critOnly)} title="Fade everything that isn't on the critical path">
           Critical path ({critical.size})
         </button>
+        <span className="tl-pop-wrap">
+          <button
+            className={`tl-btn ${compare ? 'is-on' : ''}`}
+            onClick={() => setPop(pop === 'compare' ? null : 'compare')}
+            disabled={!revisions.length}
+            title={
+              revisions.length
+                ? 'Show the original programme (or any revision) under the bars, with the slippage'
+                : 'Commit the programme first: the first commit is the original programme'
+            }
+          >
+            Compare{compare ? `: ${revName(compare.rev_no)}` : ''} ▾
+          </button>
+          <Popover open={pop === 'compare'} onClose={() => setPop(null)} width={300}>
+            <div className="tl-legend-title">Overlay a committed revision</div>
+            <div className={`tl-menu-item ${!compare ? 'on' : ''}`} onClick={() => (setPop(null), setCompare(null))}>
+              Off
+            </div>
+            {[...revisions]
+              .sort((a, b) => Number(b.rev_no === programme.contract_rev) - Number(a.rev_no === programme.contract_rev) || b.rev_no - a.rev_no)
+              .map((r) => (
+                <div key={r.id} className={`tl-menu-item ${compare?.rev_no === r.rev_no ? 'on' : ''}`} onClick={() => (setPop(null), showCompare(r.rev_no))}>
+                  {revName(r.rev_no)}
+                  {r.rev_no === programme.contract_rev ? ' (original programme)' : ''} <span className="muted">· {ukDate(r.created_at.slice(0, 10))}</span>
+                </div>
+              ))}
+          </Popover>
+        </span>
         <select className="tl-btn tl-select" value={contractor} onChange={(e) => setContractor(e.target.value)} title="Show (and print) only one contractor's tasks">
           <option value="">All contractors</option>
           {usedContractors.map((c) => (
@@ -650,6 +692,7 @@ export default function ProgrammeEditor({
               criticalOnly: critOnly,
               critical,
               revision: lastRev ? revName(lastRev.rev_no) : undefined,
+              compare: compare ? { label: compareLabel(compare.rev_no), bars: compare.bars } : undefined,
             }).catch((e) => setError((e as Error).message))
           }}
           title="A3 landscape, as many pages as it needs (save as PDF from the print window)"
@@ -707,6 +750,7 @@ export default function ProgrammeEditor({
         )}
       </div>
 
+      {compare && <CompareBar w={w} c={compare} onClose={() => setCompare(null)} />}
       {linking && (
         <div className="tl-banner">
           <span>{linkMsg}</span>
@@ -780,6 +824,7 @@ export default function ProgrammeEditor({
           if (name) apply(insertSectionBefore(w, code, name), `new section "${name}"`)
         }}
         onAddFirst={() => setModal({ task: draftTask(w), isNew: true })}
+        compare={compare}
       />
 
       {toast && <div className="tl-toast">{toast}</div>}
@@ -840,13 +885,16 @@ export default function ProgrammeEditor({
       {dialog?.kind === 'issue' && (
         <IssueDialog
           next={revName((lastRev?.rev_no ?? 0) + 1)}
+          canOriginal={has027(programme)}
+          original={programme.contract_rev ? revName(programme.contract_rev) : null}
           onClose={() => setDialog(null)}
-          onIssue={async (note) => {
+          onIssue={async (note, asOriginal) => {
             await flush()
             const no = await issueRevision(programme.id, note, tl(), w.tasks.length)
             setRevisions(await listRevisions(programme.id))
+            if (asOriginal) apply(setSetting(live.current!, { contract_rev: no }), `make ${revName(no)} the original programme`)
             setDialog(null)
-            flashToast(`${revName(no)} issued.`)
+            flashToast(`${revName(no)} committed${asOriginal ? ' as the original programme' : ''}.`)
           }}
         />
       )}
@@ -855,6 +903,10 @@ export default function ProgrammeEditor({
           programmeId={programme.id}
           revisions={revisions}
           current={tl()}
+          original={programme.contract_rev ?? null}
+          canOriginal={has027(programme)}
+          onMakeOriginal={(no) => apply(setSetting(w, { contract_rev: no }), `make ${revName(no)} the original programme`)}
+          onCompare={(no) => (setDialog(null), showCompare(no))}
           onClose={() => setDialog(null)}
           onRestore={(state, label) => {
             const p = fromTimeline(state)
@@ -909,7 +961,7 @@ export default function ProgrammeEditor({
           }
         >
           <ImportSummary p={dialog.parsed} name={dialog.name} />
-          <p className="tl-p tl-light">This programme's issued revisions are kept in History. Issue a revision first if you want to keep a copy of it as it is now.</p>
+          <p className="tl-p tl-light">This programme's committed revisions are kept in History. Commit first if you want to keep a copy of it as it is now.</p>
         </Modal>
       )}
       {dialog?.kind === 'new' && (
@@ -1003,7 +1055,8 @@ function Help() {
           <b>Undo:</b> <kbd>Ctrl</kbd>+<kbd>Z</kbd> or Undo (the last 30 changes).
         </li>
         <li>
-          <b>Saving:</b> automatic, for everyone. <b>Issue revision</b> keeps a numbered copy (Initial issue, Rev A…); <b>History</b> shows what changed.
+          <b>Saving:</b> automatic, for everyone. <b>Commit</b> locks a numbered copy (Initial issue, Rev A…), the first being the original programme; <b>Compare</b> overlays it to
+          show slippage; <b>History</b> shows what changed.
         </li>
         <li>
           <b>Working days</b> are Monday to Friday, less shutdowns. Durations are working days.
@@ -1233,13 +1286,26 @@ function PreviousDialog({
 }
 
 // openCommitModal: the programme issued as the next revision
-function IssueDialog({ next, onClose, onIssue }: { next: string; onClose: () => void; onIssue: (note: string) => Promise<void> }) {
+function IssueDialog({
+  next,
+  canOriginal,
+  original,
+  onClose,
+  onIssue,
+}: {
+  next: string
+  canOriginal: boolean
+  original: string | null // the revision that's the original programme now
+  onClose: () => void
+  onIssue: (note: string, asOriginal: boolean) => Promise<void>
+}) {
   const [note, setNote] = useState('')
+  const [asOriginal, setAsOriginal] = useState(canOriginal && !original)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   return (
     <Modal
-      title={`Issue ${next}`}
+      title={`Commit ${next}`}
       onClose={onClose}
       footer={
         <>
@@ -1254,48 +1320,76 @@ function IssueDialog({ next, onClose, onIssue }: { next: string; onClose: () => 
               onClick={async () => {
                 setBusy(true)
                 try {
-                  await onIssue(note.trim())
+                  await onIssue(note.trim(), asOriginal)
                 } catch (e) {
                   setErr(saveError(e))
                   setBusy(false)
                 }
               }}
             >
-              {busy ? 'Issuing…' : `Issue ${next}`}
+              {busy ? 'Committing…' : `Commit ${next}`}
             </button>
           </div>
         </>
       }
     >
       <p className="tl-p">
-        Keeps a copy of the programme as it is now as <b>{next}</b>, to look back at and compare in History. You carry on editing the working programme as normal.
+        Locks a copy of the programme as it is now as <b>{next}</b>, to look back at, compare and overlay. You carry on editing the working programme as normal.
       </p>
       <div className="tl-field">
         <label>Note (what's changed, who it's for)</label>
-        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Issued with tender; joinery resequenced after design review" autoFocus />
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Contract programme at award; joinery resequenced after design review" autoFocus />
       </div>
+      {canOriginal ? (
+        <div className="tl-field tl-check">
+          <input type="checkbox" id="tl-orig" checked={asOriginal} onChange={(e) => setAsOriginal(e.target.checked)} />
+          <label htmlFor="tl-orig">
+            This is the <b>original programme</b> to compare against later (e.g. for an EOT){original ? `: replaces ${original}` : ''}
+          </label>
+        </div>
+      ) : (
+        <p className="tl-hint">Run script 027 to mark a revision as the original programme.</p>
+      )}
       {err && <div className="tl-err">{err}</div>}
     </Modal>
   )
 }
 
-// openHistoryModal: issued revisions, what changed in each, restore one
+// openHistoryModal: committed revisions, what changed in each, overlay, make original, restore
 function HistoryDialog({
   programmeId,
   revisions,
   current,
+  original,
+  canOriginal,
+  onMakeOriginal,
+  onCompare,
   onClose,
   onRestore,
 }: {
   programmeId: string
   revisions: ProgrammeRevision[]
   current: TLState
+  original: number | null
+  canOriginal: boolean
+  onMakeOriginal: (no: number) => void
+  onCompare: (no: number) => void
   onClose: () => void
   onRestore: (state: TLState, label: string) => void
 }) {
   const [open, setOpen] = useState<Record<number, string[] | 'loading'>>({})
   const [err, setErr] = useState<string | null>(null)
-  const show = async (no: number | 'now') => {
+  const show = async (no: number | 'now' | 'orig') => {
+    if (no === 'orig') {
+      if (open[-1]) return setOpen({ ...open, [-1]: undefined as unknown as string[] })
+      try {
+        const data = await loadRevisionData(programmeId, [original!])
+        setOpen((o) => ({ ...o, [-1]: diffProgrammeData(data[0]?.data as TLState, current) }))
+      } catch (e) {
+        setErr((e as Error).message)
+      }
+      return
+    }
     const key = no === 'now' ? 0 : no
     if (open[key]) return setOpen({ ...open, [key]: undefined as unknown as string[] })
     setOpen({ ...open, [key]: 'loading' })
@@ -1325,20 +1419,31 @@ function HistoryDialog({
           </div>
           <div className="tl-prog-meta">Saved automatically as you go</div>
           {Array.isArray(open[0]) && <Diff lines={open[0] as string[]} />}
+          {Array.isArray(open[-1]) && <Diff lines={open[-1] as string[]} />}
         </div>
-        <button className="tl-btn tl-btn-sm" onClick={() => show('now')}>
-          {open[0] ? 'Hide' : 'Changes since last issue'}
-        </button>
+        <div className="tl-row-gap">
+          <button className="tl-btn tl-btn-sm" onClick={() => show('now')}>
+            {open[0] ? 'Hide' : 'Changes since last commit'}
+          </button>
+          {original && (
+            <button className="tl-btn tl-btn-sm" onClick={() => show('orig')}>
+              {open[-1] ? 'Hide' : 'Changes since the original'}
+            </button>
+          )}
+        </div>
       </div>
-      {!revisions.length && <p className="tl-p tl-light">Nothing issued yet. Use Issue revision to keep a numbered copy (Initial issue, then Rev A, Rev B…).</p>}
+      {!revisions.length && (
+        <p className="tl-p tl-light">Nothing committed yet. Use Commit to lock a numbered copy (Initial issue, then Rev A, Rev B…); the first is the original programme.</p>
+      )}
       {revisions.map((r) => (
         <div key={r.id} className="tl-prog-row">
           <div className="tl-prog-main">
             <div className="tl-prog-name">
-              <span className="tl-rev-badge">{revName(r.rev_no)}</span> {r.note || <span className="tl-light">No note</span>}
+              <span className="tl-rev-badge">{revName(r.rev_no)}</span>
+              {r.rev_no === original && <span className="tl-rev-badge original">Original programme</span>} {r.note || <span className="tl-light">No note</span>}
             </div>
             <div className="tl-prog-meta">
-              Issued {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count}{' '}
+              Committed {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count}{' '}
               tasks
             </div>
             {Array.isArray(open[r.rev_no]) && <Diff lines={open[r.rev_no] as string[]} />}
@@ -1347,6 +1452,14 @@ function HistoryDialog({
             <button className="tl-btn tl-btn-sm" onClick={() => show(r.rev_no)}>
               {open[r.rev_no] ? 'Hide' : 'What changed'}
             </button>
+            <button className="tl-btn tl-btn-sm" onClick={() => onCompare(r.rev_no)} title="Show it under the bars, with the slippage">
+              Overlay
+            </button>
+            {canOriginal && r.rev_no !== original && (
+              <button className="tl-btn tl-btn-sm" onClick={() => onMakeOriginal(r.rev_no)} title="Compare against this one as the original (contract) programme">
+                Make original
+              </button>
+            )}
             <button
               className="tl-btn tl-btn-sm"
               onClick={async () => downloadFile(`${revName(r.rev_no)}.json`, JSON.stringify(await fetchOne(r.rev_no), null, 2), 'application/json')}
@@ -1369,4 +1482,43 @@ function HistoryDialog({
 }
 function Diff({ lines }: { lines: string[] }) {
   return <div className="tl-rev-diff">{lines.length ? lines.map((l, i) => <div key={i}>{l}</div>) : <div>No changes.</div>}</div>
+}
+
+// over the chart while comparing: completion then and now, how many tasks moved, the key
+function CompareBar({ w, c, onClose }: { w: Working; c: Comparison; onClose: () => void }) {
+  const sum = compareSummary(w.tasks, c, w.programme.shutdowns ?? [])
+  const m = sum.moved
+  return (
+    <div className="tl-compare-bar">
+      <span>
+        Compared with <b>{c.label}</b>
+      </span>
+      {m && sum.wasFinish && sum.nowFinish && (
+        <span>
+          {sum.completionName}: {ukDate(sum.wasFinish)} → <b>{ukDate(sum.nowFinish)}</b>{' '}
+          {m.days === 0 ? (
+            <span>(no change)</span>
+          ) : (
+            <span className={m.days > 0 ? 'late' : 'early'}>
+              ({m.days > 0 ? '+' : ''}
+              {m.days} days, {m.working > 0 ? '+' : ''}
+              {m.working} working days)
+            </span>
+          )}
+        </span>
+      )}
+      <span>
+        {sum.later} later · {sum.earlier} earlier · {sum.same} on time{sum.added.length ? ` · ${sum.added.length} new` : ''}
+        {sum.removed.length ? <span title={sum.removed.join(', ')}> · {sum.removed.length} removed</span> : null}
+      </span>
+      <span className="tl-compare-key">
+        <i style={{ background: 'rgba(122,120,154,.38)', border: '1px solid #9aa0bb' }} /> original
+        <i style={{ background: 'repeating-linear-gradient(45deg, rgba(214,48,48,.55) 0 3px, rgba(214,48,48,.15) 3px 6px)', border: '1px solid #D63030' }} /> late
+        <i style={{ background: 'repeating-linear-gradient(45deg, rgba(46,153,20,.5) 0 3px, rgba(46,153,20,.12) 3px 6px)', border: '1px solid #2e9914' }} /> early
+      </span>
+      <button className="tl-btn tl-btn-sm" onClick={onClose} style={{ marginLeft: 'auto' }}>
+        Hide overlay
+      </button>
+    </div>
+  )
 }

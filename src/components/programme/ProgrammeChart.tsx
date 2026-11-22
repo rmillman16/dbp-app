@@ -5,6 +5,7 @@
 // drawn. One box scrolls both ways: the task list stays put while the chart scrolls sideways.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ProgrammeTask } from '../../lib/programme'
+import { finishSlip, type Comparison } from '../../lib/programmeCompare'
 import { addDays, daysBetween } from '../../lib/programmeEdit'
 import { calendarOf } from '../../lib/programmeLinks'
 import {
@@ -82,6 +83,7 @@ export default function ProgrammeChart({
   onDeleteSection,
   onInsertSectionBefore,
   onAddFirst,
+  compare,
 }: {
   w: Working
   zoom: Zoom
@@ -103,6 +105,7 @@ export default function ProgrammeChart({
   onDeleteSection: (name: string) => void
   onInsertSectionBefore: (code: string) => void
   onAddFirst: () => void
+  compare?: Comparison | null // the original programme (or a revision) drawn under the bars
 }) {
   const sd = w.programme.shutdowns ?? []
   const today = new Date().toISOString().slice(0, 10)
@@ -499,6 +502,11 @@ export default function ProgrammeChart({
           const bx = x(t.start_date)
           const bw = Math.max(dayW, (daysBetween(t.start_date, t.finish_date) + 1) * dayW)
           const s = slip(it.t)
+          const was = compare?.bars.get(t.code)
+          const cs = compare ? finishSlip(it.t, was, sd) : null
+          const barTop = compare ? 8 : (ROW - BAR) / 2
+          const barH = compare ? 22 : BAR
+          const midY = barTop + barH / 2
           const len = lengthOf(it.t, sd)
           const side = (BAR * MILESTONE_SCALE) / 1.4142
           const labelInside = !t.milestone && bw > t.name.length * 6.6 + 16
@@ -577,7 +585,23 @@ export default function ProgrammeChart({
                 )}
                 {widths[6] > 0 && (
                   <div>
-                    {s === null ? (
+                    {compare ? (
+                      !cs ? (
+                        <span className="slip-badge slip-new" title={`Not in ${compare.label}`}>
+                          new
+                        </span>
+                      ) : cs.days > 0 ? (
+                        <span className="slip-badge slip-behind" title={`Finishes ${cs.working} working days later than in ${compare.label}`}>
+                          +{cs.days}d
+                        </span>
+                      ) : cs.days < 0 ? (
+                        <span className="slip-badge slip-ahead" title={`Finishes ${-cs.working} working days earlier than in ${compare.label}`}>
+                          {cs.days}d
+                        </span>
+                      ) : (
+                        <span className="slip-badge slip-none">on time</span>
+                      )
+                    ) : s === null ? (
                       <span className="slip-badge slip-none">—</span>
                     ) : s > 0 ? (
                       <span className="slip-badge slip-behind">+{s}d</span>
@@ -604,23 +628,23 @@ export default function ProgrammeChart({
                 <>
                   <div
                     className={`tl-mile ${isCrit ? 'is-critical' : ''}`}
-                    style={{ left: bx + dayW / 2 - side / 2, top: ROW / 2 - side / 2, width: side, height: side, background: color }}
+                    style={{ left: bx + dayW / 2 - side / 2, top: midY - side / 2, width: side, height: side, background: color }}
                     onPointerDown={(e) => startDrag(e, t.code, 'move')}
                     title={`◆ ${t.name}: ${fmtShort(t.start_date)}`}
                   />
-                  <span className="tl-bar-label after" style={{ left: bx + dayW / 2 + (BAR * MILESTONE_SCALE) / 2 + 6 }}>
+                  <span className="tl-bar-label after" style={{ left: bx + dayW / 2 + (BAR * MILESTONE_SCALE) / 2 + 6, lineHeight: `${midY * 2}px` }}>
                     {t.name}
                   </span>
                   <span
                     className="tl-rag-marker"
-                    style={{ left: bx + dayW / 2 + (BAR * MILESTONE_SCALE) / 2 - 2, top: ROW / 2 - BAR / 2 - 2, background: RAG_COLOR[t.rag ?? 'green'] }}
+                    style={{ left: bx + dayW / 2 + (BAR * MILESTONE_SCALE) / 2 - 2, top: midY - BAR / 2 - 2, background: RAG_COLOR[t.rag ?? 'green'] }}
                   />
                 </>
               ) : (
                 <>
                   <div
                     className={`tl-bar ${isCrit ? 'is-critical' : ''}`}
-                    style={{ left: bx, width: bw, top: (ROW - BAR) / 2, height: BAR, background: color }}
+                    style={{ left: bx, width: bw, top: barTop, height: barH, background: color }}
                     onPointerDown={(e) => startDrag(e, t.code, 'move')}
                     title={`${t.name}: ${fmtShort(t.start_date)} – ${fmtShort(t.finish_date)}, ${lengthOf(t, sd)} working days${t.skeleton ? ' (skeleton crew)' : ''}`}
                   >
@@ -629,11 +653,35 @@ export default function ProgrammeChart({
                     <div className="tl-handle" onPointerDown={(e) => startDrag(e, t.code, 'end')} title="Drag to change its length" />
                   </div>
                   {!labelInside && (
-                    <span className="tl-bar-label after" style={{ left: bx + bw + 6 }}>
+                    <span className="tl-bar-label after" style={{ left: bx + bw + 6, lineHeight: `${midY * 2}px` }}>
                       {t.name}
                     </span>
                   )}
-                  <span className="tl-rag-marker" style={{ left: bx + bw - 6, top: (ROW - BAR) / 2 - 2, background: RAG_COLOR[t.rag ?? 'green'] }} />
+                  <span className="tl-rag-marker" style={{ left: bx + bw - 6, top: barTop - 2, background: RAG_COLOR[t.rag ?? 'green'] }} />
+                </>
+              )}
+              {was && (
+                <>
+                  {was.milestone ? (
+                    <span className="tl-ghost-mile" style={{ left: x(was.start_date) + dayW / 2 - 5, top: 34 }} title={`${compare!.label}: ${fmtShort(was.start_date)}`} />
+                  ) : (
+                    <span
+                      className="tl-ghost"
+                      style={{ left: x(was.start_date), width: Math.max(dayW, (daysBetween(was.start_date, was.finish_date) + 1) * dayW), top: 35 }}
+                      title={`${compare!.label}: ${fmtShort(was.start_date)} – ${fmtShort(was.finish_date)}`}
+                    />
+                  )}
+                  {t.finish_date !== was.finish_date && (
+                    <span
+                      className={`tl-slip-strip ${t.finish_date > was.finish_date ? 'late' : 'early'}`}
+                      style={{
+                        left: x(t.finish_date < was.finish_date ? t.finish_date : was.finish_date) + (was.milestone || t.milestone ? dayW / 2 : dayW),
+                        width: Math.abs(daysBetween(was.finish_date, t.finish_date)) * dayW,
+                        top: 35,
+                      }}
+                      title={cs ? `${cs.days > 0 ? '+' : ''}${cs.days} days (${cs.working > 0 ? '+' : ''}${cs.working} working days) against ${compare!.label}` : ''}
+                    />
+                  )}
                 </>
               )}
               {t.skeleton && !t.milestone && calendarOf(t, sd).length === 0 && sd.length > 0 && (

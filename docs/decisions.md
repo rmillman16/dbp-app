@@ -162,6 +162,25 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 - **Live programmes:** Timeline saves them in a separate Supabase project (shared with the follow-up / Minutes app). They come across by exporting each one's .json from Timeline and importing it on the job's Programme tab.
 - **Importing a Timeline file** now reads its own Save layout (before, only its autosave layout), with links, trade colours and shutdowns.
 
+## Programme: the original programme and the overlay (22 Nov, script 027)
+Richard: "need to add some way of version history and the commit button which becomes the original programme we can come back and compare to later for an EOT etc. would be great to have an overlay feature where the new programme is shown as an overlay on the original programme to see slippage".
+- **Commit** (Timeline's name again, instead of "Issue revision") locks a numbered copy: Initial issue, Rev A, Rev B…, with a note.
+  - The commit dialog has a tick box: "This is the **original programme** to compare against later (e.g. for an EOT)". It's ticked automatically for the first commit.
+  - Any committed revision can be made the original later (History › Make original). One at a time, kept in `programmes.contract_rev` (script 027).
+- **History** is the version history:
+  - Each commit with its note and date, and "Original programme" marked.
+  - What changed since the one before; Overlay; Download; Restore.
+  - On the working programme: changes since the last commit, and changes since the original.
+- **Compare ▾** in the toolbar (or Overlay in History) draws the original, or any revision, under today's bars:
+  - A grey line where each task was.
+  - The slippage between its finish then and now: hatched red if later, green if earlier.
+  - Tasks are matched by activity code.
+- **While comparing:**
+  - **The Slip column** shows each task's finish against the comparison (+7d / −2d / on time / new; the tip gives working days).
+  - **The bar over the chart** gives completion then and now: Practical Completion if there's a milestone of that name, else the last task, e.g. "29/03/2027 → 05/04/2027 (+7 days, +5 working days)". It also counts how many tasks are later, earlier, on time, new and removed.
+- **Print / PDF** carries the overlay (grey original under each bar, red / green slippage), with "Compared with Initial issue (original programme)" in the header: ready for an EOT submission.
+- Timeline's own per-task **Set baseline** and Slip (start against baseline) still work as before when not comparing.
+
 ## Programme: Timeline's layout and every feature (22 Nov, script 026)
 Richard: "take the layout of Timeline and copy every feature of it"; "within estimating we need to link it to programmes as estimates and tenders often need a programme too". His request for a "previous programme" section on the start page was cut off mid-sentence; read as **start from a previous programme**.
 - **Layout as Timeline's** (checked against a screenshot of Timeline with the same sample programme):
