@@ -33,7 +33,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `027_programme_original.sql` | Programme: which committed revision is the original (contract) programme, for the overlay and slip against it (e.g. for an EOT) | ✅ Run 22 Nov 2026 |
 | `028_programme_critical.sql` | Programme: a task can be marked as on the critical path (ticked in the task form), as well as those the links make critical | ✅ Run 22 Nov 2026 |
 | `029_eot_programme_slip.sql` | EOT: a delay event can quote one programme task's slippage against the original programme (kept as quoted) | ✅ Run 22 Nov 2026 |
-| `030_sampling.sql` | Sampling tracker: quantity, programme activity and weeks before (due date follows the programme), photos and approvals uploaded (private storage area "samples"), samples due on the bell | ⬜ Not yet |
+| `030_sampling.sql` | Sampling tracker: quantity, programme activity and weeks before (due date follows the programme), photos and approvals uploaded (private storage area "samples"), samples due on the bell | ✅ Run 22 Nov 2026 |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
