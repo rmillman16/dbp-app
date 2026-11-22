@@ -47,7 +47,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `041_notification_emails.sql` | Notification emails: what's been emailed, each person's on / off (My details); new requisitions notify the ops team | ✅ Run |
 | `042_archive_jobs.sql` | Archiving jobs: admins only; an archived job and everything filed under it is read-only; reminders keep running | ✅ Run |
 | `043_access_in_database.sql` | The access grid enforced by the database for every part (needed before External logins); shared lists stay open; requisition site list via requisition_sites() | ✅ Run |
-| `044_dashboard_access.sql` | Company dashboard: ticked for Project manager and Commercial in Settings › Access | ⬜ Not yet |
+| `044_dashboard_access.sql` | Company dashboard: ticked for Project manager and Commercial in Settings › Access | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
