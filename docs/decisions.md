@@ -1,7 +1,7 @@
 
 ## Still to build (the list, kept up to date)
 - **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
-- **Programme (Timeline), next versions:** links between tasks, critical path, progress %, revisions / baselines, print / PDF (version 1, the Gantt chart and editing, built 21 Nov).
+- **Programme: still to bring across from Timeline** (Richard, 21 Nov: bring its features into the app, then retire it): baseline and slip, RAG status, contractor per task and prerequisites, revisions with history, print / PDF, MS Project / P6 export, undo, week numbers, section templates. Built so far: the Gantt chart and editing; links and the critical path; full screen.
 - **Modules still to come (build order):** sampling tracker, progress reports, O&M / H&S file.
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
@@ -153,8 +153,35 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
   - The programme's overall start and finish follow its tasks.
 - **Working days** are Monday to Friday, less the programme's **shutdowns** (e.g. Christmas 24/12 to 01/01), set in the Shutdowns box. Durations and dragging skip them.
 - **Trade colours:** each trade gets a colour of its own automatically (the same each time). The Trades box lets you choose your own, saved with the programme.
-- **Script 025** adds the trade colours and shutdowns to the programme, plus room on each task for links and progress (next version). The chart works before 025 is run; only saving colours and shutdowns needs it.
-- **Next versions (on the list):** links between tasks (finish-to-start etc.) and moving followers with them, the critical path, progress %, revisions / baselines to compare against, and print / PDF.
+- **Script 025** adds the trade colours and shutdowns to the programme, the links between tasks, and room for progress. The chart works before 025 is run; saving colours, shutdowns and links needs it (the app says so).
+- **Full screen** (Richard, 22 Nov): a Full screen button fills the screen with the chart. On a laptop or Android it uses the browser's own full screen; on an iPhone, which doesn't allow that for a web page, it fills the window. A task opened in full screen is edited under the chart. Esc or Exit full screen goes back.
+
+## Timeline: bring it in, then retire it (decided 21 Nov)
+- Richard wants one app, with everything updating from the latest programme. Chosen: move Timeline's features and programmes into the Programme tab, then retire Timeline. Not chosen: bolting the old app on as it is, which would keep its own database and so update nothing.
+- **Source:** the code isn't held locally. But the live app (https://du-boulay-timeline.web.app/) is one readable file, built by DBP with Claude Code, so DBP owns it. A dated copy is in `reference/timeline-app-2026-11-21.html`.
+- **Live programmes:** Timeline saves them in a separate Supabase project (shared with the follow-up / Minutes app). They come across by exporting each one's .json from Timeline and importing it on the job's Programme tab.
+- **Importing a Timeline file** now reads its own Save layout (before, only its autosave layout), with links, trade colours and shutdowns.
+
+## Programme: links and the critical path (21–22 Nov, script 025)
+- **Ported from Timeline's own scheduling engine**, so programmes behave the same. Checked side by side with Timeline's code on 300 random linked programmes with a Christmas shutdown: dates and critical path were identical in all 300.
+- **Links:** a task follows another in one of three ways, plus a lag in working days (negative to overlap):
+  - starts after it finishes (finish to start);
+  - starts when it starts (start to start);
+  - finishes when it finishes (finish to finish).
+- **Moving followers:** a linked task starts as soon as its links allow. Changing a task moves everything that follows it, and what follows those. Links are by activity code, so they survive a new revision.
+- **Adding links on the chart:** press **Link tasks**, tap the task that comes first, then the one that follows it (finish to start). The follower is then selected, so a run of tasks can be chained in a row of taps. Tap a linked pair again to unlink.
+- **Links in the task editor:** **Follows** lists its links with the type and lag. **Followed by** shows what moves with it. A link that would go round in a loop isn't allowed.
+- **Dragging a linked task** keeps its links, with the move added to the lag (as Timeline does when a section is shifted). Its start can't be typed while it's linked: change the lag instead.
+- **Changing shutdowns:** tasks keep their length in working days, so one running into a new Christmas shutdown finishes later and its followers move. An unlinked task starting in one moves to the next working day (Timeline's rule).
+- **Deleting a task** removes the links to it.
+- **Critical path:** Timeline's backward pass finds the tasks that can't slip a day without pushing the finish out. **Critical path (n)** colours them red, fades the rest and shows the links between them in red. **Only critical** shows just those.
+- **Imports keep links:**
+  - P6 .xer (TASKPRED, lags in 8-hour days);
+  - MS Project XML (PredecessorLink);
+  - Timeline .json.
+
+  Start-to-finish links (rare) are left out. Imported dates are kept as they are until something is edited.
+- **Knock-on:** procurement "on site" and "order by" dates and the cashflow move with the programme, as before. So a delay now ripples into both.
 
 ## Quotations module — scope (agreed 19 Nov)
 Format based on the 2611 waterproofing quotation (`7. Variations/VO 9 - Waterproofing/dbp Quotation - MICRO - Waterproofing - 30.10.2026`):

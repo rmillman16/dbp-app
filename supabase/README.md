@@ -28,7 +28,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `022_cashflow_line_trades.sql` | Cashflow: each subcontract line's trade where it's overruled (the app picks it from the line's description) | ✅ Run 21 Nov 2026 |
 | `023_procurement.sql` | Procurement schedule: appointed subcontractor and order details on each package; SoW lines moved or split by £ across packages | ✅ Run 21 Nov 2026 |
 | `024_procurement_names.sql` | Procurement: a package's own name (e.g. "Electrical (install)", "Tiles (supply)"); lead time now includes design | ✅ Run 21 Nov 2026 |
-| `025_programme_editing.sql` | Programme (Timeline) in the app: trade colours and shutdowns per programme; room for task links and progress | ⬜ Not yet |
+| `025_programme_editing.sql` | Programme (Timeline) in the app: trade colours and shutdowns per programme; links between tasks (finish-to-start, start-to-start, finish-to-finish, lag days) for moving followers and the critical path; room for progress | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

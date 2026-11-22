@@ -589,3 +589,23 @@ input.filter { max-width: 360px; margin-bottom: 8px; }
 .trade-list { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; }
 .trade-list li { display: flex; align-items: center; gap: 8px; }
 .trade-list input[type='color'] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; }
+
+/* Programme tab: links, critical path, link mode, full screen */
+.gantt-links { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 1; overflow: visible; }
+.gantt-links path { fill: none; stroke: #8a87a8; stroke-width: 1.2; }
+.gantt-links path.hot { stroke: #c0392b; stroke-width: 1.6; }
+.gantt-row.dim .gantt-bar, .gantt-row.dim .gantt-mile { opacity: 0.3; }
+button.on-critical { background: #c0392b; border-color: #c0392b; color: #fff; }
+label.check.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+.link-hint { background: #e9f3fa; border: 1px solid #b9dcf0; border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; }
+.link-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.link-row select { flex: 1 1 220px; min-width: 0; }
+.link-row .lag { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; }
+.link-row .lag input { width: 70px; }
+body.no-scroll { overflow: hidden; }
+.programme-card.programme-full { position: fixed; inset: 0; z-index: 1000; margin: 0; border-radius: 0; display: flex; flex-direction: column; overflow: hidden; padding: 12px 16px; background: var(--card); }
+.programme-card.programme-full .gantt-scroll { flex: 1 1 auto; max-height: none; min-height: 0; }
+.programme-card.programme-full .pane-head { flex-wrap: wrap; }
+.programme-card:fullscreen { background: var(--card); }
+.full-editor { flex: 0 1 auto; max-height: 50vh; overflow: auto; margin-top: 10px; border-top: 2px solid var(--line); }
+.full-editor > .card { box-shadow: none; margin: 0; }

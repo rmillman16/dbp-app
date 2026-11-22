@@ -8,7 +8,9 @@
 // - MS Project XML (MS Project › Save As › XML, or Timeline's MS Project export): summary tasks
 //   are the sections, the rest the activities, kept by their unique ID (UID) as task IDs renumber
 //   when rows are inserted. A .mpp can't be read in a browser, so the app asks for the XML.
-// Activities are kept by their ID (A1010…), so links to them survive a new revision.
+// Activities are kept by their ID (A1010…), so links to them survive a new revision. Links between
+// activities (script 025) are read from all three: P6 TASKPRED, MS Project PredecessorLink and
+// Timeline's predecessors.
 import { supabase } from './supabase'
 import { cached, must } from './offline'
 import { addWorkingDays } from './cashflowCalc'
@@ -23,6 +25,16 @@ export interface ProgrammeTask {
   start_date: string // YYYY-MM-DD
   finish_date: string
   milestone: boolean
+  predecessors?: Link[] // the tasks it follows (script 025)
+}
+
+// a link to a task this one follows, by its activity code: finish to start, start to start or
+// finish to finish, plus a lag in working days (negative to overlap)
+export type LinkType = 'FS' | 'SS' | 'FF'
+export interface Link {
+  code: string
+  type: LinkType
+  lag: number
 }
 
 // a programme's trade colours and its shutdowns (e.g. Christmas), edited in the app (script 025)
@@ -41,6 +53,8 @@ export interface ParsedProgramme {
   start_date: string | null
   finish_date: string | null
   tasks: ProgrammeTask[]
+  trades?: Trade[] // from a Timeline file
+  shutdowns?: Shutdown[]
 }
 
 export interface SavedProgramme {
@@ -56,6 +70,17 @@ export interface SavedProgramme {
 }
 
 const day = (s: string | undefined) => (s && /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null)
+
+// links kept only to tasks in the programme, and never to itself
+function tidyLinks(tasks: ProgrammeTask[]) {
+  const codes = new Set(tasks.map((t) => t.code))
+  for (const t of tasks) {
+    const links = (t.predecessors ?? []).filter((l) => codes.has(l.code) && l.code !== t.code)
+    if (links.length) t.predecessors = links
+    else delete t.predecessors
+  }
+  return tasks
+}
 
 function span(tasks: ProgrammeTask[]) {
   const starts = tasks.map((t) => t.start_date).sort()
@@ -116,20 +141,39 @@ function parseXer(text: string): ParsedProgramme {
       milestone: /mile/i.test(t.task_type),
     })
   }
-  return { project_name: project?.proj_short_name || 'Programme', ...span(tasks), tasks }
+  // links: TASKPRED (P6 keeps lags in hours; an 8-hour day). Start-to-finish links are left out.
+  const codeOf = new Map(tasksIn.map((t) => [t.task_id, t.task_code || t.task_id]))
+  const byCode = new Map(tasks.map((t) => [t.code, t]))
+  for (const p of tables.get('TASKPRED') ?? []) {
+    const type = ({ PR_FS: 'FS', PR_SS: 'SS', PR_FF: 'FF' } as Record<string, LinkType>)[p.pred_type]
+    const t = byCode.get(codeOf.get(p.task_id) ?? '')
+    const pred = codeOf.get(p.pred_task_id)
+    if (type && t && pred) t.predecessors = [...(t.predecessors ?? []), { code: pred, type, lag: Math.round(Number(p.lag_hr_cnt || 0) / 8) }]
+  }
+  return { project_name: project?.proj_short_name || 'Programme', ...span(tasks), tasks: tidyLinks(tasks) }
 }
 
 // ---------- Timeline's own file ----------
-interface TimelineFile {
-  data?: {
-    projectName?: string
-    groups?: { id: string | number; name: string }[]
-    shutdowns?: { start: string; end: string }[]
-    tasks?: { id: string | number; name: string; groupId?: string | number; trade?: string; start: string; duration?: number; milestone?: boolean }[]
-  }
+// Timeline's Save puts the programme at the top of the file; its autosave wraps it in "data"
+interface TimelineData {
+  projectName?: string
+  groups?: { id: string | number; name: string }[]
+  trades?: { name: string; color: string }[]
+  shutdowns?: { name?: string; start: string; end: string }[]
+  tasks?: {
+    id: string | number
+    name: string
+    groupId?: string | number
+    trade?: string
+    start: string
+    duration?: number
+    milestone?: boolean
+    predecessors?: { id: string | number; type?: string; lag?: number }[]
+  }[]
 }
+type TimelineFile = TimelineData & { data?: TimelineData }
 function parseTimeline(json: TimelineFile): ParsedProgramme {
-  const d = json.data
+  const d = json.data ?? json
   if (!d?.tasks?.length) throw new Error('This file has no programme tasks. Save the programme from Timeline again and try once more.')
   const groups = new Map((d.groups ?? []).map((g) => [String(g.id), g.name]))
   const shut = d.shutdowns ?? []
@@ -146,9 +190,20 @@ function parseTimeline(json: TimelineFile): ParsedProgramme {
         start_date: start,
         finish_date: t.milestone ? start : addWorkingDays(start, days - 1, shut),
         milestone: !!t.milestone,
+        predecessors: (t.predecessors ?? []).map((p) => ({
+          code: String(p.id),
+          type: (['SS', 'FF'].includes(p.type ?? '') ? p.type : 'FS') as LinkType,
+          lag: Math.round(Number(p.lag ?? 0)),
+        })),
       }
     })
-  return { project_name: d.projectName || 'Programme', ...span(tasks), tasks }
+  return {
+    project_name: d.projectName || 'Programme',
+    ...span(tasks),
+    tasks: tidyLinks(tasks),
+    trades: (d.trades ?? []).filter((t) => t.name && /^#[0-9a-f]{6}$/i.test(t.color)).map((t) => ({ name: t.name, color: t.color })),
+    shutdowns: shut.filter((x) => day(x.start) && day(x.end)).map((x) => ({ name: x.name || 'Shutdown', start: x.start, end: x.end })),
+  }
 }
 
 // ---------- MS Project XML ----------
@@ -191,12 +246,18 @@ function parseMsProjectXml(text: string): ParsedProgramme {
       start_date: start,
       finish_date: finish < start ? start : finish,
       milestone: tag(r, 'Milestone') === '1',
+      // links: Type 0 FF, 1 FS, 3 SS (2, start to finish, left out); lag in tenths of a minute, 8-hour days
+      predecessors: [...r.matchAll(/<PredecessorLink>([\s\S]*?)<\/PredecessorLink>/g)].flatMap((m) => {
+        const type = ({ '0': 'FF', '1': 'FS', '3': 'SS' } as Record<string, LinkType>)[tag(m[1], 'Type') ?? '1']
+        const code = tag(m[1], 'PredecessorUID')
+        return type && code ? [{ code, type, lag: Math.round(Number(tag(m[1], 'LinkLag') ?? 0) / 4800) }] : []
+      }),
     })
   }
   if (!tasks.length) throw new Error('The tasks in this MS Project file have no dates. Save it again from MS Project (File › Save As › XML Format) with the schedule calculated.')
   // MS Project's <Name> is the file name; the title is the project's own name
   const head = text.replace(/<Tasks>[\s\S]*$/, '')
-  return { project_name: tag(head, 'Title') || tag(head, 'Name')?.replace(/\.(xml|mpp)$/i, '') || 'Programme', ...span(tasks), tasks }
+  return { project_name: tag(head, 'Title') || tag(head, 'Name')?.replace(/\.(xml|mpp)$/i, '') || 'Programme', ...span(tasks), tasks: tidyLinks(tasks) }
 }
 
 export async function parseProgramme(file: File): Promise<ParsedProgramme> {
@@ -219,11 +280,21 @@ export async function parseProgramme(file: File): Promise<ParsedProgramme> {
 export async function saveProgramme(jobId: string, p: ParsedProgramme, fileName: string) {
   const r = await supabase
     .from('programmes')
-    .insert({ job_id: jobId, file_name: fileName, project_name: p.project_name, start_date: p.start_date, finish_date: p.finish_date })
+    .insert({
+      job_id: jobId,
+      file_name: fileName,
+      project_name: p.project_name,
+      start_date: p.start_date,
+      finish_date: p.finish_date,
+      // a Timeline file's trade colours and shutdowns come with it (script 025)
+      ...(p.trades?.length ? { trades: p.trades } : {}),
+      ...(p.shutdowns?.length ? { shutdowns: p.shutdowns } : {}),
+    })
     .select('id')
     .single()
   if (r.error) throw new Error(r.error.message)
-  const rows = p.tasks.map((t, i) => ({ ...t, programme_id: r.data.id, sort: i }))
+  // links only sent when there are some, so a programme without them imports before script 025
+  const rows = p.tasks.map(({ predecessors, ...t }, i) => ({ ...t, ...(predecessors?.length ? { predecessors } : {}), programme_id: r.data.id, sort: i }))
   for (let i = 0; i < rows.length; i += 500) {
     const w = await supabase.from('programme_tasks').insert(rows.slice(i, i + 500))
     if (w.error) throw new Error(w.error.message)
@@ -238,18 +309,26 @@ export function loadProgramme(jobId: string) {
     const progs = await must<SavedProgramme[]>(supabase.from('programmes').select('*').eq('job_id', jobId).order('imported_at', { ascending: false }).limit(1))
     const programme = progs[0] ?? null
     const tasks: ProgrammeTask[] = []
+    const cols = 'id, sort, code, name, section, trade, start_date, finish_date, milestone'
+    const page = (from: number, links: boolean) =>
+      must<ProgrammeTask[]>(
+        supabase
+          .from('programme_tasks')
+          .select((links ? `${cols}, predecessors` : cols) as '*') // the column list is worked out, so not type-checked
+          .eq('programme_id', programme!.id)
+          .order('sort')
+          .range(from, from + 999),
+      )
+    let links = true // until script 025 is run there are no links to read
     if (programme)
       for (let from = 0; ; from += 1000) {
-        const page = await must<ProgrammeTask[]>(
-          supabase
-            .from('programme_tasks')
-            .select('id, sort, code, name, section, trade, start_date, finish_date, milestone')
-            .eq('programme_id', programme.id)
-            .order('sort')
-            .range(from, from + 999),
-        )
-        tasks.push(...page)
-        if (page.length < 1000) break
+        const rows = await page(from, links).catch((e: Error) => {
+          if (!links || !/predecessors/.test(e.message)) throw e
+          links = false
+          return page(from, false)
+        })
+        tasks.push(...rows)
+        if (rows.length < 1000) break
       }
     return { programme, tasks }
   })
