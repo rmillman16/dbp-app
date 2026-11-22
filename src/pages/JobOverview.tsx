@@ -10,7 +10,9 @@ import { useJob } from './JobLayout'
 
 export default function JobOverview() {
   const { job } = useJob()
-  const { attention } = useNotifications()
+  const { attention, items } = useNotifications()
+  // the To do box (22 Nov): requisition questions and answers waiting on me for this job
+  const todo = items.filter((n) => n.job_id === job.id && /^requisition_(query|answer)$/.test(n.kind))
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
   const [calMsg, setCalMsg] = useState<string | null>(null)
 
@@ -77,8 +79,17 @@ export default function JobOverview() {
       <JobSowCard compact />
 
       <section className="card">
-        <h2>To do</h2>
-        <p className="muted small">The job's to-do list will go here (to build).</p>
+        <div className="pane-head">
+          <h2>To do</h2>
+          <Link to={`/site/requisitions/new?job=${job.id}`} className="link-button small">
+            + Material requisition
+          </Link>
+        </div>
+        {todo.length > 0 ? (
+          <NotificationList items={todo} />
+        ) : (
+          <p className="muted small">Nothing waiting on you. Requisition questions from the buyer will show here; the rest of the job's to-do list is still to build.</p>
+        )}
       </section>
 
       <section className="card">

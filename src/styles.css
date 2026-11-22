@@ -726,3 +726,36 @@ body.no-scroll { overflow: hidden; }
 .sample-table td.stack-title { white-space: nowrap; width: 1%; }
 .sample-table td.stack-title .proc-name { white-space: nowrap; }
 .sample-table td.stack-title .late, .sample-table td.stack-title .soon { display: block; font-size: 11px; line-height: 1.3; }
+
+/* Site › requisitions (22 Nov) */
+.pill.disabled { opacity: 0.5; cursor: default; display: inline-flex; gap: 6px; align-items: center; }
+.pill.disabled .soon { margin-left: 0; }
+.notice { background: #e3f1fa; color: var(--navy); border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; }
+.pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.req-form { max-width: 760px; }
+.req-files { list-style: none; padding: 0; margin: 4px 0 8px; }
+.req-files li { padding: 2px 0; }
+.req-details { display: grid; grid-template-columns: 170px 1fr; gap: 8px 16px; margin: 0; }
+.req-details dt { color: var(--muted); font-weight: 600; }
+.req-details dd { margin: 0; }
+.req-chat { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; }
+.req-chat li { max-width: 80%; padding: 8px 12px; border-radius: 10px; background: #f3f2f7; }
+.req-chat li.from-site { align-self: flex-end; background: #e3f1fa; }
+.req-reply { display: flex; gap: 8px; align-items: flex-end; }
+.req-reply textarea { flex: 1; }
+.req-awaiting { border-left: 4px solid var(--amber); }
+.tag.req-new { background: #efeaf8; color: var(--navy); }
+.tag.req-query { background: #fff1d6; color: #8a5a00; }
+.tag.req-answered { background: #e3f1fa; color: var(--blue); }
+.tag.req-ordered { background: #e2f3e8; color: #1d6b3a; }
+.tag.req-delivered { background: #d3ecd9; color: #14532d; }
+.tag.req-cancelled { background: #eee; color: var(--muted); }
+select.req-status { padding: 3px 6px; font-size: 13px; }
+select.req-status.req-query { background: #fff1d6; }
+select.req-status.req-ordered, select.req-status.req-delivered { background: #e2f3e8; }
+@media (max-width: 700px) {
+  .req-details { grid-template-columns: 1fr; gap: 2px; }
+  .req-details dd { margin-bottom: 8px; }
+  .req-chat li { max-width: 95%; }
+  .req-reply { flex-direction: column; align-items: stretch; }
+}

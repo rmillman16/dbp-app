@@ -39,9 +39,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     try {
-      const data = await cached('notifications', () =>
-        must(supabase.from('notifications_live').select('*').order('due_date', { ascending: true, nullsFirst: false })),
-      )
+      const data = await cached('notifications', () => must(supabase.from('notifications_live').select('*').order('due_date', { ascending: true, nullsFirst: false })))
       setItems(data as Notification[])
       setError(null)
     } catch (e) {
@@ -51,9 +49,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     reload()
-    // refresh when the connection comes back
+    // refresh when the connection comes back, or when the app is looked at again
+    const onShow = () => document.visibilityState === 'visible' && reload()
     window.addEventListener('online', reload)
-    return () => window.removeEventListener('online', reload)
+    document.addEventListener('visibilitychange', onShow)
+    // instantly (22 Nov: "make it notify instantly"): any new or changed reminder reloads the bell (Supabase
+    // Realtime, script 033); a minute's check as well in case the live connection drops
+    const live = supabase
+      .channel('notifications-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => reload())
+      .subscribe()
+    const tick = window.setInterval(() => navigator.onLine && document.visibilityState === 'visible' && reload(), 60_000)
+    return () => {
+      window.removeEventListener('online', reload)
+      document.removeEventListener('visibilitychange', onShow)
+      window.clearInterval(tick)
+      supabase.removeChannel(live)
+    }
   }, [reload])
 
   async function update(id: string, values: Record<string, unknown>) {
@@ -67,11 +79,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     items,
     attention,
     upcoming: items.filter((n) => !needsAttention(n)),
-    worst: attention.some((n) => n.severity === 'overdue')
-      ? 'overdue'
-      : attention.some((n) => n.severity === 'due_soon')
-        ? 'due_soon'
-        : null,
+    worst: attention.some((n) => n.severity === 'overdue') ? 'overdue' : attention.some((n) => n.severity === 'due_soon') ? 'due_soon' : null,
     error,
     reload,
     markDone: (id) => update(id, { status: 'done' }),

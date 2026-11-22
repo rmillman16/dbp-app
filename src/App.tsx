@@ -28,6 +28,7 @@ import CvrEditor from './pages/CvrEditor'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import MyDetails from './pages/MyDetails'
+import Site, { BuyerList, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
 
@@ -110,6 +111,11 @@ export default function App() {
         <Route path="/contractors" element={<Contractors />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/me" element={<MyDetails />} />
+        <Route path="/site" element={<Site />} />
+        <Route path="/site/buyer" element={<BuyerList />} />
+        <Route path="/site/requisitions/new" element={<MaterialRequisitionForm />} />
+        <Route path="/site/requisitions/:reqId" element={<RequisitionPage />} />
+        <Route path="/project-management" element={<Navigate to="/site" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

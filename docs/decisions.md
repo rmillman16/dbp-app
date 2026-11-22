@@ -24,6 +24,7 @@
   - which jobs each person sees.
 
   Today every signed-in user sees and edits everything, except that admins alone change templates (script 005).
+  - **⚠ Reminder for Richard (asked 22 Nov): set up a user type and link it to people.** At least **Operations** (sees Site › Buyer's list, the requisitions back end) and **Requester** (site managers: only the requisition forms and their own requests). Then lock the Buyer's list to Operations. Until then everyone signed in can open it.
 - **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
   - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.
   - **Sign-in: "Sign in with Microsoft"** with their DBP account, once per phone (it remembers them, so it's effectively no sign-in after that).
@@ -31,14 +32,30 @@
     - No accounts to set up when site managers change. Leavers lose access when their Microsoft account is disabled. Admins can give someone more access.
     - This is the first step of Permissions.
     - Needs IT to register the app with Microsoft 365 (`docs/questions-for-IT.md` §2). Email sign-in links can stand in until then.
-  - **Its own link:** e.g. `/requisitions/new`, to bookmark, put on the phone's home screen or put on a QR code on site. That needs the app hosted on a web address (questions-for-IT §4).
+  - **Its own link:** `/site/requisitions/new`, to bookmark, put on the phone's home screen or put on a QR code on site. That needs the app hosted on a web address (questions-for-IT §4).
   - **Buyer's side:**
     - One list across all jobs, replacing the SharePoint "dbp Material Requisitions" list.
     - A conversation on each request: the buyer asks the requester questions and they reply.
     - Stages: New → Query raised → Answered → Ordered → Delivered (to confirm).
   - **Questions to the requester** go on their bell and on the job Overview's notifications and **To-do** box (the first real item for it). Emails stay drafts only, so the conversation happens in the app.
   - **Existing SharePoint requisitions:** start fresh. SharePoint stays as the archive.
-  - **Still needed from Richard:** the form's fields and the list's columns (a screenshot of the form, or the list exported to CSV). Claude can't open the SharePoint links, which need a DBP sign-in.
+  - **Built 22 Nov (scripts 032, 033), material first:** the sidebar's "Project management" is now **Site**, holding the forms and the back end.
+    - **Form** (`/site/requisitions/new`), fields as on the SharePoint form: Site name, Element of work, Materials required (with links), Date required by (starts 3 days from today, changeable), Notes, Attachments. The requester's name and email are added automatically. A job's Overview has a "+ Material requisition" link with the site filled in.
+    - **My requisitions:** the requester's own, with their status.
+    - **Buyer's list** (`/site/buyer`): every requisition across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
+    - **Each requisition:** its details, attachments, a questions-and-answers conversation, and the buyer's order details (supplier, PO, value, order and delivery dates).
+    - **Notifications** (the database does this):
+      - A buyer's message sets it to "Query raised" and puts a reminder, due today, on the requester's bell and the job Overview's To-do box.
+      - The requester's reply sets it to "Answered", closes their reminder and tells the buyer.
+      - "Ordered", "Delivered" and "Cancelled" tell the requester.
+      - Reminders addressed to one person show only to them.
+    - **Instant:** the bell updates the moment a reminder is added (Supabase Realtime, 033), with a check every minute in case the connection drops.
+    - **Still to do:**
+      - Hire requisitions.
+      - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
+      - Lock the Buyer's list to Operations (Permissions reminder above).
+      - Microsoft sign-in (IT).
+      - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
@@ -761,7 +778,7 @@ Broker confirmation dated 30 June 2026 (ref 3053912), `Confirmation of insurance
 - **Sidebar layout** (chosen to scale with the modules to come): sidebar for company-wide areas (Home, Jobs, Contractors, Templates, Settings); inside a job, **each module is a tab** (Overview, Variations, Quotations, Applications, Payment notices…). Bell in the top bar on every page with a drop-down.
 - **Home = "Needs attention"** (red / amber, clickable, Done / Snooze, upcoming on request) **then a searchable jobs table** with Live / Tender / Complete / All filters, contract sum, PC date and VO count.
 - **Templates area: admin logins only**, enforced by the database (`profiles.is_admin`), not a shared password (a password in the browser app can be read by any signed-in user).
-- **No "Templates" area and no "Commercial" section (revised 20 Nov):** commercial work (VOs, valuations, payment notices, job quotations) lives inside each job. Left-hand menu: Home · Jobs · **Estimating** · **Contracts** (EOT) · **Project management** (coming soon) · Contractors (coming soon) · **Settings** (admins only). **O&M lives inside each job** (job tab); its company-wide standard document list by trade is in Settings (admins). Everyone can read the sections; only admins can change their wording / lists. Each wording template belongs to one document (`text_templates.category`).
+- **No "Templates" area and no "Commercial" section (revised 20 Nov):** commercial work (VOs, valuations, payment notices, job quotations) lives inside each job. Left-hand menu: Home · Jobs · **Estimating** · **Contracts** (EOT) · **Site** (was Project management; requisitions, 22 Nov) · Contractors (coming soon) · **Settings** (admins only). **O&M lives inside each job** (job tab); its company-wide standard document list by trade is in Settings (admins). Everyone can read the sections; only admins can change their wording / lists. Each wording template belongs to one document (`text_templates.category`).
 - **Estimating (agreed 20 Nov, revised same day):** laid out **like Jobs but simpler**: a searchable list of **enquiries** (E001, E002…; Open / Won / Lost / All) with a form for name, site address, client, contact, email, phone, date received, due date, estimator, notes and status (New enquiry › Pricing › Submitted › Won / Lost). Each enquiry has its own **quotations**, numbered per enquiry: `E001 – QU001 – <subject>`, same editor and Word layout as job quotations. **"Won: set up as job"** opens the new-job form filled in from the enquiry; on saving, the enquiry is marked Won and linked to the job, and its quotations **move into the job**, renumbered after the job's own (`2611 FISL – QU00n`). Estimating also holds the standard quotation wording and the clause library.
 - **Company details and insurances are admin-only, in Settings.** Certificates and company documents stay on OneDrive (updated there regularly); the app holds the cover dates and limits for reminders and the CAR check, no file uploads.
 - **Templates are used by the app:** company details, default OHP / prelims / retention, main T&Cs, add-on clause library, letter wording, O&M document lists, insurances and certificates are edited on screen and flow into every export. Excel / Word export layouts stay built into the app; layout changes come through Claude. Five templates in `reference/templates` today; the list will grow.
