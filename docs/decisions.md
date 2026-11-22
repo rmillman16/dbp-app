@@ -162,6 +162,25 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 - **Live programmes:** Timeline saves them in a separate Supabase project (shared with the follow-up / Minutes app). They come across by exporting each one's .json from Timeline and importing it on the job's Programme tab.
 - **Importing a Timeline file** now reads its own Save layout (before, only its autosave layout), with links, trade colours and shutdowns.
 
+## Programme: toolbar on two lines (22 Nov)
+Richard: fewer buttons, icons for the obvious ones, two lines on a desktop.
+- **Line 1:**
+  - Icons for full page, new, undo, redo, open file (folder), print and export (down arrow).
+  - Then **Tools ▾**: Shutdown, Shift, Compare, Legend, Add / change / remove client logo. A red dot shows when the programme runs over Christmas with no shutdown.
+  - Then the saved badge, **Start** and **Start on site (Wk 1)**, and the client logo.
+- **Line 2:** Programmes, From SoW, Commit, History; + Task, + Milestone, + Section; **D / W / 2W / M**; Link tasks, Critical path, contractor filter; Help.
+- **Removed:**
+  - **Project name box:** the job's name is in the page heading. The print and exports use the job's (or estimate's) name.
+  - **Save file:** Export does it.
+  - **Set baseline:** Commit does it.
+  - **The shortcuts button:** they're in Help, and ? opens Help at them.
+  - **Today button:** the today line is always on the chart, and . scrolls to it.
+  - **The "auto: wk of…" note.**
+- **Saved badge:** "✓ Rev A" (green), "⟳" while saving, "! Retry" if it couldn't save. The last commit's details are on hover.
+- **Slip column:** always against the original programme, without needing the overlay on (it was start against the per-task baseline).
+- **Print:** the printer icon opens a small menu with a **Today line** tick box (on by default). The print's today line is dashed red over the bars and section bands, dated in the ruler.
+- **Help page** expanded, with a sidebar grouped under headings. It covers the toolbar button by button, the task form, the list columns, a chart key, shifting, phones, troubleshooting, a glossary and the shortcuts.
+
 ## Programme: tidy-up, help page and shortcuts (22 Nov)
 - **Toolbar:** every button, box and menu is 28 px high, the height of Open file. On touch screens the app makes buttons 42 px tall, which is why Open file (not a button) was the odd one out.
 - **From SoW…** in the toolbar (jobs) brings back making a simple programme from the SoW once a programme exists (it replaces it; committed revisions are kept). Before, it was only on the start page.
