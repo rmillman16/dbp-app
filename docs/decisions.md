@@ -24,7 +24,21 @@
   - which jobs each person sees.
 
   Today every signed-in user sees and edits everything, except that admins alone change templates (script 005).
-- **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job.
+- **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
+  - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.
+  - **Sign-in: "Sign in with Microsoft"** with their DBP account, once per phone (it remembers them, so it's effectively no sign-in after that).
+    - Any DBP Microsoft account works and starts as a **Requester**, who sees only the requisition form, their own requests and the buyer's questions. Nothing else in the app.
+    - No accounts to set up when site managers change. Leavers lose access when their Microsoft account is disabled. Admins can give someone more access.
+    - This is the first step of Permissions.
+    - Needs IT to register the app with Microsoft 365 (`docs/questions-for-IT.md` §2). Email sign-in links can stand in until then.
+  - **Its own link:** e.g. `/requisitions/new`, to bookmark, put on the phone's home screen or put on a QR code on site. That needs the app hosted on a web address (questions-for-IT §4).
+  - **Buyer's side:**
+    - One list across all jobs, replacing the SharePoint "dbp Material Requisitions" list.
+    - A conversation on each request: the buyer asks the requester questions and they reply.
+    - Stages: New → Query raised → Answered → Ordered → Delivered (to confirm).
+  - **Questions to the requester** go on their bell and on the job Overview's notifications and **To-do** box (the first real item for it). Emails stay drafts only, so the conversation happens in the app.
+  - **Existing SharePoint requisitions:** start fresh. SharePoint stays as the archive.
+  - **Still needed from Richard:** the form's fields and the list's columns (a screenshot of the form, or the list exported to CSV). Claude can't open the SharePoint links, which need a DBP sign-in.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
