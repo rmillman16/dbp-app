@@ -103,7 +103,7 @@
     - **Both lists:** **Buyer notes** can be typed straight into the list. "Cancelled" is shown as **Voided**, as on SharePoint.
     - **Still to do:**
       - Set up notification emails once IT has done their part (supabase/README.md › Setting up notification emails).
-      - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
+      - Material Req - ADMIN columns: **kept as built** (Richard, 22 Nov: "what you have made is better" than the SharePoint list).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
