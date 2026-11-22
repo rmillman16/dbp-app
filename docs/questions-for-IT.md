@@ -17,6 +17,12 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 **What for:** (a) save exports (VO sheets, quotations, applications, payment notices) straight into each job's SharePoint site in the right folder; (b) put monthly valuation dates (and later other reminders) straight into users' Outlook calendars. Until then, exports download and calendar dates come as a file to open in Outlook.
 - [ ] Approve an app registration in Entra ID with access limited to the job SharePoint sites (`Sites.Selected`) and calendar write for signed-in users (`Calendars.ReadWrite`, delegated).
 - [ ] Agree how the app signs users in to Microsoft (single sign-on with work accounts would also replace separate app passwords).
+- [ ] **For material / hire requisitions (agreed with Richard 22 Nov): "Sign in with Microsoft"** so site managers raise requisitions with their DBP account, with no app passwords and no accounts to set up.
+  - Register a **single-tenant** app in Entra ID (DBP accounts only).
+  - Give Richard its Application (client) ID and a client secret, to enter in **Supabase › Authentication › Providers › Azure**. The secret goes only there, never in the app.
+  - Add Supabase's callback URL (shown on that page) as the redirect URI.
+  - The requested scopes are just `openid email profile`.
+  - Someone who leaves loses access when their Microsoft account is disabled.
 
 ## 3. Supabase plan before go-live
 - [ ] Upgrade the Supabase project to **Pro** (about $25 / month) for daily backups of the data. The free plan has no automatic backups; until then an admin runs Settings › **Export all data** weekly.
