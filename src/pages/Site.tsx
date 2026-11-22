@@ -39,22 +39,20 @@ function SiteNav() {
       <h1>Site</h1>
       {/* the two forms, big (22 Nov: "make the material and hire requisition buttons more prominent") */}
       <div className="req-big">
-        <NavLink to="/site/requisitions/new" className="req-big-button">
+        <NavLink to="/site/requisitions/new" end className="req-big-button">
           <span className="req-big-icon">📦</span>
           <span>
             <strong>Material requisition</strong>
             <small>Request materials to site</small>
           </span>
         </NavLink>
-        <span className="req-big-button disabled" title="Coming next">
+        <NavLink to="/site/requisitions/hire/new" className="req-big-button">
           <span className="req-big-icon">🏗️</span>
           <span>
-            <strong>
-              Hire requisition <span className="soon">soon</span>
-            </strong>
-            <small>Plant and tool hire</small>
+            <strong>Hire requisition</strong>
+            <small>Plant from our hire company partners</small>
           </span>
-        </span>
+        </NavLink>
       </div>
       <nav className="pills">
         <NavLink to="/site" end className="pill">
@@ -117,9 +115,14 @@ export default function Site() {
       <section className="card">
         <div className="pane-head">
           <h2>My requisitions</h2>
-          <Link to="/site/requisitions/new" className="button primary">
-            + Material requisition
-          </Link>
+          <span className="button-row">
+            <Link to="/site/requisitions/new" className="button primary">
+              + Material
+            </Link>
+            <Link to="/site/requisitions/hire/new" className="button primary">
+              + Hire
+            </Link>
+          </span>
         </div>
         {error && <p className="error">{error}</p>}
         {rows === null && !error && <p className="muted">Loading…</p>}
@@ -130,8 +133,8 @@ export default function Site() {
               <tr>
                 <th>Ref</th>
                 <th>Site</th>
-                <th>Element of work</th>
-                <th>Required by</th>
+                <th>What’s needed</th>
+                <th>Needed by</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -142,8 +145,8 @@ export default function Site() {
                     <strong>{reqRef(r)}</strong>
                   </td>
                   <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
-                  <td data-label="Element">{r.element}</td>
-                  <td className="nowrap" data-label="Required by">
+                  <td data-label="What">{r.element}</td>
+                  <td className="nowrap" data-label="Needed by">
                     {ukDate(r.required_by)}
                   </td>
                   <td data-label="Status">{statusTag(r.status)}</td>
@@ -157,12 +160,22 @@ export default function Site() {
   )
 }
 
-// ---------- the form (its own link: /site/requisitions/new) ----------
-export function MaterialRequisitionForm() {
+// ---------- the forms (their own links: /site/requisitions/new, /site/requisitions/hire/new) ----------
+export const MaterialRequisitionForm = () => <RequisitionForm kind="material" />
+export const HireRequisitionForm = () => <RequisitionForm kind="hire" />
+// a hire requisition's short title (for lists and reminders): the first line of what's needed
+const hireTitle = (details: string) => {
+  const first = details.trim().split(/\n/)[0].trim()
+  return first.length > 60 ? first.slice(0, 57) + '…' : first || 'Hire'
+}
+
+function RequisitionForm({ kind }: { kind: ReqKind }) {
+  const hire = kind === 'hire'
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const [jobs, setJobs] = useState<Job[] | null>(null)
-  const [form, setForm] = useState({ job_id: params.get('job') ?? '', element: '', details: '', required_by: addDaysIso(todayIso(), 3), notes: '' }) // 22 Nov: 3 days from now unless changed
+  // the date needed (hire: start of the hire period) starts 3 days from now unless changed (22 Nov)
+  const [form, setForm] = useState({ job_id: params.get('job') ?? '', element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -175,11 +188,20 @@ export function MaterialRequisitionForm() {
     e.preventDefault()
     setError(null)
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
-    if (form.required_by < todayIso()) return setError('The date required by is in the past.')
+    if (form.required_by < todayIso()) return setError(hire ? 'The hire start date is in the past.' : 'The date required by is in the past.')
+    if (hire && form.hire_end && form.hire_end < form.required_by) return setError('The hire end date is before the start date.')
     setBusy(true)
     try {
       const r = await raiseRequisition(
-        { kind: 'material', job_id: form.job_id, element: form.element.trim(), details: form.details.trim(), required_by: form.required_by, notes: form.notes.trim() || null },
+        {
+          kind,
+          job_id: form.job_id,
+          element: hire ? hireTitle(form.details) : form.element.trim(),
+          details: form.details.trim(),
+          required_by: form.required_by,
+          notes: form.notes.trim() || null,
+          data: hire ? { hire_end: form.hire_end || null } : {},
+        },
         files,
       )
       navigate(`/site/requisitions/${r.id}?sent=1`)
@@ -194,8 +216,10 @@ export function MaterialRequisitionForm() {
     <>
       <SiteNav />
       <form className="card form req-form" onSubmit={submit}>
-        <h2>Material requisition</h2>
-        <p className="muted small intro">Use this form to request materials to site. Your name and email are added for you.</p>
+        <h2>{hire ? 'Hire requisition' : 'Material requisition'}</h2>
+        <p className="muted small intro">
+          {hire ? 'Use this form to request any plant from our hire company partners.' : 'Use this form to request materials to site.'} Your name and email are added for you.
+        </p>
         <div className="form-grid">
           <label className="span-2">
             Site name *
@@ -208,27 +232,39 @@ export function MaterialRequisitionForm() {
               ))}
             </select>
           </label>
+          {!hire && (
+            <label className="span-2">
+              Element of work *
+              <input value={form.element} placeholder="e.g. Partitioning" onChange={(e) => set('element', e.target.value)} required />
+            </label>
+          )}
           <label className="span-2">
-            Element of work *
-            <input value={form.element} placeholder="e.g. Partitioning" onChange={(e) => set('element', e.target.value)} required />
-          </label>
-          <label className="span-2">
-            Materials required *
+            {hire ? 'Hire requisition *' : 'Materials required *'}
             <textarea
               rows={6}
               value={form.details}
-              placeholder="Enter as much information as possible (include links): product, size, quantity…"
+              placeholder={
+                hire ? 'As much detail as possible, including any accessories required' : 'Enter as much information as possible (include links): product, size, quantity…'
+              }
               onChange={(e) => set('details', e.target.value)}
               required
             />
           </label>
           <label>
-            Date required by *
+            {hire ? 'Hire period start date *' : 'Date required by *'}
             <input type="date" min={todayIso()} value={form.required_by} onChange={(e) => set('required_by', e.target.value)} required />
+            {hire && <span className="muted small">Date required on site</span>}
           </label>
+          {hire && (
+            <label>
+              Hire end date
+              <input type="date" min={form.required_by || todayIso()} value={form.hire_end} onChange={(e) => set('hire_end', e.target.value)} />
+              <span className="muted small">If known</span>
+            </label>
+          )}
           <label className="span-2">
             Notes
-            <textarea rows={3} value={form.notes} placeholder="Booking systems, time restrictions etc." onChange={(e) => set('notes', e.target.value)} />
+            <textarea rows={3} value={form.notes} placeholder={hire ? '' : 'Booking systems, time restrictions etc.'} onChange={(e) => set('notes', e.target.value)} />
           </label>
           <div className="span-2 req-attach">
             <span className="label-text">Attachments</span>
@@ -291,6 +327,16 @@ export function BuyerList() {
   }, [kind])
   const jobById = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs])
 
+  // buyer notes (22 Nov, as on the SharePoint lists), typed straight into the list
+  async function saveNote(r: Requisition, text: string) {
+    const data = { ...r.data, buyer_notes: text.trim() || null }
+    setRows((rows ?? []).map((x) => (x.id === r.id ? { ...x, data } : x)))
+    try {
+      await updateRequisition(r.id, { data })
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
   async function setStatus(r: Requisition, status: ReqStatus) {
     const before = rows
     setRows((rows ?? []).map((x) => (x.id === r.id ? { ...x, status } : x)))
@@ -306,7 +352,9 @@ export function BuyerList() {
   const shown = (rows ?? [])
     .filter((r) => inFilter(filter, r.status))
     .filter((r) => !jobId || r.job_id === jobId)
-    .filter((r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.requester_name ?? ''} ${r.supplier ?? ''}`.toLowerCase().includes(q))
+    .filter(
+      (r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.notes ?? ''} ${r.requester_name ?? ''} ${r.supplier ?? ''} ${r.data?.buyer_notes ?? ''}`.toLowerCase().includes(q),
+    )
   const today = todayIso()
   const soon = addDaysIso(today, 3)
 
@@ -324,9 +372,13 @@ export function BuyerList() {
         <div className="pane-head">
           <h2>{kind === 'hire' ? 'Hire' : 'Material'} buyer's list</h2>
         </div>
-        {kind === 'hire' && <p className="muted small intro">The hire requisition form is coming next; hire requisitions will be listed here.</p>}
         <div className="toolbar">
-          <input className="search" placeholder="Search ref, element, materials, requester or supplier" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className="search"
+            placeholder={kind === 'hire' ? 'Search ref, plant, notes, requester or hire company' : 'Search ref, element, materials, requester or supplier'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
             <option value="">All sites</option>
             {jobs.map((j) => (
@@ -348,46 +400,94 @@ export function BuyerList() {
         {rows === null && !error && <p className="muted">Loading…</p>}
         {rows && shown.length === 0 && <p className="muted">{rows.length === 0 ? 'No requisitions yet.' : 'None match.'}</p>}
         {shown.length > 0 && (
-          <table className="table stack">
+          <table className="table stack buyer-table">
             <thead>
-              <tr>
-                <th>Ref</th>
-                <th>Site</th>
-                <th>Element of work</th>
-                <th>Requested by</th>
-                <th>Required by</th>
-                <th>Status</th>
-                <th>Delivery</th>
-              </tr>
+              {kind === 'hire' ? (
+                <tr>
+                  <th>Ref</th>
+                  <th>Site</th>
+                  <th>Hire requisition</th>
+                  <th>Hire start</th>
+                  <th>Hire end</th>
+                  <th>Notes</th>
+                  <th>Status</th>
+                  <th>Buyer notes</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>Ref</th>
+                  <th>Site</th>
+                  <th>Element of work</th>
+                  <th>Requested by</th>
+                  <th>Required by</th>
+                  <th>Status</th>
+                  <th>Delivery</th>
+                  <th>Buyer notes</th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {shown.map((r) => {
                 const open = OPEN_STATUSES.includes(r.status) && r.status !== 'ordered'
                 const urgent = open && r.required_by <= soon
-                return (
+                const status = (
+                  <td data-label="Status" onClick={(e) => e.stopPropagation()}>
+                    <select className={`req-status req-${r.status}`} value={r.status} onChange={(e) => setStatus(r, e.target.value as ReqStatus)}>
+                      {(Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).map((st) => (
+                        <option key={st} value={st}>
+                          {REQ_STATUS_LABELS[st]}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                )
+                const note = (
+                  <td data-label="Buyer notes" onClick={(e) => e.stopPropagation()}>
+                    <BuyerNote value={String(r.data?.buyer_notes ?? '')} onSave={(t) => saveNote(r, t)} />
+                  </td>
+                )
+                const ref = (
+                  <td className="stack-title nowrap">
+                    <strong>{reqRef(r)}</strong>
+                    <div className="muted small">
+                      {ukDate(r.created_at.slice(0, 10))}
+                      {r.requester_name && <> · {r.requester_name}</>}
+                    </div>
+                  </td>
+                )
+                return kind === 'hire' ? (
                   <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
-                    <td className="stack-title nowrap">
-                      <strong>{reqRef(r)}</strong>
-                      <div className="muted small">{ukDate(r.created_at.slice(0, 10))}</div>
+                    {ref}
+                    <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
+                    <td data-label="Hire requisition" className="pre clamp">
+                      {linkify(r.details)}
                     </td>
+                    <td className={`nowrap ${urgent ? 'late' : ''}`} data-label="Hire start">
+                      {ukDate(r.required_by)}
+                    </td>
+                    <td className={`nowrap ${r.data?.hire_end ? '' : 'stack-hide'}`} data-label="Hire end">
+                      {ukDate((r.data?.hire_end as string) ?? null)}
+                    </td>
+                    <td className={`pre clamp ${r.notes ? '' : 'stack-hide'}`} data-label="Notes">
+                      {r.notes}
+                    </td>
+                    {status}
+                    {note}
+                  </tr>
+                ) : (
+                  <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
+                    {ref}
                     <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
                     <td data-label="Element">{r.element}</td>
                     <td data-label="Requested by">{r.requester_name}</td>
                     <td className={`nowrap ${urgent ? 'late' : ''}`} data-label="Required by">
                       {ukDate(r.required_by)}
                     </td>
-                    <td data-label="Status" onClick={(e) => e.stopPropagation()}>
-                      <select className={`req-status req-${r.status}`} value={r.status} onChange={(e) => setStatus(r, e.target.value as ReqStatus)}>
-                        {(Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).map((s) => (
-                          <option key={s} value={s}>
-                            {REQ_STATUS_LABELS[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
+                    {status}
                     <td className={`nowrap ${r.delivery_date ? '' : 'stack-hide'}`} data-label="Delivery">
                       {ukDate(r.delivery_date)}
                     </td>
+                    {note}
                   </tr>
                 )
               })}
@@ -397,6 +497,13 @@ export function BuyerList() {
       </section>
     </>
   )
+}
+
+// a buyer note typed into the list: saved when you click away
+function BuyerNote({ value, onSave }: { value: string; onSave: (text: string) => void }) {
+  const [v, setV] = useState(value)
+  useEffect(() => setV(value), [value])
+  return <textarea className="buyer-note" rows={1} value={v} placeholder="Add a note" onChange={(e) => setV(e.target.value)} onBlur={() => v !== value && onSave(v)} />
 }
 
 // ---------- one requisition: the details, the conversation, and the buyer's order details ----------
@@ -412,6 +519,7 @@ export function RequisitionPage() {
   const [userId, setUserId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [order, setOrder] = useState<Partial<Requisition>>({})
+  const [note, setNote] = useState('') // buyer notes (in data)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -422,6 +530,7 @@ export function RequisitionPage() {
         setReq(r)
         setMessages(m)
         setFiles(f)
+        setNote(String(r.data?.buyer_notes ?? ''))
         setOrder({ supplier: r.supplier, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
       },
       (e: Error) => setError(e.message),
@@ -470,6 +579,7 @@ export function RequisitionPage() {
         order_value: order.order_value == null || String(order.order_value) === '' ? null : Number(order.order_value),
         order_date: order.order_date || null,
         delivery_date: order.delivery_date || null,
+        data: { ...req.data, buyer_notes: note.trim() || null },
         ...(status ? { status } : {}),
         ...(status === 'ordered' && !order.order_date ? { order_date: todayIso() } : {}),
       }
@@ -519,8 +629,19 @@ export function RequisitionPage() {
           <dd>{job ? <Link to={`/jobs/${job.id}`}>{jobLabel(job)}</Link> : '—'}</dd>
           <dt>Status</dt>
           <dd>{statusTag(req.status)}</dd>
-          <dt>Required by</dt>
-          <dd>{ukDate(req.required_by)}</dd>
+          {req.kind === 'hire' ? (
+            <>
+              <dt>Hire period</dt>
+              <dd>
+                {ukDate(req.required_by)} to {req.data?.hire_end ? ukDate(req.data.hire_end as string) : <span className="muted">end not known yet</span>}
+              </dd>
+            </>
+          ) : (
+            <>
+              <dt>Required by</dt>
+              <dd>{ukDate(req.required_by)}</dd>
+            </>
+          )}
           <dt>Requested by</dt>
           <dd>
             {req.requester_name}
@@ -532,7 +653,7 @@ export function RequisitionPage() {
             )}{' '}
             <span className="muted small">on {ukDate(req.created_at.slice(0, 10))}</span>
           </dd>
-          <dt>Materials required</dt>
+          <dt>{req.kind === 'hire' ? 'Hire requisition' : 'Materials required'}</dt>
           <dd className="pre">{linkify(req.details)}</dd>
           {req.notes && (
             <>
@@ -606,7 +727,7 @@ export function RequisitionPage() {
               </select>
             </label>
             <label>
-              Supplier
+              {req.kind === 'hire' ? 'Hire company' : 'Supplier'}
               <input value={order.supplier ?? ''} onChange={(e) => setOrder({ ...order, supplier: e.target.value })} />
               {/* typed, not a list (22 Nov) */}
             </label>
@@ -624,8 +745,12 @@ export function RequisitionPage() {
               <input type="date" value={order.order_date ?? ''} onChange={(e) => setOrder({ ...order, order_date: e.target.value })} />
             </label>
             <label>
-              Delivery date
+              {req.kind === 'hire' ? 'On site' : 'Delivery date'}
               <input type="date" value={order.delivery_date ?? ''} onChange={(e) => setOrder({ ...order, delivery_date: e.target.value })} />
+            </label>
+            <label className="span-2">
+              Buyer notes
+              <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
             </label>
           </div>
           {req.order_value != null && <p className="muted small">Ordered value {money(req.order_value)}</p>}

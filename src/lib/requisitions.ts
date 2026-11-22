@@ -16,7 +16,7 @@ export const REQ_STATUS_LABELS: Record<ReqStatus, string> = {
   answered: 'Answered',
   ordered: 'Ordered',
   delivered: 'Delivered',
-  cancelled: 'Cancelled',
+  cancelled: 'Voided', // as on the SharePoint lists (22 Nov)
 }
 export const OPEN_STATUSES: ReqStatus[] = ['new', 'query', 'answered', 'ordered']
 

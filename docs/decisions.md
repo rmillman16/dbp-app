@@ -73,8 +73,12 @@
       - "Ordered", "Delivered" and "Cancelled" tell the requester.
       - Reminders addressed to one person show only to them.
     - **Instant:** the bell updates the moment a reminder is added (Supabase Realtime, 033), with a check every minute in case the connection drops.
+    - **Hire requisitions (built 22 Nov), fields as on the SharePoint hire form:**
+      - **Form** (`/site/requisitions/hire/new`): Site name, Hire requisition (as much detail as possible, including accessories), Hire period start date (date required on site; starts 3 days from today), Hire end date (if known), Notes and Attachments. Its short title is the first line of what's needed.
+      - **Hire buyer's list**, laid out like the SharePoint hire list: Site, Hire requisition, Hire start, Hire end, Notes, Status, Buyer notes and Created.
+      - On a hire requisition's page, the buyer's fields are Hire company and On site.
+    - **Both lists:** **Buyer notes** can be typed straight into the list. "Cancelled" is shown as **Voided**, as on SharePoint.
     - **Still to do:**
-      - Hire requisitions.
       - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.

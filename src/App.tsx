@@ -30,7 +30,7 @@ import CvrEditor from './pages/CvrEditor'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import MyDetails from './pages/MyDetails'
-import Site, { BuyerList, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
+import Site, { BuyerList, HireRequisitionForm, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
 
@@ -220,6 +220,14 @@ export default function App() {
             element={
               <A section="site" what="the requisition forms">
                 <MaterialRequisitionForm />
+              </A>
+            }
+          />
+          <Route
+            path="/site/requisitions/hire/new"
+            element={
+              <A section="site" what="the requisition forms">
+                <HireRequisitionForm />
               </A>
             }
           />
