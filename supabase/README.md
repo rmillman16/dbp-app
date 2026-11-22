@@ -40,7 +40,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `034_operations_user_type.sql` | Operations user type (admins tick it in Settings › Users); requisitions locked: Operations / admins see all, everyone else only their own | ✅ Run |
 | `035_profile_types.sql` | Profile types (project manager, commercial, site management, design, accounts, external, operations; admin as before) and the access grid admins tick in Settings › Access; no type yet = today's access | ✅ Run |
 | `036_access_requests.sql` | Request access: the no-access screen sends IT a request (bell); admins mark the IT login(s) in Settings › Users; requests listed in Settings | ✅ Run |
-| `037_admins_from_app.sql` | Admins can make other people admins from Settings › Users (not yourself off, never the last admin) | ⬜ Not yet |
+| `037_admins_from_app.sql` | Admins can make other people admins from Settings › Users (not yourself off, never the last admin) | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
@@ -48,7 +48,7 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | Function | What it does | Needs | Deployed? |
 |---|---|---|---|
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
-| `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ⬜ Not yet |
+| `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ✅ Deployed |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
