@@ -46,7 +46,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `040_off_hire_requester.sql` | Off-hire reminders also go to whoever raised the hire | ✅ Run |
 | `041_notification_emails.sql` | Notification emails: what's been emailed, each person's on / off (My details); new requisitions notify the ops team | ✅ Run |
 | `042_archive_jobs.sql` | Archiving jobs: admins only; an archived job and everything filed under it is read-only; reminders keep running | ✅ Run |
-| `043_access_in_database.sql` | The access grid enforced by the database for every part (needed before External logins); shared lists stay open; requisition site list via requisition_sites() | ⬜ Not yet |
+| `043_access_in_database.sql` | The access grid enforced by the database for every part (needed before External logins); shared lists stay open; requisition site list via requisition_sites() | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
