@@ -721,3 +721,8 @@ body.no-scroll { overflow: hidden; }
 .sample-removed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; }
 .sample-removed select { width: auto; }
 .table tr.group-head td { white-space: nowrap; }
+
+/* sampling: a code never splits (e.g. "GL-01" on one line); the column is as wide as the longest code, the overdue / spec changed tags on their own lines underneath (22 Nov) */
+.sample-table td.stack-title { white-space: nowrap; width: 1%; }
+.sample-table td.stack-title .proc-name { white-space: nowrap; }
+.sample-table td.stack-title .late, .sample-table td.stack-title .soon { display: block; font-size: 11px; line-height: 1.3; }
