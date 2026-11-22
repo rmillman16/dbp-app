@@ -30,9 +30,9 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `024_procurement_names.sql` | Procurement: a package's own name (e.g. "Electrical (install)", "Tiles (supply)"); lead time now includes design | ✅ Run 21 Nov 2026 |
 | `025_programme_editing.sql` | Programme (Timeline) in the app: trade colours and shutdowns per programme; links between tasks (finish-to-start, start-to-start, finish-to-finish, lag days) for moving followers and the critical path; room for progress | ✅ Run 22 Nov 2026 |
 | `026_programme_timeline_features.sql` | Programme: every Timeline feature (programme start, Wk 1, client logo, section order; contractor, RAG, prerequisites, skeleton crew, baseline per task; issued revisions with history); programmes for Estimating enquiries (move to the job when won) | ✅ Run 22 Nov 2026 |
-| `027_programme_original.sql` | Programme: which committed revision is the original (contract) programme, for the overlay and slip against it (e.g. for an EOT) | ⬜ Not yet |
-| `028_programme_critical.sql` | Programme: a task can be marked as on the critical path (ticked in the task form), as well as those the links make critical | ⬜ Not yet |
-| `029_eot_programme_slip.sql` | EOT: a delay event can quote one programme task's slippage against the original programme (kept as quoted) | ⬜ Not yet |
+| `027_programme_original.sql` | Programme: which committed revision is the original (contract) programme, for the overlay and slip against it (e.g. for an EOT) | ✅ Run 22 Nov 2026 |
+| `028_programme_critical.sql` | Programme: a task can be marked as on the critical path (ticked in the task form), as well as those the links make critical | ✅ Run 22 Nov 2026 |
+| `029_eot_programme_slip.sql` | EOT: a delay event can quote one programme task's slippage against the original programme (kept as quoted) | ✅ Run 22 Nov 2026 |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
