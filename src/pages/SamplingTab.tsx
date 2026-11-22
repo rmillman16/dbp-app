@@ -758,10 +758,23 @@ function SamplePanel({
                 </button>
               </div>
             ) : (
-              <label className="file-button">
-                <input type="file" disabled={busy || isNew} onChange={(e) => (e.target.files?.[0] && upload('evidence', e.target.files[0]), (e.target.value = ''))} />
-                <span className="button small-button">{isNew ? 'Save first, then attach' : 'Attach the email / signed label…'}</span>
-              </label>
+              <div className="sample-file">
+                {/* on a phone: photograph the signed label there and then, or attach the email / a file */}
+                <label className="file-button">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    disabled={busy || isNew}
+                    onChange={(e) => (e.target.files?.[0] && upload('evidence', e.target.files[0]), (e.target.value = ''))}
+                  />
+                  <span className="button small-button">📷 Photograph the signed label</span>
+                </label>
+                <label className="file-button">
+                  <input type="file" disabled={busy || isNew} onChange={(e) => (e.target.files?.[0] && upload('evidence', e.target.files[0]), (e.target.value = ''))} />
+                  <span className="button small-button">{isNew ? 'Save first, then attach' : 'Attach the email / a file…'}</span>
+                </label>
+              </div>
             )}
           </div>
         </div>
@@ -769,16 +782,25 @@ function SamplePanel({
         <h3>Photo</h3>
         <div className="sample-photo-row">
           {s.photo_path && <Thumb path={s.photo_path} big />}
-          <label className="file-button">
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              disabled={busy || isNew}
-              onChange={(e) => (e.target.files?.[0] && upload('photo', e.target.files[0]), (e.target.value = ''))}
-            />
-            <span className="button small-button">{isNew ? 'Save first, then add a photo' : s.photo_path ? 'Replace photo…' : 'Take or add a photo…'}</span>
-          </label>
+          {/* two buttons (22 Nov): the camera straight away, or a photo already taken (library / files) */}
+          <div className="sample-file">
+            <label className="file-button">
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                disabled={busy || isNew}
+                onChange={(e) => (e.target.files?.[0] && upload('photo', e.target.files[0]), (e.target.value = ''))}
+              />
+              <span className="button small-button primary">{isNew ? 'Save first, then add a photo' : s.photo_path ? '📷 Take a new photo' : '📷 Take photo'}</span>
+            </label>
+            {!isNew && (
+              <label className="file-button">
+                <input type="file" accept="image/*" disabled={busy} onChange={(e) => (e.target.files?.[0] && upload('photo', e.target.files[0]), (e.target.value = ''))} />
+                <span className="button small-button">Choose a photo…</span>
+              </label>
+            )}
+          </div>
         </div>
 
         <div className="form-actions" style={{ marginTop: 16 }}>
