@@ -759,3 +759,16 @@ select.req-status.req-ordered, select.req-status.req-delivered { background: #e2
   .req-chat li { max-width: 95%; }
   .req-reply { flex-direction: column; align-items: stretch; }
 }
+.req-big { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 0 0 14px; }
+.req-big-button { display: flex; gap: 14px; align-items: center; padding: 16px 20px; border-radius: 12px; background: var(--navy); color: #fff; text-decoration: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12); }
+.req-big-button:hover { filter: brightness(1.12); }
+.req-big-button.active { outline: 3px solid var(--blue); outline-offset: 2px; }
+.req-big-button strong { display: block; font-size: 18px; }
+.req-big-button small { display: block; opacity: 0.8; font-size: 13px; }
+.req-big-button .soon { margin-left: 6px; color: #fff; font-size: 10px; vertical-align: middle; }
+.req-big-button.disabled { background: #8e8aa3; cursor: default; box-shadow: none; }
+.req-big-button.disabled:hover { filter: none; }
+.req-big-icon { font-size: 30px; line-height: 1; }
+.req-attach { display: flex; flex-direction: column; gap: 6px; }
+.req-attach .label-text { font-weight: 600; }
+.req-add-files { display: inline-flex; gap: 8px; flex-wrap: wrap; }

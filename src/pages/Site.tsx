@@ -4,6 +4,7 @@ import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { loadCompanies } from '../lib/subcontracts'
 import { useNotifications } from '../lib/notifications'
+import { useIsOperations } from '../lib/admin'
 import {
   OPEN_STATUSES,
   REQ_STATUS_LABELS,
@@ -20,6 +21,7 @@ import {
   reqRef,
   updateRequisition,
   type ReqFile,
+  type ReqKind,
   type ReqMessage,
   type ReqStatus,
   type Requisition,
@@ -27,28 +29,70 @@ import {
 import type { Company, Job } from '../lib/types'
 
 // Site (renamed from "Project management", 22 Nov): what site raises and the buyer works. Material
-// requisitions now, hire requisitions next. The buyer's list (the back end) is for operations; who can see
-// it is locked down later with a user type (docs/decisions.md "Still to build" › Permissions).
+// requisitions now, hire requisitions next. The material and hire buyer's lists (the back ends) show only to
+// Operations logins and admins (script 034; the database enforces it too).
 
 function SiteNav() {
+  const ops = useIsOperations()
   return (
     <>
       <h1>Site</h1>
-      <nav className="pills">
-        <NavLink to="/site/requisitions/new" className="pill">
-          + Material requisition
+      {/* the two forms, big (22 Nov: "make the material and hire requisition buttons more prominent") */}
+      <div className="req-big">
+        <NavLink to="/site/requisitions/new" className="req-big-button">
+          <span className="req-big-icon">📦</span>
+          <span>
+            <strong>Material requisition</strong>
+            <small>Request materials to site</small>
+          </span>
         </NavLink>
-        <span className="pill disabled" title="Coming next">
-          + Hire requisition <span className="soon">soon</span>
+        <span className="req-big-button disabled" title="Coming next">
+          <span className="req-big-icon">🏗️</span>
+          <span>
+            <strong>
+              Hire requisition <span className="soon">soon</span>
+            </strong>
+            <small>Plant and tool hire</small>
+          </span>
         </span>
+      </div>
+      <nav className="pills">
         <NavLink to="/site" end className="pill">
           My requisitions
         </NavLink>
-        <NavLink to="/site/buyer" className="pill">
-          Buyer's list
-        </NavLink>
+        {ops && (
+          <>
+            <NavLink to="/site/buyer/material" className="pill">
+              Material buyer's list
+            </NavLink>
+            <NavLink to="/site/buyer/hire" className="pill">
+              Hire buyer's list
+            </NavLink>
+          </>
+        )}
       </nav>
     </>
+  )
+}
+
+// add files: from the phone's camera straight away (iPhone / Android), or photos and files already on it
+function AddFiles({ onFiles, disabled, label = 'Choose files…' }: { onFiles: (files: File[]) => void; disabled?: boolean; label?: string }) {
+  const take = (input: HTMLInputElement) => {
+    const files = Array.from(input.files ?? [])
+    input.value = ''
+    if (files.length) onFiles(files)
+  }
+  return (
+    <span className="req-add-files">
+      <label className="file-button">
+        <input type="file" accept="image/*" capture="environment" disabled={disabled} onChange={(e) => take(e.target)} />
+        <span className="button small-button primary">📷 Take photo</span>
+      </label>
+      <label className="file-button">
+        <input type="file" multiple disabled={disabled} onChange={(e) => take(e.target)} />
+        <span className="button small-button">{label}</span>
+      </label>
+    </span>
   )
 }
 
@@ -186,10 +230,10 @@ export function MaterialRequisitionForm() {
             Notes
             <textarea rows={3} value={form.notes} placeholder="Booking systems, time restrictions etc." onChange={(e) => set('notes', e.target.value)} />
           </label>
-          <label className="span-2">
-            Attachments
-            <input type="file" multiple onChange={(e) => setFiles([...files, ...Array.from(e.target.files ?? [])])} />
-          </label>
+          <div className="span-2 req-attach">
+            <span className="label-text">Attachments</span>
+            <AddFiles onFiles={(more) => setFiles([...files, ...more])} />
+          </div>
           {files.length > 0 && (
             <ul className="req-files span-2">
               {files.map((f, i) => (
@@ -229,6 +273,9 @@ const FILTERS: [Filter, string][] = [
 const inFilter = (f: Filter, s: ReqStatus) => (f === 'all' ? true : f === 'open' ? OPEN_STATUSES.includes(s) && s !== 'ordered' : s === f)
 
 export function BuyerList() {
+  const { kind: kindParam } = useParams()
+  const kind: ReqKind = kindParam === 'hire' ? 'hire' : 'material'
+  const ops = useIsOperations()
   const navigate = useNavigate()
   const [rows, setRows] = useState<Requisition[] | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -238,9 +285,10 @@ export function BuyerList() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    loadRequisitions().then(setRows, (e: Error) => setError(e.message))
+    setRows(null)
+    loadRequisitions({ kind }).then(setRows, (e: Error) => setError(e.message))
     loadSites().then(setJobs, () => {})
-  }, [])
+  }, [kind])
   const jobById = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs])
 
   async function setStatus(r: Requisition, status: ReqStatus) {
@@ -262,14 +310,22 @@ export function BuyerList() {
   const today = todayIso()
   const soon = addDaysIso(today, 3)
 
+  if (ops === null) return <SiteNav />
+  if (!ops)
+    return (
+      <>
+        <SiteNav />
+        <p className="muted">The buyer's lists are for Operations. Ask an admin if you need access.</p>
+      </>
+    )
   return (
     <>
       <SiteNav />
       <section className="card">
         <div className="pane-head">
-          <h2>Buyer's list</h2>
+          <h2>{kind === 'hire' ? 'Hire' : 'Material'} buyer's list</h2>
         </div>
-        <p className="muted small intro">Every requisition across all jobs. For operations: who can see this list is set up later.</p>
+        {kind === 'hire' && <p className="muted small intro">The hire requisition form is coming next; hire requisitions will be listed here.</p>}
         <div className="toolbar">
           <input className="search" placeholder="Search ref, element, materials, requester or PO" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select value={jobId} onChange={(e) => setJobId(e.target.value)}>
@@ -311,7 +367,7 @@ export function BuyerList() {
                 const open = OPEN_STATUSES.includes(r.status) && r.status !== 'ordered'
                 const urgent = open && r.required_by <= soon
                 return (
-                  <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}?from=buyer`)}>
+                  <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
                     <td className="stack-title nowrap">
                       <strong>{reqRef(r)}</strong>
                       <div className="muted small">{ukDate(r.created_at.slice(0, 10))}</div>
@@ -351,6 +407,7 @@ export function BuyerList() {
 // ---------- one requisition: the details, the conversation, and the buyer's order details ----------
 export function RequisitionPage() {
   const { reqId } = useParams()
+  const ops = useIsOperations()
   const [params] = useSearchParams()
   const { reload: reloadBell } = useNotifications()
   const [req, setReq] = useState<Requisition | null>(null)
@@ -392,7 +449,7 @@ export function RequisitionPage() {
 
   if (!req) return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>
   const isRequester = userId != null && userId === req.requested_by
-  const asBuyer = params.get('from') === 'buyer' || !isRequester
+  const asBuyer = !!ops
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -433,11 +490,11 @@ export function RequisitionPage() {
     }
     setBusy(false)
   }
-  async function attach(list: FileList | null) {
-    if (!req || !list) return
+  async function attach(list: File[]) {
+    if (!req) return
     setError(null)
     try {
-      for (const f of Array.from(list)) await addFile(req, f)
+      for (const f of list) await addFile(req, f)
       load()
     } catch (err) {
       setError(saveError(err))
@@ -461,7 +518,7 @@ export function RequisitionPage() {
           <h2>
             {reqRef(req)} · {req.element}
           </h2>
-          <Link to={asBuyer && params.get('from') === 'buyer' ? '/site/buyer' : '/site'} className="link-button">
+          <Link to={asBuyer && !isRequester ? `/site/buyer/${req.kind}` : '/site'} className="link-button">
             Back
           </Link>
         </div>
@@ -516,10 +573,7 @@ export function RequisitionPage() {
                 </li>
               ))}
             </ul>
-            <label className="button small">
-              + Add file
-              <input type="file" multiple hidden onChange={(e) => attach(e.target.files)} />
-            </label>
+            <AddFiles onFiles={attach} label="+ Add file" />
           </dd>
         </dl>
       </section>

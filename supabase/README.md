@@ -37,6 +37,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `031_sample_omitted.sql` | Sampling: an "Omitted" status (set by DBP when the client hasn't updated the schedule; not on the bell) | ✅ Run 22 Nov 2026 |
 | `032_requisitions.sql` | Site: material requisitions (one list across all jobs; the buyer's questions to the requester go on their bell and the job's To do), attachments (storage "requisitions"); reminders addressed to one person show only to them | ✅ Run |
 | `033_requisitions_instant.sql` | Requisitions: the bell updates instantly (Realtime on notifications); a buyer's question / requester's answer is due today so it shows straight away | ✅ Run |
+| `034_operations_user_type.sql` | Operations user type (admins tick it in Settings › Users); requisitions locked: Operations / admins see all, everyone else only their own | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
 import { exportAllData } from '../lib/exportAll'
 import type { CompanySettings, Profile } from '../lib/types'
+import { useIsAdmin } from '../lib/admin'
 import AdminOnly from '../components/AdminOnly'
 import { Insurances, OmStandardDocuments } from './Sections'
 
@@ -115,6 +116,18 @@ function CompanyDetails() {
 
 function Users() {
   const [people, setPeople] = useState<Profile[] | null>(null)
+  const isAdmin = useIsAdmin()
+  const [err, setErr] = useState<string | null>(null)
+  // Operations (script 034): sees Site's buyer's lists. Admins tick it here.
+  async function setOps(p: Profile, on: boolean) {
+    setErr(null)
+    setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_operations: on } : x)))
+    const r = await supabase.rpc('set_operations', { person: p.id, on_off: on })
+    if (r.error) {
+      setPeople((people ?? []).map((x) => (x.id === p.id ? { ...x, is_operations: !on } : x)))
+      setErr(/function|schema cache/i.test(r.error.message) ? 'Run script 034 in Supabase first (supabase/README.md).' : r.error.message)
+    }
+  }
   useEffect(() => {
     cached('profiles', () => must<Profile[]>(supabase.from('profiles').select('*').order('email'))).then(setPeople, () => setPeople([]))
   }, [])
@@ -127,6 +140,7 @@ function Users() {
             <th>Name</th>
             <th>Email</th>
             <th>Admin</th>
+            <th>Operations</th>
           </tr>
         </thead>
         <tbody>
@@ -135,13 +149,27 @@ function Users() {
               <td className="stack-title">{p.full_name && p.full_name !== p.email ? p.full_name : '–'}</td>
               <td data-label="Email">{p.email}</td>
               <td data-label="Admin">{p.is_admin ? <span className="tag live">Admin</span> : ''}</td>
+              <td data-label="Operations">
+                {p.is_admin ? (
+                  <span className="muted small">Yes (admin)</span>
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={!!p.is_operations}
+                    disabled={!isAdmin}
+                    onChange={(e) => setOps(p, e.target.checked)}
+                    title="Sees the material and hire buyer's lists"
+                  />
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {err && <p className="error">{err}</p>}
       <p className="muted small">
-        Add a login in Supabase › Authentication › Users › Add user (tick Auto Confirm). To make someone an admin, run in
-        Supabase › SQL Editor: <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
+        Operations logins see Site's material and hire buyer's lists; everyone else sees only the requisitions they raised. Add a login in Supabase › Authentication › Users › Add
+        user (tick Auto Confirm). To make someone an admin, run in Supabase › SQL Editor: <code>update profiles set is_admin = true where email = 'name@duboulay.co.uk';</code>
       </p>
     </section>
   )
@@ -166,8 +194,8 @@ function ExportAll() {
     <section className="card">
       <h2>Export all data</h2>
       <p className="muted small">
-        Downloads everything in the app (jobs, VOs, notifications, templates…) as one Excel workbook, a tab per table.
-        A safety copy until Supabase's daily backups are switched on before go-live; worth running weekly until then.
+        Downloads everything in the app (jobs, VOs, notifications, templates…) as one Excel workbook, a tab per table. A safety copy until Supabase's daily backups are switched on
+        before go-live; worth running weekly until then.
       </p>
       <button className="primary" onClick={run} disabled={busy || !navigator.onLine}>
         {busy ? 'Exporting…' : 'Export all data'}

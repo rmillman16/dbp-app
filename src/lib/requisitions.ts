@@ -3,7 +3,7 @@
 // one list across all jobs and can ask the requester questions on each one. A buyer's question goes on the
 // requester's bell and the job's To do; the answer goes back to the buyer (the database does this, 032).
 // Hire requisitions follow on the same footing (kind 'hire', their own fields in data).
-// Who can see the buyer's list is locked down later (an operations / buyer user type: "Still to build").
+// The buyer's lists (material, hire) are for Operations logins and admins (script 034).
 import { supabase } from './supabase'
 import { cached, must } from './offline'
 import type { Job } from './types'
@@ -70,12 +70,13 @@ export async function me() {
   return data.session?.user ?? null
 }
 
-// mine: only the ones I raised (the site manager's view); else all of them (the buyer's list)
-export function loadRequisitions(opts: { mine?: string; jobId?: string } = {}) {
+// mine: only the ones I raised (the site manager's view); else all I can see (Operations: all of them, script 034)
+export function loadRequisitions(opts: { mine?: string; jobId?: string; kind?: ReqKind } = {}) {
   let q = supabase.from('requisitions').select('*')
+  if (opts.kind) q = q.eq('kind', opts.kind)
   if (opts.mine) q = q.eq('requested_by', opts.mine)
   if (opts.jobId) q = q.eq('job_id', opts.jobId)
-  return cached(`requisitions:${opts.mine ?? ''}:${opts.jobId ?? ''}`, () => must<Requisition[]>(q.order('req_no', { ascending: false }))).catch((e: Error) => {
+  return cached(`requisitions:${opts.mine ?? ''}:${opts.jobId ?? ''}:${opts.kind ?? ''}`, () => must<Requisition[]>(q.order('req_no', { ascending: false }))).catch((e: Error) => {
     throw new Error(needs032(e.message))
   })
 }

@@ -24,7 +24,9 @@
   - which jobs each person sees.
 
   Today every signed-in user sees and edits everything, except that admins alone change templates (script 005).
-  - **⚠ Reminder for Richard (asked 22 Nov): set up a user type and link it to people.** At least **Operations** (sees Site › Buyer's list, the requisitions back end) and **Requester** (site managers: only the requisition forms and their own requests). Then lock the Buyer's list to Operations. Until then everyone signed in can open it.
+  - **Operations user type: built 22 Nov (script 034).** Admins tick "Operations" against a login in Settings › Users (admins count as Operations). Only Operations and admins see Site's material and hire buyer's lists; anyone else sees only the requisitions they raised. The database enforces this too.
+  - **⚠ Reminder for Richard: tick Operations for the buyers** in Settings › Users once 034 is run.
+  - **Still to come:** a **Requester** type for site managers, who would see only the requisition forms and their own requests and nothing else in the app.
 - **Material and hire requisition forms** (Richard, 22 Nov): requisitions raised on site for materials and plant / tool hire. The back end is global (one list across all jobs, for buying and hire), not per job. Material first; hire is the same set-up with different columns. **How it works (agreed 22 Nov, before building):**
   - **Who raises them:** about 90% DBP staff, especially site managers, who change from job to job and don't need the rest of the app. All have Microsoft accounts.
   - **Sign-in: "Sign in with Microsoft"** with their DBP account, once per phone (it remembers them, so it's effectively no sign-in after that).
@@ -42,7 +44,9 @@
   - **Built 22 Nov (scripts 032, 033), material first:** the sidebar's "Project management" is now **Site**, holding the forms and the back end.
     - **Form** (`/site/requisitions/new`), fields as on the SharePoint form: Site name, Element of work, Materials required (with links), Date required by (starts 3 days from today, changeable), Notes, Attachments. The requester's name and email are added automatically. A job's Overview has a "+ Material requisition" link with the site filled in.
     - **My requisitions:** the requester's own, with their status.
-    - **Buyer's list** (`/site/buyer`): every requisition across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
+    - **Big buttons** for Material requisition and Hire requisition (hire marked "soon").
+    - **Attachments:** a "Take photo" button opens the phone's camera straight away (iPhone and Android), next to choosing photos or files.
+    - **Separate buyer's lists for material and hire** (`/site/buyer/material`, `/site/buyer/hire`), for Operations and admins only (034). Each lists every requisition of its kind across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
     - **Each requisition:** its details, attachments, a questions-and-answers conversation, and the buyer's order details (supplier, PO, value, order and delivery dates).
     - **Notifications** (the database does this):
       - A buyer's message sets it to "Query raised" and puts a reminder, due today, on the requester's bell and the job Overview's To-do box.
@@ -53,7 +57,6 @@
     - **Still to do:**
       - Hire requisitions.
       - Match the buyer's columns to the SharePoint list (the .iqy export is a link, not data: send an .xlsx or a screenshot).
-      - Lock the Buyer's list to Operations (Permissions reminder above).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)

@@ -112,7 +112,8 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/me" element={<MyDetails />} />
         <Route path="/site" element={<Site />} />
-        <Route path="/site/buyer" element={<BuyerList />} />
+        <Route path="/site/buyer" element={<Navigate to="/site/buyer/material" replace />} />
+        <Route path="/site/buyer/:kind" element={<BuyerList />} />
         <Route path="/site/requisitions/new" element={<MaterialRequisitionForm />} />
         <Route path="/site/requisitions/:reqId" element={<RequisitionPage />} />
         <Route path="/project-management" element={<Navigate to="/site" replace />} />
