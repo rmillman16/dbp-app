@@ -34,7 +34,8 @@ export interface Requisition {
   requester_name: string | null
   requester_email: string | null
   buyer_id: string | null
-  supplier_company_id: string | null
+  supplier_company_id: string | null // unused since 038
+  supplier: string | null // typed by the buyer (038)
   po_number: string | null
   order_value: number | null
   order_date: string | null

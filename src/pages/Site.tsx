@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
-import { loadCompanies } from '../lib/subcontracts'
 import { useNotifications } from '../lib/notifications'
 import { useAccess } from '../lib/access'
 import { NoAccess } from '../components/NoAccess'
@@ -27,7 +26,7 @@ import {
   type ReqStatus,
   type Requisition,
 } from '../lib/requisitions'
-import type { Company, Job } from '../lib/types'
+import type { Job } from '../lib/types'
 
 // Site (renamed from "Project management", 22 Nov): what site raises and the buyer works. Material
 // requisitions now, hire requisitions next. The material and hire buyer's lists (the back ends) show only to
@@ -307,7 +306,7 @@ export function BuyerList() {
   const shown = (rows ?? [])
     .filter((r) => inFilter(filter, r.status))
     .filter((r) => !jobId || r.job_id === jobId)
-    .filter((r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.requester_name ?? ''} ${r.po_number ?? ''}`.toLowerCase().includes(q))
+    .filter((r) => !q || `${reqRef(r)} ${r.element} ${r.details} ${r.requester_name ?? ''} ${r.po_number ?? ''} ${r.supplier ?? ''}`.toLowerCase().includes(q))
   const today = todayIso()
   const soon = addDaysIso(today, 3)
 
@@ -414,7 +413,6 @@ export function RequisitionPage() {
   const [messages, setMessages] = useState<ReqMessage[]>([])
   const [files, setFiles] = useState<ReqFile[]>([])
   const [job, setJob] = useState<Job | undefined>()
-  const [companies, setCompanies] = useState<Company[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [order, setOrder] = useState<Partial<Requisition>>({})
@@ -428,7 +426,7 @@ export function RequisitionPage() {
         setReq(r)
         setMessages(m)
         setFiles(f)
-        setOrder({ supplier_company_id: r.supplier_company_id, po_number: r.po_number, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
+        setOrder({ supplier: r.supplier, po_number: r.po_number, order_value: r.order_value, order_date: r.order_date, delivery_date: r.delivery_date })
       },
       (e: Error) => setError(e.message),
     )
@@ -436,7 +434,6 @@ export function RequisitionPage() {
   useEffect(() => {
     load()
     me().then((u) => setUserId(u?.id ?? null))
-    loadCompanies().then(setCompanies, () => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reqId])
   useEffect(() => {
@@ -473,7 +470,7 @@ export function RequisitionPage() {
     setBusy(true)
     try {
       const patch: Partial<Requisition> = {
-        supplier_company_id: order.supplier_company_id || null,
+        supplier: order.supplier?.trim() || null,
         po_number: order.po_number?.trim() || null,
         order_value: order.order_value == null || String(order.order_value) === '' ? null : Number(order.order_value),
         order_date: order.order_date || null,
@@ -619,14 +616,8 @@ export function RequisitionPage() {
             </label>
             <label>
               Supplier
-              <select value={order.supplier_company_id ?? ''} onChange={(e) => setOrder({ ...order, supplier_company_id: e.target.value || null })}>
-                <option value="">—</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <input value={order.supplier ?? ''} onChange={(e) => setOrder({ ...order, supplier: e.target.value })} />
+              {/* typed, not a list (22 Nov) */}
             </label>
             <label>
               PO number

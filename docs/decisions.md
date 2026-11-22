@@ -66,7 +66,7 @@
     - **Big buttons** for Material requisition and Hire requisition (hire marked "soon").
     - **Attachments:** a "Take photo" button opens the phone's camera straight away (iPhone and Android), next to choosing photos or files.
     - **Separate buyer's lists for material and hire** (`/site/buyer/material`, `/site/buyer/hire`), each shown to the types ticked for it in Settings › Access (Operations by default) and admins. Each lists every requisition of its kind across all jobs. Search, a site filter and status filters (Open, Awaiting answer, Ordered, Delivered, All). Status can be changed from the list.
-    - **Each requisition:** its details, attachments, a questions-and-answers conversation, and the buyer's order details (supplier, PO, value, order and delivery dates).
+    - **Each requisition:** its details, attachments, a questions-and-answers conversation, and the buyer's order details (supplier as typed text since 038, PO, value, order and delivery dates).
     - **Notifications** (the database does this):
       - A buyer's message sets it to "Query raised" and puts a reminder, due today, on the requester's bell and the job Overview's To-do box.
       - The requester's reply sets it to "Answered", closes their reminder and tells the buyer.
