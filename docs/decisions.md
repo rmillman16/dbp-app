@@ -164,6 +164,7 @@ Based on 2611 Micro by the Fix, Application 2 R2 (30.10.2026) — the current st
 
 ## Programme: tidy-up, help page and shortcuts (22 Nov)
 - **Toolbar:** every button, box and menu is 28 px high, the height of Open file. On touch screens the app makes buttons 42 px tall, which is why Open file (not a button) was the odd one out.
+- **From SoW…** in the toolbar (jobs) brings back making a simple programme from the SoW once a programme exists (it replaces it; committed revisions are kept). Before, it was only on the start page.
 - **Full page** replaces full screen: it fills the browser window over the sidebar and the job's heading, rather than the browser's own full screen. The button sits where New was; New moved to where full screen was. Esc or F leaves it.
 - **Thinner rows:** 30 px instead of Timeline's 48 px (16 px bars, shorter headings), so about 27 rows show where 15 did. The overlay still fits under each bar.
 - **Help page** (Help opens it in a new tab; route `/help/programme`): Timeline's help page rebuilt, with everything since. That covers automatic saving, Commit and the original programme, Compare / overlay and EOT, previous programmes, estimates, the link to the cashflow and procurement, full page, Redo and the shortcuts.

@@ -379,6 +379,9 @@ export default function ProgrammeHelp() {
                 cleared; shutdowns aren't copied (Christmas is offered again).
               </li>
               <li>
+                <b>From SoW…</b> (jobs) makes a simple programme from the job's SoW trades between the start and PC dates you give, replacing this one: a quick first draft to edit.
+              </li>
+              <li>
                 <b>New</b> clears the programme to start again. Committed revisions are kept in History either way.
               </li>
             </ul>

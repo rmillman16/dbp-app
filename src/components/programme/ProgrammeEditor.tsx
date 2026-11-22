@@ -104,6 +104,7 @@ type Dialog =
   | { kind: 'previous' }
   | { kind: 'import'; parsed: ParsedProgramme; name: string }
   | { kind: 'new' }
+  | { kind: 'sow' }
   | null
 
 export default function ProgrammeEditor({
@@ -531,6 +532,11 @@ export default function ProgrammeEditor({
         <button className="tl-btn" onClick={redoLast} disabled={!redoTop} title={redoTop ? `Redo: ${redoTop} (Ctrl+Y)` : 'Nothing to redo'}>
           Redo
         </button>
+        {job && (
+          <button className="tl-btn" onClick={() => setDialog({ kind: 'sow' })} title="Make a simple programme from the SoW's trades: replaces this one">
+            From SoW…
+          </button>
+        )}
         <button className="tl-btn" onClick={() => setDialog({ kind: 'previous' })} title="Start again from another job's or estimate's programme">
           Programmes
         </button>
@@ -1002,6 +1008,21 @@ export default function ProgrammeEditor({
           <p className="tl-p tl-light">This programme's committed revisions are kept in History. Commit first if you want to keep a copy of it as it is now.</p>
         </Modal>
       )}
+      {dialog?.kind === 'sow' && job && (
+        <Modal title="Make a simple programme from the SoW" onClose={() => setDialog(null)}>
+          <p className="tl-p">
+            A first draft from the job's SoW trades, between the start and PC dates you give: it <b>replaces this programme</b>. Committed revisions stay in History, so commit
+            first if you want to keep a copy of it as it is now.
+          </p>
+          <SowGenerator
+            job={job}
+            onSaved={() => {
+              setDialog(null)
+              load().then(() => flashToast('Simple programme made from the SoW.'))
+            }}
+          />
+        </Modal>
+      )}
       {dialog?.kind === 'new' && (
         <Modal
           title="New programme"
@@ -1125,16 +1146,6 @@ function StartPanel({
   const [pc, setPc] = useState(defaults.pc ?? '')
   const [pending, setPending] = useState<{ p: ParsedProgramme; name: string } | null>(null)
   const [err, setErr] = useState<string | null>(null)
-  const [trades, setTrades] = useState<string[]>([])
-  useEffect(() => {
-    if (!job) return
-    import('../../lib/cvr').then(({ loadPackages }) =>
-      loadPackages(job.id).then(
-        (ps) => setTrades(ps.filter((p) => p.kind === 'cost' && Number(p.budget ?? 0) > 0).map((p) => p.name)),
-        () => setTrades([]),
-      ),
-    )
-  }, [job])
   return (
     <div className="tl-start">
       <section className="card">
@@ -1185,7 +1196,7 @@ function StartPanel({
           {job && (
             <div>
               <h3>Make a simple one from the SoW</h3>
-              <GenerateProgramme job={job} trades={trades} onSaved={onGenerated} />
+              <SowGenerator job={job} onSaved={onGenerated} />
             </div>
           )}
           <div>
@@ -1554,4 +1565,19 @@ function CompareBar({ w, c, onClose }: { w: Working; c: Comparison; onClose: () 
       </button>
     </div>
   )
+}
+
+// a simple programme from the job's SoW trades (programmeGen.ts): on the start page and under From SoW…
+function SowGenerator({ job, onSaved }: { job: Job; onSaved: () => void }) {
+  const [trades, setTrades] = useState<string[] | null>(null)
+  useEffect(() => {
+    import('../../lib/cvr').then(({ loadPackages }) =>
+      loadPackages(job.id).then(
+        (ps) => setTrades(ps.filter((p) => p.kind === 'cost' && Number(p.budget ?? 0) > 0).map((p) => p.name)),
+        () => setTrades([]),
+      ),
+    )
+  }, [job])
+  if (!trades) return <p className="muted small">Reading the SoW…</p>
+  return <GenerateProgramme job={job} trades={trades} onSaved={onSaved} />
 }
