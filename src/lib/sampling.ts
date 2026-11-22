@@ -278,14 +278,20 @@ export async function applySchedule(
           unchanged.map((s) => s.id),
         ),
     )
-  if (removedAction === 'delete') for (const s of removed) await deleteSample(s)
-  if (removedAction === 'omit' && removed.length) {
+  // heading rows an earlier import took for samples (e.g. FABRIC): no number, nothing filled in, never touched. Always removed.
+  const junk = removed.filter(
+    (s) => !/\d/.test(s.code) && !s.description && !s.specification && !(s.locations ?? []).length && s.status === 'not_requested' && !s.supplier_company_id && !s.photo_path,
+  )
+  for (const s of junk) await deleteSample(s)
+  const rest = removed.filter((s) => !junk.includes(s))
+  if (removedAction === 'delete') for (const s of rest) await deleteSample(s)
+  if (removedAction === 'omit' && rest.length) {
     const r = await supabase
       .from('samples')
       .update({ status: 'omitted' })
       .in(
         'id',
-        removed.map((s) => s.id),
+        rest.map((s) => s.id),
       )
     if (r.error)
       throw new Error(/omitted/.test(r.error.message) ? 'The schedule was imported, but marking samples Omitted needs script 031 run in Supabase first.' : r.error.message)

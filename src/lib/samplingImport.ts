@@ -81,12 +81,32 @@ export function guessGroup(...texts: (string | null | undefined)[]) {
 }
 
 // the items: one per code, its locations gathered from every row it's on
+// a heading row in the schedule (22 Nov: "FABRIC" came in as a sample): words in the code column with no
+// number, and nothing else filled in. It names the group for the items under it.
+export function isHeading(code: string, others: string[]) {
+  return !!code && !/\d/.test(code) && others.every((o) => !o)
+}
+// a heading as a material group: a standard one if it matches ("FABRIC" → Fabrics), else its own name
+export function headingGroup(text: string) {
+  const g = guessGroup(text)
+  if (g !== 'Other') return g
+  const t = text.trim().toLowerCase()
+  return t.charAt(0).toUpperCase() + t.slice(1)
+}
+
+// the items: one per code, its locations gathered from every row it's on
 export function buildItems(rows: unknown[][], m: Mapping): ScheduleItem[] {
   const get = (r: unknown[], f: Field) => (m[f] === undefined ? '' : words(r[m[f]!]))
   const out = new Map<string, ScheduleItem>()
+  let heading: string | null = null
   for (const r of rows) {
     const code = get(r, 'code')
     if (!code || code.length > 40) continue
+    const others = (['designer_ref', 'description', 'location', 'manufacturer', 'product', 'finish', 'specification', 'quantity'] as Field[]).map((f) => get(r, f))
+    if (isHeading(code, others)) {
+      heading = headingGroup(code)
+      continue
+    }
     const key = code.toUpperCase()
     const loc = get(r, 'location')
     const it = out.get(key)
@@ -96,11 +116,12 @@ export function buildItems(rows: unknown[][], m: Mapping): ScheduleItem[] {
     }
     const spec = [get(r, 'manufacturer'), get(r, 'product'), get(r, 'finish'), get(r, 'specification')].filter(Boolean).join(' · ')
     const description = get(r, 'description') || null
+    const fromColumn = guessGroup(get(r, 'group'))
     out.set(key, {
       code,
       designer_ref: m.designer_ref !== undefined ? get(r, 'designer_ref') || null : null,
-      // the schedule's own category first, then the description, then the code and specification
-      material_group: [get(r, 'group'), description, `${code} ${spec}`].map((t) => guessGroup(t)).find((g) => g !== 'Other') ?? 'Other',
+      // the schedule's own category, then the heading it's under, then the description, then the code and specification
+      material_group: fromColumn !== 'Other' ? fromColumn : (heading ?? [description, `${code} ${spec}`].map((t) => guessGroup(t)).find((g) => g !== 'Other') ?? 'Other'),
       locations: loc ? [loc] : [],
       description,
       specification: spec || null,
