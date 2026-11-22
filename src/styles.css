@@ -688,3 +688,27 @@ body.no-scroll { overflow: hidden; }
 .proc-status.sst-submitted { background: #e8f2fb; color: #0b5c94; border-color: #b6d6ef; }
 .proc-status.sst-approved, .proc-status.sst-approved_with_comments { background: #e8f5e9; color: #2e7d32; border-color: #b9dcbb; }
 .proc-status.sst-rejected_resubmit { background: #fdecea; color: #b52020; border-color: #efb4b4; }
+
+/* sampling filters (22 Nov): status switches, "only" switches, the Filters menu */
+.sample-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.sample-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; min-height: 0; border-radius: 16px; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--ink); }
+.sample-chip.sst-not_requested { background: #f4f5f8; }
+.sample-chip.sst-requested { background: #fff4e0; color: #8a5300; border-color: #f0d49a; }
+.sample-chip.sst-submitted { background: #e8f2fb; color: #0b5c94; border-color: #b6d6ef; }
+.sample-chip.sst-approved, .sample-chip.sst-approved_with_comments { background: #e8f5e9; color: #2e7d32; border-color: #b9dcbb; }
+.sample-chip.sst-rejected_resubmit { background: #fdecea; color: #b52020; border-color: #efb4b4; }
+.sample-chip.off { background: #fff; color: var(--muted); border-style: dashed; text-decoration: line-through; opacity: 0.75; }
+.sample-chip.empty:not(.off) { opacity: 0.55; }
+.sample-chip.only-late:not(.on) { color: var(--red); }
+.sample-chip.only-soon:not(.on) { color: var(--amber); }
+.sample-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+.sample-chip:disabled { opacity: 0.45; }
+.sample-more { position: relative; display: inline-flex; }
+.sample-more-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 50; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 20px rgba(31, 18, 70, 0.16); padding: 12px 14px; width: min(560px, calc(100vw - 32px)); max-height: 70vh; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 18px; }
+.sample-more-pop > p { grid-column: 1 / -1; }
+.sample-check-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.sample-check { display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; padding: 2px 0; margin: 0; font-weight: 400; cursor: pointer; }
+.sample-check input { width: auto; margin: 0; }
+.sample-check .muted { margin-left: auto; font-size: 12px; }
+.sample-showing { white-space: nowrap; }
+@media (max-width: 700px) { .sample-more-pop { position: fixed; left: 16px; right: 16px; top: 120px; width: auto; } }

@@ -249,12 +249,19 @@ export async function applySchedule(
       ),
     )
   for (const c of changed) {
-    // its status is kept; a change to something already approved is flagged (resample, possible VO)
+    // its status (and group, if changed by hand) is kept; a change to something already approved is flagged (resample, possible VO)
     await with030(() =>
       ok(
         supabase
           .from('samples')
-          .update(row({ ...c.item, finish_schedule_id: scheduleId, changed_after_approval: c.sample.changed_after_approval || isApproved(c.sample) }))
+          .update(
+            row({
+              ...c.item,
+              material_group: c.sample.material_group,
+              finish_schedule_id: scheduleId,
+              changed_after_approval: c.sample.changed_after_approval || isApproved(c.sample),
+            }),
+          )
           .eq('id', c.sample.id),
       ),
     )

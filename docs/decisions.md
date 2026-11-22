@@ -443,6 +443,20 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: filters, and revisions keep status (22 Nov)
+- **Bug fixed:** the status buttons printed a stray "0" for statuses with no samples.
+- **Filters** (Richard: "filter buttons so we can hide things based on status and other items"):
+  - **Status switches:** each status is a coloured button with its count. Click to hide it (struck through); click again to show it.
+  - **Overdue only** and **Spec changed only**.
+  - **Filters ▾:** tick material groups, locations / levels, suppliers ("(none)" included) and types to show only those. Nothing ticked in a list means all of it.
+  - "Showing 20 of 24 · Clear filters". Filters are remembered per job on the device.
+  - The **Excel and PDF export what's shown**, so filter first for part of the tracker.
+- **New revisions keep status** (Richard: "it needs to remember the status of the unchanged elements"):
+  - Samples are matched by code. Unchanged ones aren't touched, and changed ones keep their status (flagged if already approved).
+  - A material group set by hand is now kept too (before, a changed item's group was re-guessed).
+  - The import step shows "N unchanged (status kept), N new, N changed (status kept), N no longer on the schedule".
+  - If the designer renames a code, it can't be matched: it shows as one removed and one new.
+
 ## Sampling: schedule import reads the file directly (22 Nov)
 - Richard's first schedule import failed with "Cannot read properties…". The ExcelJS library chokes on some designers' files (pictures in cells, tables, shapes and similar).
 - The import now reads just the text straight out of the file (`src/lib/xlsxText.ts`): shared strings, typed text and the values Excel saved for formulas. Pictures, shapes, comments and errors are skipped.

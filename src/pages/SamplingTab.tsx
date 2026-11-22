@@ -29,7 +29,19 @@ import ContractorPicker from '../components/ContractorPicker'
 import { useJob } from './JobLayout'
 
 type Data = Awaited<ReturnType<typeof loadSampling>>
-type Filter = 'all' | 'overdue' | SampleStatus | 'changed'
+// what's shown (22 Nov): statuses switched off are hidden; "only" switches; and narrowing by group, location,
+// supplier and type (empty = all). Remembered per job on this device.
+type Filters = { hide: SampleStatus[]; overdue: boolean; changed: boolean; groups: string[]; locations: string[]; suppliers: string[]; types: SampleType[] }
+const NO_FILTERS: Filters = { hide: [], overdue: false, changed: false, groups: [], locations: [], suppliers: [], types: [] }
+const filterKey = (jobId: string) => `dbp-sampling-filters:${jobId}`
+const loadFilters = (jobId: string): Filters => {
+  try {
+    return { ...NO_FILTERS, ...JSON.parse(localStorage.getItem(filterKey(jobId)) ?? '{}') }
+  } catch {
+    return NO_FILTERS
+  }
+}
+const NONE = '(none)' // no supplier / no location
 const today = todayIso()
 
 // Job › Sampling: physical samples, from the designer's finishes schedule (docs/decisions.md "Sampling
@@ -40,7 +52,22 @@ export default function SamplingTab() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
-  const [filter, setFilter] = useState<Filter>('all')
+  const [fl, setFl] = useState<Filters>(() => loadFilters(job.id))
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  useEffect(() => setFl(loadFilters(job.id)), [job.id])
+  useEffect(() => {
+    try {
+      localStorage.setItem(filterKey(job.id), JSON.stringify(fl))
+    } catch {
+      /* private browsing: not remembered */
+    }
+  }, [fl, job.id])
+  useEffect(() => {
+    if (!filtersOpen) return
+    const close = (e: PointerEvent) => !(e.target as Element).closest('.sample-more') && setFiltersOpen(false)
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [filtersOpen])
   const [q, setQ] = useState('')
   const [panel, setPanel] = useState<Sample | null>(null)
   const [importing, setImporting] = useState(false)
@@ -117,18 +144,61 @@ export default function SamplingTab() {
   }
 
   const ql = q.trim().toLowerCase()
+  const supplierOf = (x: Sample) => data.companies.find((c) => c.id === x.supplier_company_id)?.name ?? NONE
+  const locsOf = (x: Sample) => (x.locations?.length ? x.locations : [NONE])
   const shown = data.samples.filter(
-    (s) =>
-      (filter === 'all' || (filter === 'overdue' ? overdue(s, today) : filter === 'changed' ? s.changed_after_approval : s.status === filter)) &&
-      (!ql || `${s.code} ${s.designer_ref ?? ''} ${s.description ?? ''} ${s.specification ?? ''} ${(s.locations ?? []).join(' ')}`.toLowerCase().includes(ql)),
+    (x) =>
+      !fl.hide.includes(x.status) &&
+      (!fl.overdue || overdue(x, today)) &&
+      (!fl.changed || x.changed_after_approval) &&
+      (!fl.groups.length || fl.groups.includes(x.material_group)) &&
+      (!fl.locations.length || locsOf(x).some((l) => fl.locations.includes(l))) &&
+      (!fl.suppliers.length || fl.suppliers.includes(supplierOf(x))) &&
+      (!fl.types.length || fl.types.includes(x.sample_type)) &&
+      (!ql || `${x.code} ${x.designer_ref ?? ''} ${x.description ?? ''} ${x.specification ?? ''} ${(x.locations ?? []).join(' ')}`.toLowerCase().includes(ql)),
   )
+  const narrowed = fl.groups.length + fl.locations.length + fl.suppliers.length + fl.types.length
+  const filtering = fl.hide.length > 0 || fl.overdue || fl.changed || narrowed > 0 || !!ql
+  const toggle = <K extends 'groups' | 'locations' | 'suppliers' | 'types' | 'hide'>(k: K, v: Filters[K][number]) =>
+    setFl((p) => ({ ...p, [k]: (p[k] as string[]).includes(v as string) ? (p[k] as string[]).filter((x) => x !== v) : [...(p[k] as string[]), v] }))
+  // the options for each list, with how many samples each has
+  const tally = (vals: string[]) =>
+    [...vals.reduce((m, v) => m.set(v, (m.get(v) ?? 0) + 1), new Map<string, number>())].sort((a, b) => a[0].localeCompare(b[0], 'en-GB', { numeric: true }))
+  const groupOpts = tally(data.samples.map((x) => x.material_group))
+  const locOpts = tally(data.samples.flatMap(locsOf))
+  const supOpts = tally(data.samples.map(supplierOf))
+  const typeOpts = tally(data.samples.map((x) => x.sample_type))
   const groups = [...MATERIAL_GROUPS, ...new Set(data.samples.map((s) => s.material_group).filter((g) => !MATERIAL_GROUPS.includes(g)))]
   const latest = data.schedules[0]
-  const chip = (f: Filter, label: string, cls = '') =>
-    (f === 'all' || counts[f]) && (
-      <button key={f} className={`${filter === f ? 'on' : ''} ${cls}`} onClick={() => setFilter(f)}>
-        {label} <span className="seg-count">{counts[f] ?? 0}</span>
-      </button>
+  // a status switch: on = shown (click to hide it)
+  const statusChip = (st: SampleStatus, label: string) => (
+    <button
+      key={st}
+      className={`sample-chip sst-${st} ${fl.hide.includes(st) ? 'off' : ''} ${counts[st] ? '' : 'empty'}`}
+      onClick={() => toggle('hide', st)}
+      aria-pressed={!fl.hide.includes(st)}
+      title={fl.hide.includes(st) ? `Hidden: click to show ${label.toLowerCase()}` : `Shown: click to hide ${label.toLowerCase()}`}
+    >
+      {label} <span className="seg-count">{counts[st] ?? 0}</span>
+    </button>
+  )
+  const checkList = (title: string, k: 'groups' | 'locations' | 'suppliers' | 'types', opts: [string, number][], label: (v: string) => string = (v) => v) =>
+    opts.length > 1 && (
+      <div className="sample-check-group">
+        <div className="sample-check-title">
+          {title}
+          {fl[k].length > 0 && (
+            <button className="link-button small" onClick={() => setFl((p) => ({ ...p, [k]: [] }))}>
+              all
+            </button>
+          )}
+        </div>
+        {opts.map(([v, n]) => (
+          <label key={v} className="sample-check">
+            <input type="checkbox" checked={(fl[k] as string[]).includes(v)} onChange={() => toggle(k, v as never)} /> {label(v)} <span className="muted">{n}</span>
+          </label>
+        ))}
+      </div>
     )
 
   return (
@@ -152,10 +222,11 @@ export default function SamplingTab() {
             </button>
             <button onClick={addNew}>+ Add sample</button>
             <button
-              disabled={!data.samples.length}
+              disabled={!shown.length}
+              title="The samples shown (filter first for a part of the tracker)"
               onClick={async () => {
                 const { exportSampling } = await import('../lib/exportSampling')
-                exportSampling(job, data.samples, data.companies, today).catch((e) => setError((e as Error).message))
+                exportSampling(job, shown, data.companies, today).catch((e) => setError((e as Error).message))
               }}
             >
               Excel
@@ -172,18 +243,57 @@ export default function SamplingTab() {
 
         {data.samples.length > 0 && (
           <div className="sample-filters">
-            <div className="segmented">
-              {chip('all', 'All')}
-              {chip('overdue', 'Overdue', 'late-chip')}
-              {chip('not_requested', 'To request')}
-              {chip('requested', 'Requested')}
-              {chip('submitted', 'Submitted')}
-              {chip('approved', 'Approved')}
-              {chip('approved_with_comments', 'With comments')}
-              {chip('rejected_resubmit', 'Rejected')}
-              {chip('changed', 'Spec changed', 'soon-chip')}
+            <div className="sample-chips" role="group" aria-label="Show statuses">
+              {statusChip('not_requested', 'To request')}
+              {statusChip('requested', 'Requested')}
+              {statusChip('submitted', 'Submitted')}
+              {statusChip('approved', 'Approved')}
+              {statusChip('approved_with_comments', 'With comments')}
+              {statusChip('rejected_resubmit', 'Rejected')}
+            </div>
+            <div className="sample-chips">
+              <button
+                className={`sample-chip only only-late ${fl.overdue ? 'on' : ''}`}
+                onClick={() => setFl((p) => ({ ...p, overdue: !p.overdue }))}
+                aria-pressed={fl.overdue}
+                disabled={!counts.overdue && !fl.overdue}
+              >
+                Overdue only <span className="seg-count">{counts.overdue}</span>
+              </button>
+              <button
+                className={`sample-chip only only-soon ${fl.changed ? 'on' : ''}`}
+                onClick={() => setFl((p) => ({ ...p, changed: !p.changed }))}
+                aria-pressed={fl.changed}
+                disabled={!counts.changed && !fl.changed}
+              >
+                Spec changed only <span className="seg-count">{counts.changed}</span>
+              </button>
+              <span className="sample-more">
+                <button className={`sample-chip ${narrowed ? 'on' : ''}`} onClick={() => setFiltersOpen(!filtersOpen)} aria-expanded={filtersOpen}>
+                  Filters{narrowed ? ` (${narrowed})` : ''} ▾
+                </button>
+                {filtersOpen && (
+                  <div className="sample-more-pop">
+                    {checkList('Material group', 'groups', groupOpts)}
+                    {checkList('Location / level', 'locations', locOpts)}
+                    {checkList('Subcontractor / supplier', 'suppliers', supOpts)}
+                    {checkList('Type', 'types', typeOpts, (v) => SAMPLE_TYPE_LABELS[v as SampleType] ?? v)}
+                    <p className="muted small" style={{ margin: '6px 0 0' }}>
+                      Tick to show only those. Nothing ticked in a list: all of it.
+                    </p>
+                  </div>
+                )}
+              </span>
             </div>
             <input type="search" className="filter" placeholder="Find a code, description, spec or location…" value={q} onChange={(e) => setQ(e.target.value)} />
+            {filtering && (
+              <span className="small muted sample-showing">
+                Showing {shown.length} of {data.samples.length} ·{' '}
+                <button className="link-button small" onClick={() => (setFl(NO_FILTERS), setQ(''))}>
+                  Clear filters
+                </button>
+              </span>
+            )}
           </div>
         )}
 
@@ -852,7 +962,8 @@ function ImportDialog({
                     <h3>{items.length} samples found</h3>
                     {existing.length > 0 && (
                       <p className="small">
-                        Against what's here: <b>{diff.added.length}</b> new, <b>{diff.changed.length}</b> changed
+                        Against what's here: <b>{existing.length - diff.removed.length - diff.changed.length}</b> unchanged (status kept), <b>{diff.added.length}</b> new,{' '}
+                        <b>{diff.changed.length}</b> changed (status kept)
                         {diff.changed.some((c) => isApproved(c.sample)) && (
                           <span className="soon"> ({diff.changed.filter((c) => isApproved(c.sample)).length} already approved: they'll be flagged)</span>
                         )}
