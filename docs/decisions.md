@@ -106,6 +106,15 @@
       - Material Req - ADMIN columns: **kept as built** (Richard, 22 Nov: "what you have made is better" than the SharePoint list).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
+- **Company dashboard: built 22 Nov (044).** Sidebar › Dashboard, one row per live job (or live and complete):
+  - Value: the anticipated final value from the latest finalised CVR, else the contract sum.
+  - Margin: £ and % from that CVR.
+  - Cash received: paid against applications, with the last application.
+  - Programme finish against PC, with days late.
+  - Overdue reminders, open requisitions, and hire (on hire, £ ordered, past end date).
+  - Headline tiles show the totals; warnings carry ⚠ as well as colour.
+  - Ticked for Project manager and Commercial in Settings › Access. Each person only sees figures from parts they can open.
+- **Meeting minutes (Richard, 22 Nov): next.** Copy the DBP Minutes app (dbp-mint.firebaseapp.com) exactly, rebuilt inside this app so actions feed the job To-do and use the app's jobs, people, notifications and permissions. Existing minutes are not brought across.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.

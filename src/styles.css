@@ -813,3 +813,13 @@ select.req-status.req-off_hired { background: #eee; }
 .tag.archived { background: #e6e3ee; color: #5a5470; }
 .read-only-area input:disabled, .read-only-area textarea:disabled, .read-only-area select:disabled { background: #f6f5f9; color: inherit; opacity: 1; }
 .read-only-area button:disabled { opacity: 0.45; }
+
+/* company dashboard (22 Nov) */
+.dash-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.dash-tile { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border-radius: 10px; background: #fff; border: 1px solid var(--line); }
+.dash-tile-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+.dash-tile-value { font-size: 24px; color: var(--navy); line-height: 1.2; }
+.dash-tile-sub { font-size: 12px; color: var(--muted); }
+.dash-tile.warn { border-color: #f0c8c8; }
+.dash-tile.warn .dash-tile-value { color: var(--red); }
+.dash-table td { vertical-align: top; }

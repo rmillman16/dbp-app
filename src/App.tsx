@@ -29,6 +29,7 @@ import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
+import Dashboard from './pages/Dashboard'
 import MyDetails from './pages/MyDetails'
 import Site, { BuyerList, HireRequisitionForm, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
 import QuotationsRegister from './pages/QuotationsRegister'
@@ -80,6 +81,14 @@ export default function App() {
       <Layout email={email}>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route
+            path="/dashboard"
+            element={
+              <A section="dashboard">
+                <Dashboard />
+              </A>
+            }
+          />
           <Route
             path="/jobs"
             element={
