@@ -1,8 +1,13 @@
 
 ## Still to build (the list, kept up to date)
-- **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. What goes in it is to be agreed.
+- **Job Overview: To do section** (Richard, 21 Nov). The box to the right of the Schedule of works on the Overview; a placeholder for now. Parked (22 Nov): it's a PM section item, to come back to.
 - **Programme / Timeline:** every Timeline feature is now in the app (22 Nov, script 026). Left to do: move the live programmes across (export each one's .json from Timeline, then use Open file… on the job's Programme tab), then retire Timeline. Richard to try it on real jobs and report back.
-- **Modules still to come (build order):** sampling tracker, progress reports, O&M / H&S file.
+- **Sampling, still to do:**
+  - reading PDF finishes schedules (needs the PDF-reading step, with IT);
+  - feeding progress report 2.2;
+  - outstanding samples on meeting agendas;
+  - saving the export to SharePoint (needs the SharePoint link, with IT).
+- **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
   - Cashflow: S-curve in the Excel (left out for now, 21 Nov).
@@ -419,6 +424,37 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **CDP taken out** (Richard, 21 Nov), from the screen and the Excel. The buttons read "Excel: internal" and "Excel: client copy".
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
+
+## Sampling tracker: built (22 Nov, script 030)
+Job › **Sampling** tab, after Procurement. Richard chose photo and approval uploads into the app, and due dates from the programme.
+- **The tracker** is grouped by material group (Fabrics, Glass & mirrors, Laminates & metal, Paints, Stone / ceramic / composite, Timber & veneers, Wall coverings, Flooring, Ironmongery & fittings, Lighting & electrical, Other).
+  - Each row: code (and designer ref), description and specification, locations (one row for an item on several levels).
+  - Editable in the row:
+    - **Status** dropdown (coloured). Choosing Requested, Submitted or a decision fills that date if it's blank; approving clears "spec changed".
+    - Supplier (type-ahead, can add a new one), type (sample / benchmark / mock-up), due and submitted dates.
+  - Photo thumbnail. Red rows: due and not yet submitted. Amber: spec changed after approval.
+- **Filters and search:** filter buttons with counts (All, Overdue, To request, Requested, Submitted, Approved, With comments, Rejected, Spec changed), and a search box.
+- **Side panel** (click the code):
+  - all the fields;
+  - **due date from the programme**: pick the activity it's needed for and the weeks before it starts. The date follows the programme; it's refreshed when the tab opens, so the bell stays right. Typing a due date in the table unlinks it.
+  - requested and submitted dates;
+  - the designer's decision (decided by, date, comments) with the **approval email or signed label attached**;
+  - **photo** (camera on a phone; shrunk to 1600 px first);
+  - stored at; delete.
+- **Uploads** go to a private Supabase storage area, "samples" (signed-in users only), viewed through short-lived links.
+- **Importing the finishes schedule (Excel, any designer's layout):**
+  - The header row is found by its words, and each column's meaning guessed (code, designer ref, category, location, description, manufacturer, product, finish, specification, quantity). You can change the sheet, header row and any column before importing.
+  - Items on several rows / levels become one sample with all their locations.
+  - The material group comes from the schedule's category, else the description, else the code and specification.
+  - The designer, document no. and revision are taken from the file name, and can be edited.
+- **New revision:** the app shows what's new, changed and no longer on the schedule.
+  - Status is kept for everything; changed items take the new details, and anything already approved is flagged "spec changed" (resample, possible VO).
+  - Samples dropped from the schedule are kept unless you tick to delete them. Samples added by hand are never treated as dropped.
+- **Bell:** a reminder per sample with a due date that's not yet submitted (not requested, requested, or rejected), linking to the Sampling tab (database trigger, script 030).
+- **Export:**
+  - **Excel**, grouped by material group, with the DBP logo top right at 60 × 15 mm, and red / amber rows.
+  - **PDF** for design team meetings: the samples currently shown (so filter first, e.g. Overdue), grouped, with photo thumbnails, A4 landscape.
+- Tested: the Excel reader on a KKA-style schedule (title rows above the header; M-S101 on L00 and L01 → one sample; groups right), and the revision comparison (added / changed-after-approval / dropped; a hand-added sample left alone).
 
 ## Sampling module — scope (agreed 19 Nov)
 Purpose: track **physical samples** per job. SubmittalLink covers technical submissions and drawings but not physical samples, so there is no overlap.

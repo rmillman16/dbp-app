@@ -21,6 +21,7 @@ import EotTab from './pages/EotTab'
 import CashflowTab from './pages/CashflowTab'
 import ProgrammeTab from './pages/ProgrammeTab'
 import ProgrammeHelp from './pages/ProgrammeHelp'
+import SamplingTab from './pages/SamplingTab'
 import ProcurementTab from './pages/ProcurementTab'
 import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
@@ -92,6 +93,7 @@ export default function App() {
           <Route path="programme" element={<ProgrammeTab />} />
           <Route path="cashflow" element={<CashflowTab />} />
           <Route path="procurement" element={<ProcurementTab />} />
+          <Route path="sampling" element={<SamplingTab />} />
           <Route path="eot" element={<EotTab />} />
           <Route path="cvr" element={<CvrTab />} />
           <Route path="cvr/:cvrId" element={<CvrEditor />} />
