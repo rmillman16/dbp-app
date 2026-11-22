@@ -712,3 +712,10 @@ body.no-scroll { overflow: hidden; }
 .sample-check .muted { margin-left: auto; font-size: 12px; }
 .sample-showing { white-space: nowrap; }
 @media (max-width: 700px) { .sample-more-pop { position: fixed; left: 16px; right: 16px; top: 120px; width: auto; } }
+
+/* sampling: omitted samples greyed (22 Nov, script 031) */
+.sample-table tr.sample-omitted td { color: var(--muted); }
+.sample-table tr.sample-omitted .proc-name { text-decoration: line-through; color: var(--muted); }
+.proc-status.sst-omitted, .sample-chip.sst-omitted { background: #f0f0f3; color: #6b6b78; border-color: #d6d6de; }
+.sample-removed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; }
+.sample-removed select { width: auto; }

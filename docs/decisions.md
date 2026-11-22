@@ -443,6 +443,14 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: Omitted status; supplier second (22 Nov, script 031)
+- **Omitted** status (Richard: "so we can do it contractor side if client doesn't update"):
+  - Set by DBP. It's not on the bell (the reminder only covers samples not yet submitted).
+  - Greyed rows with the code struck through; its own status switch, so it can be hidden.
+  - Greyed in the PDF too.
+- **New revision:** the samples no longer on the schedule can be **marked Omitted** (the default), kept as they are, or deleted.
+- **Supplier is the second column** (after the code) in the tracker, the Excel and the PDF. Richard: "arguably the most important after spec".
+
 ## Sampling: filters, and revisions keep status (22 Nov)
 - **Bug fixed:** the status buttons printed a stray "0" for statuses with no samples.
 - **Filters** (Richard: "filter buttons so we can hide things based on status and other items"):

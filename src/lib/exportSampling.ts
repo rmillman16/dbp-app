@@ -29,12 +29,12 @@ export async function exportSampling(job: Job, samples: Sample[], companies: Com
   type Col = { head: string; width: number; value: (s: Sample) => Cell['value']; fmt?: string; wrap?: boolean }
   const cols: Col[] = [
     { head: 'Code', width: 11, value: (s) => s.code },
+    { head: 'Subcontractor / supplier', width: 20, value: supplier, wrap: true },
     { head: 'Designer ref', width: 10, value: (s) => s.designer_ref },
     { head: 'Description', width: 26, value: (s) => s.description, wrap: true },
     { head: 'Specification', width: 32, value: (s) => s.specification, wrap: true },
     { head: 'Locations', width: 14, value: (s) => (s.locations ?? []).join(', '), wrap: true },
     { head: 'Qty', width: 8, value: (s) => s.quantity ?? null, wrap: true },
-    { head: 'Subcontractor / supplier', width: 20, value: supplier, wrap: true },
     { head: 'Type', width: 12, value: (s) => SAMPLE_TYPE_LABELS[s.sample_type] },
     { head: 'Status', width: 16, value: (s) => SAMPLE_STATUS_LABELS[s.status] + (s.changed_after_approval ? ' (spec changed since)' : ''), wrap: true },
     { head: 'Requested', width: 11, value: (s) => excelDate(s.requested_date), fmt: DATE },

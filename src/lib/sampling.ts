@@ -9,7 +9,7 @@ import { loadCompanies } from './subcontracts'
 import { addDays } from './programmeEdit'
 import type { Company } from './types'
 
-export type SampleStatus = 'not_requested' | 'requested' | 'submitted' | 'approved' | 'approved_with_comments' | 'rejected_resubmit'
+export type SampleStatus = 'not_requested' | 'requested' | 'submitted' | 'approved' | 'approved_with_comments' | 'rejected_resubmit' | 'omitted' // omitted: script 031
 export type SampleType = 'sample' | 'benchmark' | 'mock_up'
 export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
   not_requested: 'Not requested',
@@ -18,6 +18,7 @@ export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
   approved: 'Approved',
   approved_with_comments: 'Approved with comments',
   rejected_resubmit: 'Rejected – resubmit',
+  omitted: 'Omitted', // set by DBP when the client hasn't updated the schedule
 }
 export const SAMPLE_TYPE_LABELS: Record<SampleType, string> = { sample: 'Physical sample', benchmark: 'Benchmark', mock_up: 'Mock-up' }
 // the material groups the tracker is grouped by (decided 19 Nov: by material, not by level)
@@ -228,7 +229,7 @@ export async function applySchedule(
   meta: { designer: string | null; document_no: string | null; revision: string | null; file_name: string },
   existing: Sample[],
   items: ScheduleItem[],
-  deleteRemoved: boolean,
+  removedAction: 'keep' | 'omit' | 'delete', // samples no longer on the schedule
 ) {
   const r = await supabase.from('finish_schedules').insert({ job_id: jobId, designer: meta.designer, document_no: meta.document_no, revision: meta.revision }).select('id').single()
   if (r.error) throw new Error(r.error.message)
@@ -277,6 +278,17 @@ export async function applySchedule(
           unchanged.map((s) => s.id),
         ),
     )
-  if (deleteRemoved) for (const s of removed) await deleteSample(s)
+  if (removedAction === 'delete') for (const s of removed) await deleteSample(s)
+  if (removedAction === 'omit' && removed.length) {
+    const r = await supabase
+      .from('samples')
+      .update({ status: 'omitted' })
+      .in(
+        'id',
+        removed.map((s) => s.id),
+      )
+    if (r.error)
+      throw new Error(/omitted/.test(r.error.message) ? 'The schedule was imported, but marking samples Omitted needs script 031 run in Supabase first.' : r.error.message)
+  }
   return { added: added.length, changed: changed.length, removed: removed.length }
 }

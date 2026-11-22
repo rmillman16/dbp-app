@@ -250,6 +250,7 @@ export default function SamplingTab() {
               {statusChip('approved', 'Approved')}
               {statusChip('approved_with_comments', 'With comments')}
               {statusChip('rejected_resubmit', 'Rejected')}
+              {statusChip('omitted', 'Omitted')}
             </div>
             <div className="sample-chips">
               <button
@@ -308,10 +309,10 @@ export default function SamplingTab() {
               <thead>
                 <tr>
                   <th>Code</th>
+                  <th>Subcontractor / supplier</th>
                   <th>Description</th>
                   <th>Locations</th>
                   <th>Status</th>
-                  <th>Subcontractor / supplier</th>
                   <th>Type</th>
                   <th>Due</th>
                   <th>Submitted</th>
@@ -333,7 +334,10 @@ export default function SamplingTab() {
                         const late = overdue(s, today)
                         const fromProg = !!s.programme_task_code && programmeDue(s, data.tasks) === s.due_date
                         return (
-                          <tr key={s.id} className={`${late ? 'proc-late' : s.changed_after_approval ? 'proc-soon' : ''} ${panel?.id === s.id ? 'selected' : ''}`}>
+                          <tr
+                            key={s.id}
+                            className={`${late ? 'proc-late' : s.changed_after_approval ? 'proc-soon' : ''} ${s.status === 'omitted' ? 'sample-omitted' : ''} ${panel?.id === s.id ? 'selected' : ''}`}
+                          >
                             <td className="stack-title">
                               <button className="proc-name" onClick={() => setPanel(s)} title="Open its details">
                                 {s.code}
@@ -345,6 +349,19 @@ export default function SamplingTab() {
                                   spec changed
                                 </span>
                               )}
+                            </td>
+                            <td data-label="Supplier" className="proc-sub">
+                              <ContractorPicker
+                                companies={data.companies}
+                                value={s.supplier_company_id}
+                                placeholder="Type or choose"
+                                onChange={(id) => id !== s.supplier_company_id && change(s, { supplier_company_id: id })}
+                                onAdd={async (name) => {
+                                  const c = await addCompany(name, 'supplier', s.material_group)
+                                  setData((d) => (d ? { ...d, companies: [...d.companies, c] } : d))
+                                  return c
+                                }}
+                              />
                             </td>
                             <td data-label="Description">
                               {s.description ?? <span className="muted">–</span>}
@@ -378,19 +395,6 @@ export default function SamplingTab() {
                                   </option>
                                 ))}
                               </select>
-                            </td>
-                            <td data-label="Supplier" className="proc-sub">
-                              <ContractorPicker
-                                companies={data.companies}
-                                value={s.supplier_company_id}
-                                placeholder="Type or choose"
-                                onChange={(id) => id !== s.supplier_company_id && change(s, { supplier_company_id: id })}
-                                onAdd={async (name) => {
-                                  const c = await addCompany(name, 'supplier', s.material_group)
-                                  setData((d) => (d ? { ...d, companies: [...d.companies, c] } : d))
-                                  return c
-                                }}
-                              />
                             </td>
                             <td data-label="Type">
                               <select value={s.sample_type} onChange={(e) => change(s, { sample_type: e.target.value as SampleType })} aria-label="Type">
@@ -465,10 +469,12 @@ export default function SamplingTab() {
         <ImportDialog
           existing={data.samples}
           onClose={() => setImporting(false)}
-          onImport={async (meta, items, deleteRemoved) => {
-            const r = await applySchedule(job.id, meta, data.samples, items, deleteRemoved)
+          onImport={async (meta, items, removedAction) => {
+            const r = await applySchedule(job.id, meta, data.samples, items, removedAction)
             setImporting(false)
-            setMsg(`Schedule imported: ${r.added} added, ${r.changed} changed${r.removed ? `, ${r.removed} no longer on it${deleteRemoved ? ' (deleted)' : ' (kept)'}` : ''}.`)
+            setMsg(
+              `Schedule imported: ${r.added} added, ${r.changed} changed${r.removed ? `, ${r.removed} no longer on it (${removedAction === 'delete' ? 'deleted' : removedAction === 'omit' ? 'marked Omitted' : 'kept'})` : ''}.`,
+            )
             reload()
           }}
         />
@@ -814,7 +820,7 @@ function ImportDialog({
   onImport: (
     meta: { designer: string | null; document_no: string | null; revision: string | null; file_name: string },
     items: ScheduleItem[],
-    deleteRemoved: boolean,
+    removedAction: 'keep' | 'omit' | 'delete',
   ) => Promise<void>
 }) {
   const [sheets, setSheets] = useState<{ name: string; rows: string[][] }[] | null>(null)
@@ -823,7 +829,7 @@ function ImportDialog({
   const [map, setMap] = useState<Mapping>({})
   const [fileName, setFileName] = useState('')
   const [meta, setMeta] = useState({ designer: '', document_no: '', revision: '' })
-  const [deleteRemoved, setDeleteRemoved] = useState(false)
+  const [removedAction, setRemovedAction] = useState<'keep' | 'omit' | 'delete'>('omit')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -971,16 +977,18 @@ function ImportDialog({
                       </p>
                     )}
                     {diff.removed.length > 0 && (
-                      <label className="check">
-                        <span>
-                          <input type="checkbox" checked={deleteRemoved} onChange={(e) => setDeleteRemoved(e.target.checked)} /> Delete the {diff.removed.length} no longer on the
-                          schedule (
-                          {diff.removed
-                            .slice(0, 6)
-                            .map((s) => s.code)
-                            .join(', ')}
-                          {diff.removed.length > 6 ? '…' : ''})
-                        </span>
+                      <label className="sample-removed">
+                        The {diff.removed.length} no longer on the schedule (
+                        {diff.removed
+                          .slice(0, 6)
+                          .map((x) => x.code)
+                          .join(', ')}
+                        {diff.removed.length > 6 ? '…' : ''}):
+                        <select value={removedAction} onChange={(e) => setRemovedAction(e.target.value as 'keep' | 'omit' | 'delete')}>
+                          <option value="omit">Mark them Omitted</option>
+                          <option value="keep">Keep them as they are</option>
+                          <option value="delete">Delete them</option>
+                        </select>
                       </label>
                     )}
                     <div className="proc-scroll">
@@ -1022,7 +1030,7 @@ function ImportDialog({
                             await onImport(
                               { designer: meta.designer || null, document_no: meta.document_no || null, revision: meta.revision || null, file_name: fileName },
                               items,
-                              deleteRemoved,
+                              removedAction,
                             )
                           } catch (x) {
                             setErr(saveError(x))
@@ -1057,11 +1065,11 @@ async function printTracker(job: { job_no: number; code: string; name: string },
       if (!list.length) return ''
       return `<tr class="grp"><td colspan="8">${esc(g)} (${list.length})</td></tr>${list
         .map(
-          (s) => `<tr class="${overdue(s, todayIso()) ? 'late' : s.changed_after_approval ? 'chg' : ''}">
+          (s) => `<tr class="${s.status === 'omitted' ? 'omit' : overdue(s, todayIso()) ? 'late' : s.changed_after_approval ? 'chg' : ''}">
         <td><b>${esc(s.code)}</b>${s.designer_ref ? `<br><span class="m">${esc(s.designer_ref)}</span>` : ''}</td>
+        <td>${esc(companies.find((c) => c.id === s.supplier_company_id)?.name ?? '')}</td>
         <td>${esc(s.description)}${s.specification ? `<br><span class="m">${esc(s.specification)}</span>` : ''}</td>
         <td>${esc((s.locations ?? []).join(', '))}</td>
-        <td>${esc(companies.find((c) => c.id === s.supplier_company_id)?.name ?? '')}</td>
         <td>${esc(SAMPLE_STATUS_LABELS[s.status])}${s.changed_after_approval ? '<br><span class="m">spec changed since</span>' : ''}</td>
         <td>${esc(ukDate(s.due_date))}${isOpen(s) && s.due_date && s.due_date < todayIso() ? '<br><span class="m">overdue</span>' : ''}</td>
         <td>${esc(s.designer_comments)}</td>
@@ -1080,10 +1088,10 @@ async function printTracker(job: { job_no: number; code: string; name: string },
     header img { width: 60mm; height: 15mm; object-fit: contain; }
     table { width: 100%; border-collapse: collapse; } th { text-align: left; font-size: 8pt; text-transform: uppercase; color: #6b6b78; border-bottom: 1px solid #bfbfbf; padding: 4px; }
     td { border-bottom: 1px solid #e2e2e8; padding: 4px; vertical-align: top; font-size: 9pt; } .m { color: #6b6b78; font-size: 8pt; }
-    tr.grp td { background: #eef3fa; font-weight: 700; color: #1f1246; } tr.late td { background: #fdecea; } tr.chg td { background: #fff4d6; }
+    tr.grp td { background: #eef3fa; font-weight: 700; color: #1f1246; } tr.late td { background: #fdecea; } tr.chg td { background: #fff4d6; } tr.omit td { color: #9a9aa6; }
     td img { width: 22mm; height: 22mm; object-fit: cover; border-radius: 3px; } thead { display: table-header-group; } tr { page-break-inside: avoid; }
   </style></head><body><header><div><h1>Sample tracker</h1><div class="sub">${esc(`${job.job_no} ${job.code} · ${job.name}`)} · ${esc(ukDate(todayIso()))}</div></div><img src="${location.origin}/dbp-logo.png" alt="du Boulay Projects"></header>
-  <table><thead><tr><th>Code</th><th>Description / specification</th><th>Locations</th><th>Supplier</th><th>Status</th><th>Due</th><th>Designer comments</th><th>Photo</th></tr></thead><tbody>${body}</tbody></table>
+  <table><thead><tr><th>Code</th><th>Supplier</th><th>Description / specification</th><th>Locations</th><th>Status</th><th>Due</th><th>Designer comments</th><th>Photo</th></tr></thead><tbody>${body}</tbody></table>
   <script>window.onload = () => setTimeout(() => window.print(), 300)</script></body></html>`)
   w.document.close()
 }
