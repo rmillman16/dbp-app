@@ -252,17 +252,10 @@ export function compareSchedule(existing: Sample[], items: ScheduleItem[]) {
   const removed = existing.filter((s) => s.finish_schedule_id && !codes.has(s.code.trim().toUpperCase()))
   return { added, changed, removed }
 }
-export async function applySchedule(
-  jobId: string,
-  meta: { designer: string | null; document_no: string | null; revision: string | null; file_name: string },
-  existing: Sample[],
-  items: ScheduleItem[],
-  removedAction: 'keep' | 'omit' | 'delete', // samples no longer on the schedule
-  companies: Company[] = [],
-) {
-  // the schedule's suppliers, matched to the contractor list by name (a new name is added to it)
+// a supplier's name to a contractor-list company, adding it as a supplier if it's not there
+export function companyResolver(companies: Company[]) {
   const known = [...companies]
-  const companyId = async (name: string | null) => {
+  return async (name: string | null) => {
     if (!name?.trim()) return null
     const n = name.trim().toLowerCase()
     let c = known.find((x) => x.name.trim().toLowerCase() === n)
@@ -272,6 +265,30 @@ export async function applySchedule(
     }
     return c.id
   }
+}
+// samples with no supplier given one from their own spec (22 Nov: "supplier still not pulling from the schedule")
+export async function fillSuppliers(fills: { sample: Sample; name: string }[], companies: Company[]) {
+  const companyId = companyResolver(companies)
+  let n = 0
+  for (const f of fills) {
+    const id = await companyId(f.name)
+    if (!id) continue
+    await ok(supabase.from('samples').update({ supplier_company_id: id }).eq('id', f.sample.id).is('supplier_company_id', null))
+    n++
+  }
+  return n
+}
+
+export async function applySchedule(
+  jobId: string,
+  meta: { designer: string | null; document_no: string | null; revision: string | null; file_name: string },
+  existing: Sample[],
+  items: ScheduleItem[],
+  removedAction: 'keep' | 'omit' | 'delete', // samples no longer on the schedule
+  companies: Company[] = [],
+) {
+  // the schedule's suppliers, matched to the contractor list by name (a new name is added to it)
+  const companyId = companyResolver(companies)
   const fields = (it: ScheduleItem) => {
     const { supplier: _s, ...rest } = it
     void _s

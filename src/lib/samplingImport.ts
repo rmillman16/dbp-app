@@ -11,7 +11,7 @@ export const FIELD_LABELS: Partial<Record<Field, string>> = {
   group: 'Category / material',
   location: 'Location / level',
   description: 'Description',
-  manufacturer: 'Manufacturer / supplier',
+  manufacturer: 'Supplier / manufacturer',
   product: 'Product / range',
   finish: 'Finish / colour',
   specification: 'Specification',
@@ -77,6 +77,27 @@ export function guessGroup(...texts: (string | null | undefined)[]) {
   const direct = MATERIAL_GROUPS.find((g) => g.toLowerCase() === t.trim().toLowerCase())
   if (direct) return direct
   return GROUP_WORDS.find(([, re]) => re.test(t))?.[0] ?? 'Other'
+}
+
+// a description names a supplier only when it's set out like a spec ("Kvadrat - Hallingdal 65"), never "Bar top"
+export function supplierFromDescription(text: string, known: string[] = []) {
+  const t = text.trim()
+  if (!t) return null
+  const lower = t.toLowerCase()
+  if (
+    known.some(
+      (k) =>
+        k.trim().length >= 3 &&
+        lower.startsWith(
+          k
+            .trim()
+            .toLowerCase()
+            .replace(/[\s,.]+(ltd|limited|plc|llp|inc|uk|\(uk\))\.?$/g, ''),
+        ),
+    )
+  )
+    return supplierFromSpec(t, known)
+  return /\s[-–—·|:]\s/.test(t) ? supplierFromSpec(t, known) : null
 }
 
 // the items: one per code, its locations gathered from every row it's on
@@ -158,7 +179,7 @@ export function buildItems(rows: unknown[][], m: Mapping, known: string[] = []):
       specification: spec || null,
       quantity: get(r, 'quantity') || null,
       // its own supplier column if there is one, else from the start of the specification
-      supplier: get(r, 'manufacturer') || supplierFromSpec(get(r, 'specification') || get(r, 'product') || spec, known),
+      supplier: get(r, 'manufacturer') || supplierFromSpec(get(r, 'specification') || get(r, 'product') || spec, known) || supplierFromDescription(description ?? '', known),
     })
   }
   // never a heading as a sample, whatever the layout: a code with no number needs a description or specification

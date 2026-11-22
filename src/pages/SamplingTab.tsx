@@ -9,6 +9,7 @@ import {
   applySchedule,
   compareSchedule,
   deleteSample,
+  fillSuppliers,
   fileUrl,
   isApproved,
   isOpen,
@@ -23,7 +24,7 @@ import {
   type SampleType,
   type ScheduleItem,
 } from '../lib/sampling'
-import { FIELD_LABELS, buildItems, findHeader, guessMapping, readWorkbook, type Field, type Mapping } from '../lib/samplingImport'
+import { FIELD_LABELS, buildItems, findHeader, guessMapping, readWorkbook, supplierFromDescription, supplierFromSpec, type Field, type Mapping } from '../lib/samplingImport'
 import { addCompany } from '../lib/subcontracts'
 import ContractorPicker from '../components/ContractorPicker'
 import { useJob } from './JobLayout'
@@ -170,6 +171,12 @@ export default function SamplingTab() {
   const typeOpts = tally(data.samples.map((x) => x.sample_type))
   const groups = [...MATERIAL_GROUPS, ...new Set(data.samples.map((s) => s.material_group).filter((g) => !MATERIAL_GROUPS.includes(g)))]
   const latest = data.schedules[0]
+  // samples with no supplier that their own spec names one for (the spec reads "Maker · product · finish")
+  const names = data.companies.map((c) => c.name)
+  const fillable = data.samples
+    .filter((x) => !x.supplier_company_id && x.status !== 'omitted')
+    .map((x) => ({ sample: x, name: supplierFromSpec(x.specification ?? '', names) || supplierFromDescription(x.description ?? '', names) }))
+    .filter((f): f is { sample: Sample; name: string } => !!f.name)
   // a status switch: on = shown (click to hide it)
   const statusChip = (st: SampleStatus, label: string) => (
     <button
@@ -221,6 +228,29 @@ export default function SamplingTab() {
               {latest ? 'Import a new revision…' : 'Import finishes schedule…'}
             </button>
             <button onClick={addNew}>+ Add sample</button>
+            {fillable.length > 0 && (
+              <button
+                title="Give samples with no supplier the one their spec names (matched to the contractor list; new names added). Never changes a supplier already chosen."
+                onClick={async () => {
+                  const eg = fillable
+                    .slice(0, 8)
+                    .map((f) => `${f.sample.code} → ${f.name}`)
+                    .join('\n')
+                  if (!confirm(`Fill the supplier on ${fillable.length} sample${fillable.length === 1 ? '' : 's'} from their specs?\n\n${eg}${fillable.length > 8 ? '\n…' : ''}`))
+                    return
+                  setError(null)
+                  try {
+                    const n = await fillSuppliers(fillable, data.companies)
+                    setMsg(`Supplier filled on ${n} sample${n === 1 ? '' : 's'}.`)
+                    reload()
+                  } catch (e) {
+                    setError(saveError(e))
+                  }
+                }}
+              >
+                Fill suppliers from specs ({fillable.length})
+              </button>
+            )}
             <button
               disabled={!shown.length}
               title="The samples shown (filter first for a part of the tracker)"
@@ -277,7 +307,7 @@ export default function SamplingTab() {
                   <div className="sample-more-pop">
                     {checkList('Material group', 'groups', groupOpts)}
                     {checkList('Location / level', 'locations', locOpts)}
-                    {checkList('Subcontractor / supplier', 'suppliers', supOpts)}
+                    {checkList('Supplier', 'suppliers', supOpts)}
                     {checkList('Type', 'types', typeOpts, (v) => SAMPLE_TYPE_LABELS[v as SampleType] ?? v)}
                     <p className="muted small" style={{ margin: '6px 0 0' }}>
                       Tick to show only those. Nothing ticked in a list: all of it.
@@ -309,7 +339,7 @@ export default function SamplingTab() {
               <thead>
                 <tr>
                   <th>Code</th>
-                  <th>Subcontractor / supplier</th>
+                  <th>Supplier</th>
                   <th>Description</th>
                   <th>Locations</th>
                   <th>Status</th>
@@ -619,7 +649,7 @@ function SamplePanel({
             <span className="hint">Separate with commas: one sample, sampled once.</span>
           </label>
           <label>
-            Subcontractor / supplier
+            Supplier
             <ContractorPicker
               companies={data.companies}
               value={s.supplier_company_id}

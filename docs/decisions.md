@@ -443,6 +443,15 @@ Richard: "procurement seems clunky after use". He chose "edit in the table" and 
   - **"Subcontractor dropdown needs to be a type box with a list of contractors in a dropdown when clicking into the box, which autofills when you type."** Click in for the contractor list, type to narrow it and complete the name. A name not on the list can be added there and then (as a subcontractor, with the package as its trade; the rest of its details on the Contractors page).
 - **Still to do:** placing an order to link through to the CVR / payment notices and the `3. Orders` folder (needs SharePoint).
 
+## Sampling: filling suppliers; "Supplier" (22 Nov)
+- Richard: "supplier still not pulling from the schedule". The samples were imported before supplier-reading existed, and the supplier was only set on import.
+- **Fill suppliers from specs (N)** button on the tracker:
+  - It shows when samples with no supplier have a spec (or a spec-like description) naming one.
+  - It lists them first ("FB-01 → Kvadrat …") to confirm, then matches each to the contractor list, adding new names as suppliers.
+  - It never changes a supplier already chosen (the update only touches samples whose supplier is still empty). Omitted samples are left out.
+- **The import** also reads the supplier from the description when there's no supplier column or spec, but only when the description is set out like a spec ("Kvadrat - Hallingdal 65") or starts with a contractor-list name. "Bar top" gives none.
+- **Labels:** "Subcontractor / supplier" is just **Supplier** in the sampling tracker, side panel, filters and Excel. The import's column is "Supplier / manufacturer".
+
 ## Sampling: headings caught properly; designer's reference removed (22 Nov)
 - **Headings:** heading rows still came in ("FABRIC" above FB-01) because they had something in another column (a ref, a level). A heading is now a code with no number and no description or specification, whatever else is on the row. A re-import deletes heading rows taken in before, by the same test (never touched: not requested, no supplier, no photo).
 - **Designer's reference removed** (Richard) from the tracker, side panel, Excel, PDF and the import's columns. If a schedule has only a ref column, it's still used as the code.

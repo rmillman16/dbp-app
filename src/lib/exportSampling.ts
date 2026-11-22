@@ -29,7 +29,7 @@ export async function exportSampling(job: Job, samples: Sample[], companies: Com
   type Col = { head: string; width: number; value: (s: Sample) => Cell['value']; fmt?: string; wrap?: boolean }
   const cols: Col[] = [
     { head: 'Code', width: 11, value: (s) => s.code },
-    { head: 'Subcontractor / supplier', width: 20, value: supplier, wrap: true },
+    { head: 'Supplier', width: 20, value: supplier, wrap: true },
     { head: 'Description', width: 26, value: (s) => s.description, wrap: true },
     { head: 'Specification', width: 32, value: (s) => s.specification, wrap: true },
     { head: 'Locations', width: 14, value: (s) => (s.locations ?? []).join(', '), wrap: true },
