@@ -7,6 +7,14 @@
   - feeding progress report 2.2;
   - outstanding samples on meeting agendas;
   - saving the export to SharePoint (needs the SharePoint link, with IT).
+- **Sampling: external sign-off portal** (assessed 22 Nov; not to be built without Richard's go-ahead).
+  - How it would work: DBP ticks samples and presses Send for sign-off. That creates a secure, expiring, withdrawable link, and the email is drafted for DBP to send. The designer sees just those samples (photo, spec, locations, supplier) and chooses Approve / Approve with comments / Reject – resubmit, with a comment and their name. That lands on the sample with a record of who decided and when, plus a reminder on the bell. No designer logins.
+  - What it involves: a script for the sign-off links and two locked-down database functions (no secret keys in the app); a public page outside the sign-in; the send button.
+  - Two things to settle first:
+    - It reverses the 19 Nov decision that DBP records the designer's decision. Should the designer's response land directly, or as "proposed" for DBP to confirm?
+    - It needs the app on a public web address (with IT).
+  - About one session to build.
+- **Submittals and RFIs** (Richard, 22 Nov): to scope. Technical submittals (drawings, data sheets, method statements) and requests for information, tracked per job. The 19 Nov sampling scope noted SubmittalLink covers technical submissions and drawings today, so agree first whether this replaces it or links to it. Progress report 2.2 shows the submittals summary (before samples) and design queries.
 - **Modules still to come (build order):** progress reports, O&M / H&S file. (Sampling tracker built 22 Nov.)
 - **To revisit after use:**
   - CVR Excel export (KOSH layout): Richard will come back with changes.
