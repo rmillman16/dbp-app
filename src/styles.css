@@ -298,7 +298,8 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
 .opening-line input { min-width: 260px; width: 50%; display: inline-block; }
 .groups { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; align-items: flex-start; }
 .group-card { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: #fafbfd; }
-.group-head { display: flex; gap: 8px; flex-wrap: wrap; }
+/* (not table rows: a table's group heading spans the whole row, 22 Nov) */
+.group-head:not(tr) { display: flex; gap: 8px; flex-wrap: wrap; }
 .group-head input { flex: 1 1 240px; font-weight: 600; color: var(--blue); }
 .group-tools { display: flex; gap: 4px; }
 .quote-lines .c-desc { display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
@@ -719,3 +720,4 @@ body.no-scroll { overflow: hidden; }
 .proc-status.sst-omitted, .sample-chip.sst-omitted { background: #f0f0f3; color: #6b6b78; border-color: #d6d6de; }
 .sample-removed { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; }
 .sample-removed select { width: auto; }
+.table tr.group-head td { white-space: nowrap; }
