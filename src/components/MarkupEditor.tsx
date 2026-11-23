@@ -148,24 +148,21 @@ function drawShape(ctx: CanvasRenderingContext2D, s: Shape, scale: number) {
         ctx.stroke()
         arrowHead(ctx, an, tip, s.width, scale)
       }
-      ctx.fillStyle = dark ? '#222222' : '#ffffff'
-      ctx.fillRect(t.x, t.y, t.w, t.h)
+      // no fill: the drawing shows through the box
       ctx.strokeStyle = s.color
       ctx.lineWidth = Math.max(1.5, s.width * scale * 0.7)
       ctx.strokeRect(t.x, t.y, t.w, t.h)
     }
-    ctx.fillStyle = s.tool === 'callout' ? (dark ? '#ffffff' : s.color) : s.color
+    ctx.fillStyle = s.color
     ctx.font = `600 ${t.size}px ${FONT}`
     ctx.textBaseline = 'top'
     t.lines.forEach((line, i) => {
       const x = t.x + t.pad
       const y = t.y + t.pad + i * t.size * 1.2
-      if (s.tool === 'text') {
-        // a thin outline keeps white or yellow text readable on a light drawing
-        ctx.lineWidth = Math.max(2, t.size / 8)
-        ctx.strokeStyle = dark ? '#000000' : '#ffffff'
-        ctx.strokeText(line, x, y)
-      }
+      // a thin outline keeps the text readable on a busy drawing now the box has no fill
+      ctx.lineWidth = Math.max(2, t.size / 8)
+      ctx.strokeStyle = dark ? '#000000' : '#ffffff'
+      ctx.strokeText(line, x, y)
       ctx.fillText(line, x, y)
     })
   }
@@ -220,6 +217,7 @@ export default function MarkupEditor({ source, name, onSave, onClose }: { source
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const baseRef = useRef<HTMLCanvasElement | null>(null) // the picture or PDF page underneath
   const pdfRef = useRef<pdfjs.PDFDocumentProxy | null>(null)
+  const vpScale = useRef(1) // pixels per PDF point of the page on screen
   const [pages, setPages] = useState(1)
   const [page, setPage] = useState(1)
   const [shapes, setShapes] = useState<Marks>({})
@@ -293,6 +291,7 @@ export default function MarkupEditor({ source, name, onSave, onClose }: { source
           const pg = await pdfRef.current.getPage(n)
           const v1 = pg.getViewport({ scale: 1 })
           const vp = pg.getViewport({ scale: Math.min(MAX_W / v1.width, 3) })
+          vpScale.current = vp.scale
           base.width = Math.round(vp.width)
           base.height = Math.round(vp.height)
           const ctx = base.getContext('2d')!
@@ -490,22 +489,108 @@ export default function MarkupEditor({ source, name, onSave, onClose }: { source
   async function save() {
     setLoading(true)
     setSel(null)
-    const out: File[] = []
-    const stem = name.replace(/\.[^.]+$/, '')
-    for (const n of marked.sort((a, b) => a - b)) {
-      await loadPage(n)
-      const base = baseRef.current!
-      const c = document.createElement('canvas')
-      c.width = base.width
-      c.height = base.height
-      const ctx = c.getContext('2d')!
-      ctx.drawImage(base, 0, 0)
-      for (const s of shapes[n]) drawShape(ctx, s, base.width / 1000)
-      const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, 'image/png'))
-      if (blob) out.push(new File([blob], `${stem} - marked up${isPdf ? ` p${n}` : ''}.png`, { type: 'image/png' }))
+    try {
+      const stem = name.replace(/\.[^.]+$/, '')
+      const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib')
+      const toPng = (c: HTMLCanvasElement) => new Promise<Uint8Array>((ok, bad) => c.toBlob(async (b) => (b ? ok(new Uint8Array(await b.arrayBuffer())) : bad(new Error('png'))), 'image/png'))
+      const pdf = isPdf ? await PDFDocument.load(await source.arrayBuffer(), { ignoreEncryption: true }) : await PDFDocument.create()
+      const font = await pdf.embedFont(StandardFonts.HelveticaBold)
+      const body = await pdf.embedFont(StandardFonts.Helvetica)
+      const red = rgb(0.84, 0.16, 0.16)
+      const safe = (t: string) => t.replace(/[^\x20-\x7E -ÿ]/g, '?')
+      const order = [...marked].sort((a, b) => a - b)
+      const notes: { page: number; text: string }[] = []
+
+      for (const n of order) {
+        await loadPage(n)
+        const base = baseRef.current!
+        const k = base.width / 1000
+        // the marks on their own, on a clear background, so the drawing underneath stays as it was
+        const over = document.createElement('canvas')
+        over.width = base.width
+        over.height = base.height
+        const octx = over.getContext('2d')!
+        for (const s of shapes[n]) {
+          drawShape(octx, s, k)
+          if ((s.tool === 'text' || s.tool === 'callout') && s.text) notes.push({ page: n, text: s.text.replace(/\s+/g, ' ') })
+        }
+        const overPng = await pdf.embedPng(await toPng(over))
+        let page
+        if (isPdf) {
+          page = pdf.getPage(n - 1)
+          if (page.getRotation().angle !== 0) {
+            // a rotated page: replace it with the picture of the page and its marks, same size as on screen
+            const flat = document.createElement('canvas')
+            flat.width = base.width
+            flat.height = base.height
+            flat.getContext('2d')!.drawImage(base, 0, 0)
+            flat.getContext('2d')!.drawImage(over, 0, 0)
+            const w = base.width / vpScale.current
+            const h = base.height / vpScale.current
+            pdf.removePage(n - 1)
+            page = pdf.insertPage(n - 1, [w, h])
+            page.drawImage(await pdf.embedPng(await toPng(flat)), { x: 0, y: 0, width: w, height: h })
+          } else {
+            const cb = page.getCropBox()
+            page.drawImage(overPng, { x: cb.x, y: cb.y, width: cb.width, height: cb.height })
+          }
+        } else {
+          const w = base.width * 0.5
+          const h = base.height * 0.5
+          page = pdf.addPage([w, h])
+          page.drawImage(await pdf.embedPng(await toPng(base)), { x: 0, y: 0, width: w, height: h })
+          page.drawImage(overPng, { x: 0, y: 0, width: w, height: h })
+        }
+        // make it plain which pages carry marks: a red frame and a tag in the corner
+        const cb = page.getCropBox()
+        page.drawRectangle({ x: cb.x + 2, y: cb.y + 2, width: cb.width - 4, height: cb.height - 4, borderColor: red, borderWidth: 3 })
+        const tag = 'MARKED UP'
+        const tw = font.widthOfTextAtSize(tag, 11) + 14
+        page.drawRectangle({ x: cb.x + cb.width - tw - 8, y: cb.y + cb.height - 26, width: tw, height: 18, color: red })
+        page.drawText(tag, { x: cb.x + cb.width - tw - 1, y: cb.y + cb.height - 21, size: 11, font, color: rgb(1, 1, 1) })
+      }
+
+      // a summary page first: which pages are marked, and everything written on them
+      const sum = pdf.insertPage(0, [595, 842])
+      let y = 790
+      sum.drawText('Mark-up summary', { x: 50, y, size: 20, font, color: red })
+      y -= 26
+      sum.drawText(safe(name), { x: 50, y, size: 11, font: body, color: rgb(0.2, 0.2, 0.25) })
+      y -= 18
+      sum.drawText(`Marked-up pages (red frame and "MARKED UP" tag): ${order.join(', ')}`, { x: 50, y, size: 11, font: body })
+      y -= 26
+      if (notes.length) {
+        sum.drawText('Comments written on the drawing', { x: 50, y, size: 12, font })
+        y -= 18
+        for (const nt of notes) {
+          // wrap to the page width
+          const words = safe(`Page ${nt.page}: ${nt.text}`).split(' ')
+          let line = ''
+          const lines: string[] = []
+          for (const w of words) {
+            if (body.widthOfTextAtSize(line + w, 10.5) > 495) {
+              lines.push(line)
+              line = ''
+            }
+            line += w + ' '
+          }
+          lines.push(line)
+          for (const l of lines) {
+            if (y < 60) break
+            sum.drawText(l.trimEnd(), { x: 50, y, size: 10.5, font: body })
+            y -= 14
+          }
+          y -= 4
+        }
+      } else sum.drawText('No text was written: the marks are lines, arrows, boxes and clouds on the pages listed above.', { x: 50, y, size: 10.5, font: body })
+
+      const bytes = await pdf.save()
+      setLoading(false)
+      onSave([new File([bytes as BlobPart], `${stem} - marked up.pdf`, { type: 'application/pdf' })])
+    } catch {
+      setLoading(false)
+      setError("The marked-up PDF couldn't be made. Please try again.")
     }
-    setLoading(false)
-    onSave(out)
   }
 
   return (
