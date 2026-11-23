@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
+import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
 import { downloadBlob } from '../lib/letter'
 import { enquiryRef } from '../lib/quotations'
+import { addTrade, loadTrades } from '../lib/rfis'
 import { fileBlob, type Attachment } from '../lib/orders'
 import { loadPqqPack, needsPqq, packFor, pqqState, pqqWentOut, STATE_LABELS } from '../lib/pqq'
 import type { Company, Enquiry } from '../lib/types'
@@ -35,7 +36,8 @@ import {
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
 // (nothing is sent from here), and records each as a line in the tender tracker.
-const MAX_ATTACH = 3 * 1024 * 1024 // a draft with more than this attached is a problem for most contractors' mailboxes
+const MAX_PQQ = 3 * 1024 * 1024 // the Enquiry Generator's rule: the PQQ must be no larger than 3 MB to attach to a draft
+const MAX_ATTACH = 20 * 1024 * 1024 // everything attached to one email: most mailboxes refuse more than about 20 MB
 
 type Contact = { id: string; name: string; role: string | null; email: string | null }
 type Co = Company & { contacts: Contact[] }
@@ -50,7 +52,9 @@ export default function TenderEnquiry() {
   const [pqq, setPqq] = useState<Awaited<ReturnType<typeof loadPqqPack>>>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', ret: addDaysIso(todayIso(), 14), address: '', main: '', sub: '', summary: '', scope: '', notes: '', link: '', sender: '', phone: '' })
+  // only what is particular to this package is typed here: everything else comes from the enquiry and from My details
+  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', scope: '', link: '' })
+  const [trades, setTrades] = useState<string[]>([])
   const [files, setFiles] = useState<File[]>([])
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
   const [body, setBody] = useState(DEFAULT_BODY)
@@ -64,27 +68,38 @@ export default function TenderEnquiry() {
     supabase.from('enquiries').select('*').eq('id', enquiryId!).then((r) => {
       const list = (r.data ?? []) as Enquiry[]
       setEnquiries(list)
-      const e = list.find((x) => x.id === enquiryId)
-      if (e) setF((x) => ({ ...x, address: e.site_address ?? '', ret: x.ret }))
     })
+    loadTrades().then(setTrades, () => setTrades([]))
     Promise.all([supabase.from('companies').select('*').order('name'), supabase.from('contacts').select('id, company_id, name, role, email')]).then(([c, k]) => {
       const contacts = (k.data ?? []) as (Contact & { company_id: string })[]
       setCompanies(((c.data ?? []) as Company[]).map((co) => ({ ...co, contacts: contacts.filter((x) => x.company_id === co.id) })))
     })
     loadPqqPack().then(setPqq, () => setPqq([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (me?.full_name && !f.sender) setF((x) => ({ ...x, sender: me.full_name ?? '' }))
-  }, [me]) // eslint-disable-line react-hooks/exhaustive-deps
+  async function addNewTrade() {
+    const name = window.prompt('New trade / package name:')?.trim()
+    if (!name) return
+    try {
+      await addTrade(name)
+      setTrades(await loadTrades())
+      set('pkg', name)
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
 
   const enquiry = enquiries.find((e) => e.id === f.enquiry)
-  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: f.address, summary: f.summary, main: f.main, sub: f.sub, link: f.link, scope: f.scope, notes: f.notes, ret: ukDate(f.ret), package: f.pkg, sender: f.sender, phone: f.phone }
+  // from the enquiry: the job's details; from whoever is using it: the sender
+  const sender = me?.full_name ?? ''
+  const phone = me?.phone ?? ''
+  const ret = enquiry?.due_date ?? ''
+  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', link: f.link, scope: f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
 
   const pkgWords = f.pkg.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
   const matchesTrade = (c: Co) => !!c.trade && (pkgWords.length === 0 || pkgWords.some((w) => c.trade!.toLowerCase().includes(w)) || f.pkg.toLowerCase().includes(c.trade.toLowerCase()))
   const q = search.trim().toLowerCase()
   const shown = useMemo(
-    () => companies.filter((c) => c.type !== 'client').filter((c) => !tradeOnly || matchesTrade(c) || picked[c.id] !== undefined).filter((c) => !q || `${c.name} ${c.trade ?? ''}`.toLowerCase().includes(q)),
+    () => companies.filter((c) => c.type === 'subcontractor' || c.type === 'supplier').filter((c) => !tradeOnly || matchesTrade(c) || picked[c.id] !== undefined).filter((c) => !q || `${c.name} ${c.trade ?? ''}`.toLowerCase().includes(q)),
     [companies, tradeOnly, q, f.pkg, picked], // eslint-disable-line react-hooks/exhaustive-deps
   )
   const chosen = companies.filter((c) => picked[c.id] !== undefined)
@@ -92,11 +107,12 @@ export default function TenderEnquiry() {
   const emailOf = (c: Co) => contactOf(c)?.email || c.email || null
   const attachBytes = files.reduce((n, x) => n + x.size, 0)
 
-  const step1Ok = !!f.enquiry && !!f.pkg.trim() && !!f.ret
+  const step1Ok = !!enquiry && !!f.pkg.trim() && !!ret
   function next() {
     setError(null)
-    if (step === 1 && !step1Ok) return setError('Pick the enquiry, give the package a name and set the tender return date.')
-    if (step === 2 && attachBytes > MAX_ATTACH) return setError('The files you are attaching are over 3 MB in total. Put the large drawings behind the link instead.')
+    if (step === 1 && !f.pkg.trim()) return setError('Pick the package.')
+    if (step === 1 && !ret) return setError('The enquiry has no tender due date: add it on the enquiry (Edit enquiry), then come back.')
+    if (step === 2 && attachBytes > MAX_ATTACH) return setError('The files you are attaching are over 20 MB in total. Put the large drawings behind the link instead.')
     setStep(step + 1)
   }
 
@@ -118,8 +134,9 @@ export default function TenderEnquiry() {
         if (needs) {
           const docs = packFor(c, pqq)
           const blobs = await Promise.all(docs.map(async (d) => ({ name: d.file_name, blob: await fileBlob(d.path) })))
+          const pqqSize = blobs.reduce((s, a) => s + a.blob.size, 0)
           const size = [...extra, ...blobs].reduce((s, a) => s + a.blob.size, 0)
-          if (size <= MAX_ATTACH) {
+          if (pqqSize <= MAX_PQQ && size <= MAX_ATTACH) {
             attachments = [...attachments, ...blobs]
             pqqSent.push(c.name)
             await pqqWentOut(c, emailOf(c), docs.map((d) => d.name), null).catch(() => null)
@@ -132,10 +149,10 @@ export default function TenderEnquiry() {
         invites.push({ company_id: c.id, contact_id: k?.id ?? null, name: c.name, email: emailOf(c), status: 'drafted', sent_on: null, chased_count: 0, last_chased_on: null, quote_amount: null, quote_received_on: null, notes: null })
       }
       await createPackage(
-        { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: f.ret, job_address: f.address || null, main_contract: f.main || null, sub_contract: f.sub || null, summary: f.summary || null, scope: f.scope || null, notes: f.notes || null, documents_link: f.link || null, sender_name: f.sender || null, sender_phone: f.phone || null, email_subject: subject, email_body: body },
+        { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: f.scope || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
         invites,
       )
-      if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the files together are over 3 MB: send it to them separately from Contractors.`)
+      if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Contractors.`)
       navigate(`/estimating/e/${enquiryId}`)
     } catch (e) {
       setError(saveError(e))
@@ -173,47 +190,75 @@ export default function TenderEnquiry() {
           </div>
           <label>
             Package * <small className="muted">the trade you are asking them to price</small>
-            <input value={f.pkg} onChange={(e) => set('pkg', e.target.value)} placeholder="e.g. Mechanical and electrical" />
+            <select
+              value={f.pkg}
+              onChange={(e) => {
+                if (e.target.value === '__new') addNewTrade()
+                else set('pkg', e.target.value)
+              }}
+            >
+              <option value="">Pick the package…</option>
+              {f.pkg && !trades.includes(f.pkg) && <option value={f.pkg}>{f.pkg}</option>}
+              {trades.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              <option value="__new">+ Add a new trade…</option>
+            </select>
           </label>
           <label>
-            Tender return date *
-            <input type="date" value={f.ret} onChange={(e) => set('ret', e.target.value)} />
-          </label>
-          <label>
-            Job address
-            <input value={f.address} onChange={(e) => set('address', e.target.value)} />
-          </label>
-          <label>
-            Main contract
-            <input value={f.main} onChange={(e) => set('main', e.target.value)} placeholder="e.g. JCT Design and Build 2016" />
-          </label>
-          <label>
-            Sub-contract
-            <input value={f.sub} onChange={(e) => set('sub', e.target.value)} placeholder="e.g. JCT Sub-contract" />
-          </label>
-          <label className="span-2">
-            Project summary
-            <textarea rows={3} value={f.summary} onChange={(e) => set('summary', e.target.value)} placeholder="e.g. full refurbishment of a five-storey townhouse" />
-          </label>
-          <label className="span-2">
             What this package covers
             <textarea rows={3} value={f.scope} onChange={(e) => set('scope', e.target.value)} />
           </label>
-          <label className="span-2">
-            Tender notes
-            <textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
-          </label>
-          <label>
-            Sender name
-            <input value={f.sender} onChange={(e) => set('sender', e.target.value)} />
-          </label>
-          <label>
-            Sender phone
-            <input value={f.phone} onChange={(e) => set('phone', e.target.value)} />
-          </label>
+
+          <div className="span-2 tg-from">
+            <div className="pane-head">
+              <h3 className="sub-head">From the enquiry</h3>
+              {enquiry && (
+                <Link to={`/estimating/e/${enquiry.id}/edit`} className="small-button">
+                  Edit enquiry
+                </Link>
+              )}
+            </div>
+            <dl className="tg-dl">
+              {(
+                [
+                  ['Tender due', ret ? ukDate(ret) : '', true],
+                  ['Job address', mail.address, false],
+                  ['Main contract', mail.main, false],
+                  ['Sub-contract', mail.sub, false],
+                  ['Project summary', mail.summary, false],
+                  ['Tender notes', mail.notes, false],
+                ] as [string, string, boolean][]
+              ).map(([k, v, required]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v || <span className={required ? 'error' : 'muted'}>{required ? 'Not set: needed. Add it on the enquiry.' : 'Not set (left out of the email). Add it on the enquiry.'}</span>}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          <div className="span-2 tg-from">
+            <div className="pane-head">
+              <h3 className="sub-head">From you (the sender)</h3>
+              <Link to="/me" className="small-button">
+                My details
+              </Link>
+            </div>
+            <dl className="tg-dl">
+              <div>
+                <dt>Name</dt>
+                <dd>{sender || <span className="muted">Not set: add it in My details.</span>}</dd>
+              </div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{phone || <span className="muted">Not set: add it in My details.</span>}</dd>
+              </div>
+            </dl>
+          </div>
         </section>
       )}
-
       {step === 2 && (
         <section className="card tg-form">
           <h2>The documents</h2>
@@ -223,7 +268,7 @@ export default function TenderEnquiry() {
             <small className="muted">Check its sharing is set so the contractors can open it ("Anyone with the link" or the people you are sending to). The app can't check that.</small>
           </label>
           <div className="span-2 rfi-field">
-            <span className="label">Files to attach to every draft (optional, 3 MB in total)</span>
+            <span className="label">Files to attach to every draft (optional, 20 MB in total)</span>
             <label className="file-button">
               <input type="file" multiple onChange={(e) => (setFiles((l) => [...l, ...(e.target.files ?? [])]), (e.target.value = ''))} />
               <span className="button">+ Add files</span>
@@ -236,8 +281,8 @@ export default function TenderEnquiry() {
                 </button>
               </span>
             ))}
-            {attachBytes > MAX_ATTACH && <span className="error">Over 3 MB: use the link for the large drawings.</span>}
-            <span className="hint">Large drawings go behind the link. The PQQ is added automatically for any contractor who isn't yet approved (from Settings › Standard documents).</span>
+            {attachBytes > MAX_ATTACH && <span className="error">Over 20 MB: use the link for the large drawings.</span>}
+            <span className="hint">Large drawings go behind the link. The PQQ is added automatically for any contractor who isn't yet approved (from Settings › Standard documents), as long as it is no more than 3 MB.</span>
           </div>
         </section>
       )}
@@ -279,7 +324,7 @@ export default function TenderEnquiry() {
         <section className="card">
           <h2>Who it goes to</h2>
           <div className="toolbar">
-            <input className="search" placeholder="Search contractors" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input className="search" placeholder="Search subcontractors and suppliers" value={search} onChange={(e) => setSearch(e.target.value)} />
             <label className="check">
               <input type="checkbox" checked={tradeOnly} onChange={(e) => setTradeOnly(e.target.checked)} /> Only trades that match "{f.pkg || 'the package'}"
             </label>
@@ -290,7 +335,7 @@ export default function TenderEnquiry() {
               Pick none
             </button>
           </div>
-          {shown.length === 0 && <p className="muted">No contractors match. Untick the trade filter to see everyone, or add them under Contractors.</p>}
+          {shown.length === 0 && <p className="muted">No subcontractors or suppliers match. Untick the trade filter to see them all, or add them under Contractors (as a subcontractor or supplier).</p>}
           <table className="table">
             <thead>
               <tr>

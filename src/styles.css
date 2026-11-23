@@ -1133,3 +1133,9 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 
 .tt-wide { grid-column: 1 / -1; }
 .tg-for { padding: 8px 12px; background: #f1f3f9; border-radius: 6px; }
+
+.tg-from { border: 1px solid var(--line, #e3e3ec); border-radius: 8px; padding: 10px 14px; }
+.tg-dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin: 6px 0 0; }
+.tg-dl dt { font-size: .8rem; color: #666; }
+.tg-dl dd { margin: 0; white-space: pre-wrap; }
+@media (max-width: 700px) { .tg-dl { grid-template-columns: 1fr; } }

@@ -156,15 +156,8 @@ export default function Estimating() {
 }
 
 // ---------- new / edit ----------
-const FIELDS: [keyof Enquiry, string, string?][] = [
-  ['client_name', 'Client (company)'],
-  ['client_contact', 'Contact name'],
-  ['client_email', 'Email', 'email'],
-  ['client_phone', 'Phone', 'tel'],
-  ['received_date', 'Date received', 'date'],
-  ['due_date', 'Quote / tender due', 'date'],
-  ['estimator', 'Estimator'],
-]
+// the contract details come from script 068
+const needs068 = (e: { message: string }) => (/main_contract|sub_contract|summary|schema cache/i.test(e.message) ? 'Run script 068 in Supabase first (it adds the main contract, sub-contract and project summary).' : null)
 
 export function EnquiryForm() {
   const { enquiryId } = useParams()
@@ -195,6 +188,9 @@ export function EnquiryForm() {
       status: form.status ?? 'enquiry',
       estimator: form.estimator?.trim() || null,
       notes: form.notes?.trim() || null,
+      main_contract: form.main_contract?.trim() || null,
+      sub_contract: form.sub_contract?.trim() || null,
+      summary: form.summary?.trim() || null,
     }
     setBusy(true)
     let id = enquiryId
@@ -208,14 +204,14 @@ export function EnquiryForm() {
         .single()
       if (ins.error) {
         setBusy(false)
-        return setError(saveError(ins.error))
+        return setError(needs068(ins.error) ?? saveError(ins.error))
       }
       id = ins.data.id
     } else {
       const upd = await supabase.from('enquiries').update(row).eq('id', enquiryId)
       if (upd.error) {
         setBusy(false)
-        return setError(saveError(upd.error))
+        return setError(needs068(upd.error) ?? saveError(upd.error))
       }
     }
     navigate(`/estimating/e/${id}`)
@@ -232,21 +228,12 @@ export function EnquiryForm() {
           Back
         </Link>
       </div>
+      <h3 className="sub-head">The enquiry</h3>
       <div className="form-grid">
         <label className="span-2">
           Name
           <input value={form.name ?? ''} placeholder="e.g. Norton Folgate glazing" onChange={(e) => set('name', e.target.value)} required />
         </label>
-        <label className="span-2">
-          Site address
-          <textarea rows={2} value={form.site_address ?? ''} onChange={(e) => set('site_address', e.target.value)} />
-        </label>
-        {FIELDS.map(([k, label, type]) => (
-          <label key={k}>
-            {label}
-            <input type={type ?? 'text'} value={String(form[k] ?? '')} onChange={(e) => set(k, e.target.value)} />
-          </label>
-        ))}
         <label>
           Status
           <select value={form.status} onChange={(e) => set('status', e.target.value)}>
@@ -257,12 +244,64 @@ export function EnquiryForm() {
             ))}
           </select>
         </label>
+        <label>
+          Estimator
+          <input value={form.estimator ?? ''} onChange={(e) => set('estimator', e.target.value)} />
+        </label>
+        <label>
+          Date received
+          <input type="date" value={form.received_date ?? ''} onChange={(e) => set('received_date', e.target.value)} />
+        </label>
+        <label>
+          Quote / tender due
+          <input type="date" value={form.due_date ?? ''} onChange={(e) => set('due_date', e.target.value)} />
+        </label>
+      </div>
+
+      <h3 className="sub-head">The job and contract</h3>
+      <p className="muted small">These go into the tender emails to contractors.</p>
+      <div className="form-grid">
         <label className="span-2">
-          Notes
+          Site address
+          <textarea rows={2} value={form.site_address ?? ''} onChange={(e) => set('site_address', e.target.value)} />
+        </label>
+        <label>
+          Main contract
+          <input value={form.main_contract ?? ''} placeholder="e.g. JCT Design and Build 2016" onChange={(e) => set('main_contract', e.target.value)} />
+        </label>
+        <label>
+          Sub-contract
+          <input value={form.sub_contract ?? ''} placeholder="e.g. JCT Sub-contract" onChange={(e) => set('sub_contract', e.target.value)} />
+        </label>
+        <label className="span-2">
+          Project summary
+          <textarea rows={3} value={form.summary ?? ''} placeholder="e.g. full refurbishment of a five-storey townhouse" onChange={(e) => set('summary', e.target.value)} />
+        </label>
+        <label className="span-2">
+          Notes (tender notes)
           <textarea rows={3} value={form.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
         </label>
       </div>
-      {error && <p className="error">{error}</p>}
+
+      <h3 className="sub-head">Client</h3>
+      <div className="form-grid">
+        <label>
+          Client (company)
+          <input value={form.client_name ?? ''} onChange={(e) => set('client_name', e.target.value)} />
+        </label>
+        <label>
+          Contact name
+          <input value={form.client_contact ?? ''} onChange={(e) => set('client_contact', e.target.value)} />
+        </label>
+        <label>
+          Email
+          <input type="email" value={form.client_email ?? ''} onChange={(e) => set('client_email', e.target.value)} />
+        </label>
+        <label>
+          Phone
+          <input type="tel" value={form.client_phone ?? ''} onChange={(e) => set('client_phone', e.target.value)} />
+        </label>
+      </div>      {error && <p className="error">{error}</p>}
       <div className="form-actions">
         <button className="primary" disabled={busy}>
           {busy ? 'Saving…' : isNew ? 'Add enquiry' : 'Save changes'}

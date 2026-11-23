@@ -406,6 +406,9 @@ export interface Enquiry {
   estimator: string | null
   notes: string | null
   job_id: string | null
+  main_contract?: string | null // script 068
+  sub_contract?: string | null
+  summary?: string | null
 }
 
 // ---------- quotations ----------
@@ -533,6 +536,7 @@ export interface Profile {
   email: string | null
   initials: string | null
   job_title: string | null // signature, e.g. Quantity Surveyor
+  phone?: string | null // script 068: the sender's number on tender enquiry emails
   is_admin: boolean
   email_notifications?: boolean // script 041: email me my notifications (My details)
   is_it?: boolean // script 036: the admin login(s) IT uses; access requests go to them

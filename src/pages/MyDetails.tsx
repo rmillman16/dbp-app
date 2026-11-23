@@ -15,7 +15,7 @@ export default function MyDetails() {
   }, [])
 
   if (!me) return msg ? <p className="error">{msg}</p> : <p className="muted">Loading…</p>
-  const set = (k: 'full_name' | 'initials' | 'job_title', v: string) => setMe({ ...me, [k]: v || null })
+  const set = (k: 'full_name' | 'initials' | 'job_title' | 'phone', v: string) => setMe({ ...me, [k]: v || null })
 
   // emails on / off (script 041): saved straight away
   async function setEmails(on: boolean) {
@@ -35,8 +35,8 @@ export default function MyDetails() {
   async function save() {
     setMsg(null)
     if (!navigator.onLine) return setMsg(saveError(new Error('offline')))
-    const r = await supabase.from('profiles').update({ full_name: me!.full_name, initials: me!.initials, job_title: me!.job_title }).eq('id', me!.id)
-    setMsg(r.error ? saveError(r.error) : 'Saved.')
+    const r = await supabase.from('profiles').update({ full_name: me!.full_name, initials: me!.initials, job_title: me!.job_title, phone: me!.phone ?? null }).eq('id', me!.id)
+    setMsg(r.error ? (/phone|column|schema cache/i.test(r.error.message) ? 'Run script 068 in Supabase first (it adds the phone number).' : saveError(r.error)) : 'Saved.')
   }
 
   return (
@@ -56,6 +56,10 @@ export default function MyDetails() {
           <label>
             Job title
             <input value={me.job_title ?? ''} onChange={(x) => set('job_title', x.target.value)} placeholder="e.g. Quantity Surveyor" />
+          </label>
+          <label>
+            Phone
+            <input type="tel" value={me.phone ?? ''} onChange={(x) => set('phone', x.target.value)} placeholder="Your direct or mobile number" />
           </label>
         </div>
         <label className="check-line">
