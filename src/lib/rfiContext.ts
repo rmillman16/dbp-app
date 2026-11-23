@@ -6,6 +6,15 @@ import type { RegisterRow } from './exportRfis'
 import { htmlToText } from './richText'
 import type { TeamMember } from './om'
 
+export interface NewPerson {
+  companyId: string
+  newCompany: string
+  newCompanyType: string
+  name: string
+  email: string
+  phone: string
+  role: string
+}
 export interface Who {
   key: string // "d:<directory id>" or "p:<profile id>"
   label: string // Name (Company · Role)
@@ -23,6 +32,7 @@ export function useRfiContext(jobId: string) {
   const [profiles, setProfiles] = useState<{ id: string; full_name: string | null; email: string | null }[]>([])
   const [trades, setTrades] = useState<string[]>([])
   const [templates, setTemplates] = useState<RfiTemplate[]>([])
+  const [companies, setCompanies] = useState<{ id: string; name: string; type: string }[]>([])
   const [ready, setReady] = useState(false)
 
   const reload = () =>
@@ -32,7 +42,9 @@ export function useRfiContext(jobId: string) {
       cached('profiles-basic', () => must<{ id: string; full_name: string | null; email: string | null; job_title: string | null }[]>(supabase.from('profiles').select('id,full_name,email,job_title').order('full_name'))).catch(() => []),
       loadTrades(),
       loadTemplates(jobId),
-    ]).then(([d, t, p, tr, tp]) => {
+      supabase.from('companies').select('id, name, type').order('name').then((r) => (r.data ?? []) as { id: string; name: string; type: string }[]),
+    ]).then(([d, t, p, tr, tp, co]) => {
+      setCompanies(co)
       setDir(d)
       setTeam(t)
       setProfiles(p)
@@ -43,6 +55,23 @@ export function useRfiContext(jobId: string) {
   useEffect(() => {
     reload()
   }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // someone not on the job yet: saved as a contact of their company (a new company if needed) and in this job's project
+  // directory with their role, then picked. Returns the person's key.
+  const addPerson = async (p: NewPerson): Promise<string> => {
+    let companyId = p.companyId
+    if (!companyId) {
+      const c = await supabase.from('companies').insert({ name: p.newCompany.trim(), type: p.newCompanyType }).select('id').single()
+      if (c.error) throw new Error(c.error.message)
+      companyId = c.data.id as string
+    }
+    const ct = await supabase.from('contacts').insert({ company_id: companyId, name: p.name.trim(), email: p.email.trim() || null, phone: p.phone.trim() || null }).select('id').single()
+    if (ct.error) throw new Error(ct.error.message)
+    const d = await supabase.from('job_directory').insert({ job_id: jobId, company_id: companyId, contact_id: ct.data.id, role: p.role.trim(), client_direct: false }).select('id').single()
+    if (d.error) throw new Error(d.error.message)
+    await reload()
+    return `d:${d.data.id}`
+  }
 
   const profileName = (id: string | null | undefined) => {
     const p = profiles.find((x) => x.id === id)
@@ -65,5 +94,5 @@ export function useRfiContext(jobId: string) {
     receivedFrom: rfi.received_from ? (dir.find((d) => d.id === rfi.received_from)?.name ?? '') + (dir.find((d) => d.id === rfi.received_from)?.company ? ` (${dir.find((d) => d.id === rfi.received_from)?.company})` : '') : '',
     replies: responses.map((r) => ({ at: r.created_at, by: r.author_name || profileName(r.author_id) || 'DBP', kind: r.kind, text: htmlToText(r.body) })),
   })
-  return { dir, team, profiles, trades, setTrades, templates, ready, reload, whos, who, nameOf, profileName, rowFor }
+  return { dir, team, profiles, trades, setTrades, templates, companies, addPerson, ready, reload, whos, who, nameOf, profileName, rowFor }
 }

@@ -364,7 +364,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
         </div>
         <div className="span-2 rfi-field">
           <span className="label">Assignees *</span>
-          <PeoplePicker whos={ctx.whos} value={assignees} onChange={setAssignees} placeholder="Select at least one assignee" />
+          <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={assignees} onChange={setAssignees} placeholder="Select at least one assignee" />
         </div>
         <label>
           RFI manager *
@@ -405,7 +405,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
         </label>
         <div className="span-2 rfi-field">
           <span className="label">Cc</span>
-          <PeoplePicker whos={ctx.whos} value={cc} onChange={setCc} placeholder="Select Cc" />
+          <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={cc} onChange={setCc} placeholder="Select Cc" />
         </div>
         <label>
           Chase

@@ -142,11 +142,11 @@ export default function JobRfiTemplates({ jobId, ctx, me, onClose }: { jobId: st
           </label>
           <div className="span-2 rfi-field">
             <span className="label">Goes to (assignees)</span>
-            <PeoplePicker whos={ctx.whos} value={d.assignees} onChange={(v) => setD({ ...d, assignees: v })} placeholder="Pick who this goes to on this project" />
+            <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={d.assignees} onChange={(v) => setD({ ...d, assignees: v })} placeholder="Pick who this goes to on this project" />
           </div>
           <div className="span-2 rfi-field">
             <span className="label">Cc</span>
-            <PeoplePicker whos={ctx.whos} value={d.cc} onChange={(v) => setD({ ...d, cc: v })} placeholder="Pick who is copied in" />
+            <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={d.cc} onChange={(v) => setD({ ...d, cc: v })} placeholder="Pick who is copied in" />
           </div>
           <label>
             RFI manager

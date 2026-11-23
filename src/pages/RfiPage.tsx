@@ -231,11 +231,11 @@ export default function RfiPage() {
             </div>
             <div className="span-2 rfi-field">
               <span className="label">Assignees</span>
-              <PeoplePicker whos={ctx.whos} value={edit.assignees} onChange={(v) => setEdit({ ...edit, assignees: v })} placeholder="Select an assignee" />
+              <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={edit.assignees} onChange={(v) => setEdit({ ...edit, assignees: v })} placeholder="Select an assignee" />
             </div>
             <div className="span-2 rfi-field">
               <span className="label">Cc</span>
-              <PeoplePicker whos={ctx.whos} value={edit.cc} onChange={(v) => setEdit({ ...edit, cc: v })} placeholder="Select Cc" />
+              <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={edit.cc} onChange={(v) => setEdit({ ...edit, cc: v })} placeholder="Select Cc" />
             </div>
             <label>
               RFI manager
