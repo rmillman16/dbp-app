@@ -47,6 +47,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
     items: [
       ['previous', 'Previous programmes & From SoW'],
       ['files', 'Files, print & export'],
+      ['issue', 'Client & subcontractor programmes'],
       ['app', 'Cashflow, procurement & estimating'],
       ['phone', 'Phones & tablets'],
     ],
@@ -212,6 +213,12 @@ export default function ProgrammeHelp() {
                   The printer: A3 landscape pages, or save as PDF (<kbd>Ctrl</kbd> + <kbd>P</kbd>). Untick <b>Today line</b> to leave the dashed today line off.
                 </Row>
                 <Row k={<b>Export</b>}>The down arrow: MS Project (.xml), Primavera P6 (.xer) or a DBP Timeline file (.json).</Row>
+                <Row k={<b>Client programme ▾</b>}>
+                  The programme for the client: no subcontractors or trade colours; full or summary. Print / PDF, MS Project or P6 (<a href="#issue">more</a>).
+                </Row>
+                <Row k={<b>Subcontractor programme ▾</b>}>
+                  The programme for subcontractors: every trade; full or summary, and optionally shortened. Print / PDF, MS Project or P6 (<a href="#issue">more</a>).
+                </Row>
                 <Row k={<b>Tools ▾</b>}>
                   <b>Shutdown</b> (Christmas etc.), <b>Shift</b> (the whole programme or a section), <b>Compare</b> (overlay the original or a revision), <b>Legend</b> (trade
                   colours and symbols), <b>Add client logo</b>. A red dot means the programme runs over Christmas with no shutdown yet.
@@ -501,8 +508,8 @@ export default function ProgrammeHelp() {
                 </Row>
                 <Row k={<b>Save revision</b>}>Locks the programme as it is now as a numbered revision with a note. You carry on editing as normal.</Row>
                 <Row k={<b>History</b>}>
-                  Every revision with its note and date. <b>What changed</b> lists what moved since the one before; the working programme shows changes since the last saved revision and
-                  since the original. <b>Overlay</b>, <b>Make original</b>, <b>Download</b>, <b>Restore</b> (undoable).
+                  Every revision with its note and date. <b>What changed</b> lists what moved since the one before; the working programme shows changes since the last saved
+                  revision and since the original. <b>Overlay</b>, <b>Make original</b>, <b>Download</b>, <b>Restore</b> (undoable).
                 </Row>
               </tbody>
             </table>
@@ -513,8 +520,8 @@ export default function ProgrammeHelp() {
             <h2>The original programme & slippage (EOT)</h2>
             <ul>
               <li>
-                The <b>first saved revision</b> is the <b>original programme</b> (the box in the Save revision dialog is ticked for you). History → <b>Make original</b> changes which revision it
-                is.
+                The <b>first saved revision</b> is the <b>original programme</b> (the box in the Save revision dialog is ticked for you). History → <b>Make original</b> changes
+                which revision it is.
               </li>
               <li>
                 The <b>Slip</b> column always measures against it: each task's finish then and now.
@@ -567,6 +574,43 @@ export default function ProgrammeHelp() {
               </li>
               <li>
                 <b>Tools ▾ → Add client logo</b> puts the client's logo on the programme and its print.
+              </li>
+              <li>
+                To send the programme to the client or a subcontractor, use <a href="#issue">Client programme or Subcontractor programme</a> instead.
+              </li>
+            </ul>
+          </section>
+
+          <section className="card" id="issue">
+            <h2>Client & subcontractor programmes</h2>
+            <p>
+              Two buttons on the first line of the toolbar make a copy of the programme to send out. Pick the options in the menu under the button, then <b>Print / PDF…</b> (A3
+              landscape, as the normal print), <b>MS Project</b> (.xml) or <b>P6</b> (.xer). The programme itself is never changed.
+            </p>
+            <p>
+              Both leave out what stays inside DBP: RAG dots, prerequisite notes, baselines and any Compare overlay. They ignore the contractor filter and the critical path view
+              and always cover the whole programme. The print says “Client programme” or “Subcontractor programme” in the header and the title block.
+            </p>
+            <h3>Client programme ▾</h3>
+            <ul>
+              <li>Every task keeps its name, but no subcontractor or trade is shown, and every bar is the same DBP blue (no trade colours, no critical path outline).</li>
+              <li>
+                <b>Summary programme</b>: a key activity programme. Each section becomes one bar, from its first start to its last finish, under <b>Key activities</b>; the
+                milestones are listed under <b>Key dates</b>. Start on site and completion are added if the programme has no milestone for them. Off: the full task list.
+              </li>
+            </ul>
+            <h3>Subcontractor programme ▾</h3>
+            <ul>
+              <li>Full detail: every trade and contractor, in their colours, with the critical path outlined.</li>
+              <li>
+                <b>Summary programme</b>: as for the client, but a section whose tasks are all one trade keeps that trade's colour.
+              </li>
+              <li>
+                <b>Shorten by</b>: type a percentage <i>or</i> a number of working days (each shows the other's equivalent). Every task is brought forward pro rata from the
+                programme's start: its start and its length both shrink by that share, counted in working days (weekends and shutdowns don't count). Shortened by 10%, a task
+                starting 20 working days in starts 18 days in, and a 10-day task takes 9. Tasks keep at least a day, milestones stay milestones, and linked tasks still follow the
+                tasks they're linked to. The line underneath shows the result, e.g. “Finishes 06/12/2027 instead of 21/01/2028 (27 working days / 10.1% shorter)”. Nothing on the
+                print or file says it was shortened: the subcontractor just sees the dates.
               </li>
             </ul>
           </section>

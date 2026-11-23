@@ -33,6 +33,7 @@ export interface PrintOptions {
   now?: Date // "today" (the Today line and printed date)
   // the original programme (or a revision) drawn under each bar, with the slippage shaded (22 Nov)
   todayLine?: boolean // the dashed today line (default on)
+  heading?: string // in place of 'Construction programme' in the header, and on the title block (e.g. 'Client programme')
   compare?: { label: string; bars: Map<string, { start_date: string; finish_date: string; milestone: boolean }> }
 }
 
@@ -365,7 +366,7 @@ export function buildPrintPagesHtml(state: TLState, opts: PrintOptions): string 
   const printedOn = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   const printedBy = opts.printedBy || ''
   const title = state.projectName || 'Untitled programme'
-  const sub = `Construction programme${contractorText} · ${revText} · ${statusText} · printed ${printedOn}`
+  const sub = `${opts.heading || 'Construction programme'}${contractorText} · ${revText} · ${statusText} · printed ${printedOn}`
   const header = `<div class="print-header">
   <div class="ph-left"><h1>${escapeHtml(title)}</h1><p>${escapeHtml(sub)}</p></div>
   <div class="ph-right">
@@ -421,6 +422,7 @@ export function buildPrintPagesHtml(state: TLState, opts: PrintOptions): string 
 
   const titleBlock = (pIdx: number) => `<div class="pp-titleblock" style="left:${m.margin}px;right:${m.margin}px">
       <div class="tb-grow"><span>Project</span>${escapeHtml(title)}</div>
+      ${opts.heading ? `<div><span>Programme</span>${escapeHtml(opts.heading)}</div>` : ''}
       ${contractor ? `<div><span>Contractor</span>${escapeHtml(contractor)}</div>` : ''}
       <div><span>Revision</span>${escapeHtml(revText)}</div>
       <div><span>Status</span>${escapeHtml(statusText)}</div>

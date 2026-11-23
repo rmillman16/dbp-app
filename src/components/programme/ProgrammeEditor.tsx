@@ -69,6 +69,7 @@ import { loadCompanies } from '../../lib/subcontracts'
 import GenerateProgramme from '../GenerateProgramme'
 import type { Job } from '../../lib/types'
 import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
+import IssueMenu from './ProgrammeIssue'
 import { DeleteSectionDialog, DuplicateSectionDialog, LegendMenu, Modal, Popover, ShiftMenu, ShutdownMenu, TaskModal } from './ProgrammeParts'
 import '../../programme.css'
 
@@ -92,7 +93,7 @@ const store = {
     }
   },
 }
-type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'compare' | 'tools' | 'print' | null
+type Pop = 'section' | 'shutdown' | 'shift' | 'legend' | 'export' | 'compare' | 'tools' | 'print' | 'client' | 'subcontractor' | null
 type Dialog =
   | { kind: 'dup'; section: string }
   | { kind: 'del'; section: string }
@@ -588,6 +589,32 @@ export default function ProgrammeEditor({
             </div>
           </Popover>
         </span>
+        {/* the programmes issued to others (23 Nov): options, then print or export a copy */}
+        {(['client', 'subcontractor'] as const).map((kind) => (
+          <span key={kind} className="tl-pop-wrap">
+            <button
+              className="tl-btn"
+              onClick={() => setPop(pop === kind ? null : kind)}
+              title={
+                kind === 'client'
+                  ? 'Client programme: no subcontractors or trade colours; full or summary. Print / PDF, MS Project or P6'
+                  : 'Subcontractor programme: every trade; full or summary, optionally shortened. Print / PDF, MS Project or P6'
+              }
+            >
+              {kind === 'client' ? 'Client programme' : 'Subcontractor programme'} ▾
+            </button>
+            <Popover open={pop === kind} onClose={() => setPop(null)} width={340}>
+              <IssueMenu
+                kind={kind}
+                state={tl}
+                critical={critical}
+                revision={lastRev ? revName(lastRev.rev_no) : undefined}
+                onDone={() => setPop(null)}
+                onError={(msg) => setError(msg)}
+              />
+            </Popover>
+          </span>
+        ))}
         {/* Tools: shutdowns, shift, compare, legend, client logo */}
         <span className="tl-pop-wrap">
           <button className={`tl-btn ${compare ? 'is-on' : ''}`} onClick={() => setPop(pop && ['tools', 'shutdown', 'shift', 'compare', 'legend'].includes(pop) ? null : 'tools')}>
@@ -603,9 +630,7 @@ export default function ProgrammeEditor({
             <div
               className={`tl-menu-item ${revisions.length ? '' : 'disabled'}`}
               onClick={() => revisions.length && setPop('compare')}
-              title={
-                revisions.length ? 'Overlay the original programme (or any revision) to see slippage' : 'Save a revision first: the first one is the original programme'
-              }
+              title={revisions.length ? 'Overlay the original programme (or any revision) to see slippage' : 'Save a revision first: the first one is the original programme'}
             >
               Compare{compare ? `: ${revName(compare.rev_no)}` : ''}…
             </div>
@@ -1458,8 +1483,7 @@ function HistoryDialog({
               {r.rev_no === original && <span className="tl-rev-badge original">Original programme</span>} {r.note || <span className="tl-light">No note</span>}
             </div>
             <div className="tl-prog-meta">
-              Saved {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count}{' '}
-              tasks
+              Saved {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count} tasks
             </div>
             {Array.isArray(open[r.rev_no]) && <Diff lines={open[r.rev_no] as string[]} />}
           </div>
