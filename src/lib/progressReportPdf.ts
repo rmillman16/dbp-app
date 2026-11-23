@@ -141,15 +141,13 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
   }
   const h1 = (n: string, title: string) => {
     ensure(90)
-    y -= 26
+    y -= 34
     const label = n ? `${n}  ${title}` : title
-    // du Boulay navy band with a blue edge and a thin blue rule under it
-    page.drawRectangle({ x: M, y: y - 8, width: CW, height: 26, color: hex(NAVY) })
-    page.drawRectangle({ x: M, y: y - 8, width: 6, height: 26, color: hex(BLUE) })
-    page.drawLine({ start: { x: M, y: y - 10 }, end: { x: M + CW, y: y - 10 }, thickness: 1.2, color: hex(BLUE) })
-    page.drawText(clean(label), { x: M + 18, y: y + 1, size: 13, font: bold, color: rgb(1, 1, 1) })
+    // du Boulay navy heading with a blue rule under it (no band)
+    page.drawText(clean(label), { x: M, y, size: 15, font: bold, color: hex(NAVY) })
+    page.drawLine({ start: { x: M, y: y - 7 }, end: { x: M + CW, y: y - 7 }, thickness: 1.5, color: hex(BLUE) })
     marks.push({ label, page, level: 0 })
-    y -= 26
+    y -= 12
   }
   const h2 = (n: string, title: string) => {
     ensure(60)
