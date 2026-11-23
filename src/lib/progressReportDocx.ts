@@ -72,14 +72,9 @@ export async function buildReportDocx(a: { job: Job; report: ProgressReport; aut
   if (sectionOn(on, 'design')) {
     const n = num.design
     h1(n, 'Design')
-    h2(`${n}.1`, 'Submittals summary')
-    if (auto.submittals) {
-      kids.push(p(`${auto.submittals.rows.length} submittals: ${auto.submittals.out} out for review (${auto.submittals.overdue} overdue), ${auto.submittals.respondedInPeriod} responded to this period.`))
-      table(['No.', 'Submittal', 'Trade', 'Return by'], auto.submittals.rows.filter((r) => r.status === 'out').map((r) => [`S${r.number}`, r.title, r.trade ?? '', r.due_date ? ukDate(r.due_date) : '']))
-    }
-    h2(`${n}.2`, 'Sampling tracker')
+    h2(`${n}.1`, 'Sampling tracker')
     kids.push(p(auto.sampling ? `${auto.sampling.total} items: ${countsLine(auto.sampling.counts)}.` : 'Not available.'))
-    h2(`${n}.3`, 'Design queries')
+    h2(`${n}.2`, 'Design queries')
     const q = c.design.queries.split('\n').map((x) => x.replace(/^[-•*]\s*/, ''))
     if (q.some((x) => x.trim())) bullets(q)
     else kids.push(p('None.', { italics: true }))
@@ -96,9 +91,15 @@ export async function buildReportDocx(a: { job: Job; report: ProgressReport; aut
   if (sectionOn(on, 'information')) {
     const n = num.information
     h1(n, 'Information required')
+    h2(`${n}.1`, 'RFIs')
     if (auto.rfis) {
       kids.push(p(`${auto.rfis.rows.length} RFIs: ${auto.rfis.open} open (${auto.rfis.overdue} overdue), ${auto.rfis.answered} answered and awaiting closure, ${auto.rfis.closedInPeriod} closed this period.`))
       table(['No.', 'RFI', 'Trade', 'Due', 'Status'], auto.rfis.rows.filter((r) => r.status === 'open' || r.status === 'answered').map((r) => [`RFI ${r.number}`, r.title, r.trade ?? '', r.due_date ? ukDate(r.due_date) : '', r.status === 'open' ? 'Open' : 'Answered']))
+    }
+    h2(`${n}.2`, 'Submittals')
+    if (auto.submittals) {
+      kids.push(p(`${auto.submittals.rows.length} submittals: ${auto.submittals.out} out for review (${auto.submittals.overdue} overdue), ${auto.submittals.respondedInPeriod} responded to this period.`))
+      table(['No.', 'Submittal', 'Trade', 'Return by'], auto.submittals.rows.filter((r) => r.status === 'out').map((r) => [`S${r.number}`, r.title, r.trade ?? '', r.due_date ? ukDate(r.due_date) : '']))
     }
     body(c.information.notes)
   }

@@ -345,9 +345,8 @@ export default function ProgressReportPage() {
       {sectionOn(sections, 'design') && (
         <section className="card">
           <h2>{num.design} Design</h2>
-          {auto?.submittals && autoLine(`${auto.submittals.rows.length} submittals (${auto.submittals.out} out for review, ${auto.submittals.overdue} overdue)`)}
           {auto?.sampling && autoLine(`sampling: ${countsLine(auto.sampling.counts)}`)}
-          <div className="form-grid">{area(`${num.design}.3 Design queries`, content.design.queries, (v) => setSection('design', { queries: v }), 5, 'One per line.')}</div>
+          <div className="form-grid">{area(`${num.design}.2 Design queries`, content.design.queries, (v) => setSection('design', { queries: v }), 5, 'One per line.')}</div>
         </section>
       )}
       {sectionOn(sections, 'procurement') && (
@@ -361,6 +360,7 @@ export default function ProgressReportPage() {
         <section className="card">
           <h2>{num.information} Information required</h2>
           {auto?.rfis && autoLine(`${auto.rfis.rows.length} RFIs: ${auto.rfis.open} open (${auto.rfis.overdue} overdue), ${auto.rfis.answered} answered; the RFI report is appended`)}
+          {auto?.submittals && autoLine(`${auto.submittals.rows.length} submittals (${auto.submittals.out} out for review, ${auto.submittals.overdue} overdue); the submittals report is appended`)}
           <div className="form-grid">{area('Notes', content.information.notes, (v) => setSection('information', { notes: v }), 4)}</div>
         </section>
       )}

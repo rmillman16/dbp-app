@@ -349,16 +349,9 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
   if (sectionOn(on, 'design')) {
     const n = num.design
     h1(n, 'Design')
-    h2(`${n}.1`, 'Submittals summary')
-    const s = a.auto.submittals
-    if (s) {
-      text(`${s.rows.length} submittal${s.rows.length === 1 ? '' : 's'}: ${s.out} out for review (${s.overdue} overdue), ${s.respondedInPeriod} responded to this period.`)
-      const out = s.rows.filter((r) => r.status === 'out')
-      if (out.length) table(['No.', 'Submittal', 'Trade', 'Return by'], out.map((r) => [`S${r.number}`, r.title, r.trade ?? '', r.due_date ? ukDate(r.due_date) : '']), [34, 280, 90, 62])
-    } else text('Not available.', { color: MUTED })
-    h2(`${n}.2`, 'Sampling tracker')
+    h2(`${n}.1`, 'Sampling tracker')
     text(a.auto.sampling ? `${a.auto.sampling.total} items: ${countsLine(a.auto.sampling.counts)}.` : 'Not available.', { color: a.auto.sampling ? INK : MUTED })
-    h2(`${n}.3`, 'Design queries')
+    h2(`${n}.2`, 'Design queries')
     const q = c.design.queries.split('\n').map((x) => x.replace(/^[-•*]\s*/, ''))
     if (q.some((x) => x.trim())) bullets(q)
     else text('None.', { color: MUTED })
@@ -381,11 +374,19 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
   if (sectionOn(on, 'information')) {
     const n = num.information
     h1(n, 'Information required')
+    h2(`${n}.1`, 'RFIs')
     const r = a.auto.rfis
     if (r) {
       text(`${r.rows.length} RFI${r.rows.length === 1 ? '' : 's'}: ${r.open} open (${r.overdue} overdue), ${r.answered} answered and awaiting closure, ${r.closedInPeriod} closed this period.`)
       const open = r.rows.filter((x) => x.status === 'open' || x.status === 'answered')
       if (open.length) table(['No.', 'RFI', 'Trade', 'Due', 'Status'], open.map((x) => [`RFI ${x.number}`, x.title, x.trade ?? '', x.due_date ? ukDate(x.due_date) : '', x.status === 'open' ? 'Open' : 'Answered']), [46, 250, 80, 60, 56])
+    } else text('Not available.', { color: MUTED })
+    h2(`${n}.2`, 'Submittals')
+    const s = a.auto.submittals
+    if (s) {
+      text(`${s.rows.length} submittal${s.rows.length === 1 ? '' : 's'}: ${s.out} out for review (${s.overdue} overdue), ${s.respondedInPeriod} responded to this period.`)
+      const out = s.rows.filter((r) => r.status === 'out')
+      if (out.length) table(['No.', 'Submittal', 'Trade', 'Return by'], out.map((r) => [`S${r.number}`, r.title, r.trade ?? '', r.due_date ? ukDate(r.due_date) : '']), [34, 280, 90, 62])
     } else text('Not available.', { color: MUTED })
     text(c.information.notes)
   }
@@ -467,7 +468,7 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
   const appendixList: { title: string; build: () => Promise<{ doc?: PDFDocument; image?: PDFImage }> }[] = []
   if (c.autoAppendices.rfis && sectionOn(on, 'information') && a.rfiRows.length)
     appendixList.push({ title: 'RFI report: RFIs still unanswered', build: async () => ({ doc: await PDFDocument.load(await buildRfisPdf({ ref: `${a.job.job_no} ${a.job.code}`, name: a.job.name }, a.rfiRows, 'Unanswered RFIs')) }) })
-  if (c.autoAppendices.submittals && sectionOn(on, 'design') && a.submittalRows.length)
+  if (c.autoAppendices.submittals && sectionOn(on, 'information') && a.submittalRows.length)
     appendixList.push({ title: 'Submittals out for review', build: async () => ({ doc: await PDFDocument.load(await buildSubmittalsPdf({ ref: `${a.job.job_no} ${a.job.code}`, name: a.job.name }, a.submittalRows, 'Submittals out for review')) }) })
   for (const f of a.files.filter((x) => x.kind === 'appendix'))
     appendixList.push({
