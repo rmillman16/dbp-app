@@ -183,3 +183,42 @@ export async function exportRfisPdf(job: ReportOwner, rows: RegisterRow[], title
   pages.forEach((p, i) => p.drawText(`Page ${i + 1} of ${pages.length}`, { x: W - M - 50, y: 18, size: 8, font, color: grey }))
   downloadBlob(new Blob([(await doc.save()) as BlobPart], { type: 'application/pdf' }), `${fileBase(job, title)}.pdf`)
 }
+
+// ---------- the tender schedule (23 Nov): the queries to send the client as one Excel, with a Response column to fill in ----------
+export async function tenderScheduleBlob(owner: ReportOwner, rows: RegisterRow[]): Promise<Blob> {
+  const { wb } = await newWorkbook()
+  const ws = wb.addWorksheet('Tender queries', { views: [{ state: 'frozen', ySplit: 6 }] })
+  ws.getCell('A1').value = `${owner.ref} ${owner.name}`
+  ws.getCell('A1').font = { bold: true, size: 14 }
+  ws.getCell('A2').value = 'Tender queries (RFI schedule)'
+  ws.getCell('A2').font = { bold: true, size: 12 }
+  ws.getCell('A3').value = `Issued ${ukDate(todayIso())} by du Boulay Projects (${rows.length} quer${rows.length === 1 ? 'y' : 'ies'})`
+  ws.getCell('A4').value = 'Please complete the Response column and return this schedule.'
+  ws.getCell('A4').font = { italic: true }
+  const cols: [string, number][] = [['No.', 8], ['Trade', 16], ['Subject', 34], ['Query', 70], ['Response', 60], ['Responded by', 18], ['Date', 12]]
+  cols.forEach(([h, w], i) => {
+    ws.getColumn(i + 1).width = w
+    const c = ws.getRow(6).getCell(i + 1)
+    c.value = h
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F1246' } }
+  })
+  const thin = { style: 'thin' as const, color: { argb: 'FFBFBFBF' } }
+  rows.forEach(({ rfi: r }, i) => {
+    const row = ws.getRow(7 + i)
+    ;[r.number, r.trade ?? '', r.title, htmlToText(r.question), '', '', ''].forEach((v, k) => {
+      const c = row.getCell(k + 1)
+      c.value = v as never
+      c.alignment = { vertical: 'top', wrapText: true }
+      c.border = { top: thin, bottom: thin, left: thin, right: thin }
+      if (k >= 4) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF9E5' } }
+    })
+  })
+  ws.pageSetup = { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, printTitlesRow: '6:6' }
+  const buf = await wb.xlsx.writeBuffer()
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+}
+export const tenderScheduleName = (owner: ReportOwner) => `${safeName(`${owner.ref} ${owner.name}`)} - tender queries (RFI schedule).xlsx`
+export async function exportTenderSchedule(owner: ReportOwner, rows: RegisterRow[]) {
+  downloadBlob(await tenderScheduleBlob(owner, rows), tenderScheduleName(owner))
+}

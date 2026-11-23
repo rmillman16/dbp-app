@@ -10,6 +10,7 @@ export interface RfiOwner {
   ref: string // "2611 FISL" or "E012"
   name: string
   base: string // the RFI list's address
+  client?: { name: string | null; contact: string | null; email: string | null } // an enquiry's client: tender RFIs all go to them
 }
 export const ownerKeys = (o: Pick<RfiOwner, 'kind' | 'id'>) => ({ job_id: o.kind === 'job' ? o.id : null, enquiry_id: o.kind === 'enquiry' ? o.id : null })
 

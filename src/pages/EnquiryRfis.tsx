@@ -14,7 +14,7 @@ export default function EnquiryRfis({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
   }, [enquiryId])
-  const owner = useMemo<RfiOwner | null>(() => (e ? { kind: 'enquiry', id: e.id, ref: enquiryRef(e), name: e.name, base: `/estimating/e/${e.id}/rfis` } : null), [e])
+  const owner = useMemo<RfiOwner | null>(() => (e ? { kind: 'enquiry', id: e.id, ref: enquiryRef(e), name: e.name, base: `/estimating/e/${e.id}/rfis`, client: { name: e.client_name, contact: e.client_contact, email: e.client_email } } : null), [e])
   if (error) return <p className="error">{error}</p>
   if (!e || !owner) return <p className="muted">Loading…</p>
   return (

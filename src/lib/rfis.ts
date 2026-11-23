@@ -6,8 +6,8 @@ import { addDaysIso, todayIso } from './format'
 import { loadTeam, type TeamMember } from './om'
 import { cleanHtml } from './richText'
 
-export type RfiStatus = 'open' | 'answered' | 'closed' | 'void'
-export const STATUS_LABELS: Record<RfiStatus, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void' }
+export type RfiStatus = 'draft' | 'open' | 'answered' | 'closed' | 'void'
+export const STATUS_LABELS: Record<RfiStatus, string> = { draft: 'Draft', open: 'Open', answered: 'Answered', closed: 'Closed', void: 'Void' }
 export const CHASE_OPTIONS: [number, string][] = [
   [1, 'Daily'],
   [2, 'Every 2 days'],
@@ -41,6 +41,7 @@ export interface Rfi {
   created_at: string
   answered_at: string | null
   closed_at: string | null
+  issued_at?: string | null // when a draft was issued (059)
 }
 export interface RfiPerson {
   id: string
@@ -293,6 +294,19 @@ export async function updateRfi(id: string, patch: Partial<Omit<Rfi, 'id' | 'job
   const r = await supabase.from('rfis').update(patch).eq('id', id).select('*').single()
   if (r.error) throw fail(r.error)
   return r.data as Rfi
+}
+// tender RFIs are drafted, then issued to the client together: drafts become open
+export async function issueRfis(ids: string[]) {
+  if (!ids.length) return
+  const r = await supabase.from('rfis').update({ status: 'open' }).in('id', ids)
+  if (r.error) throw fail(r.error)
+}
+export async function deleteRfi(id: string) {
+  const files = await supabase.from('rfi_files').select('path').eq('rfi_id', id)
+  const r = await supabase.from('rfis').delete().eq('id', id)
+  if (r.error) throw fail(r.error)
+  const paths = (files.data ?? []).map((f) => f.path as string)
+  if (paths.length) await supabase.storage.from('rfis').remove(paths)
 }
 export async function setPeople(rfiId: string, role: 'assignee' | 'cc', refs: PersonRef[], current: RfiPerson[]) {
   const key = (p: { directory_id: string | null; profile_id: string | null }) => `${p.directory_id ?? ''}|${p.profile_id ?? ''}`

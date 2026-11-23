@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
@@ -7,6 +7,7 @@ import { nudgeEmails } from '../lib/notifications'
 import { useRfiOwner } from '../lib/rfiOwner'
 import {
   CHASE_OPTIONS,
+  deleteRfi,
   STATUS_LABELS,
   addResponse,
   addRfiFile,
@@ -35,6 +36,8 @@ import SuggestInput from '../components/SuggestInput'
 // Job › RFIs › one RFI: the question, who it's with, replies, files; DBP's RFI manager closes it.
 export default function RfiPage() {
   const owner = useRfiOwner()
+  const tender = owner.kind === 'enquiry'
+  const navigate = useNavigate()
   const { rfiId } = useParams()
   const { me, isAdmin } = useAccess()
   const ctx = useRfiContext(owner)
@@ -61,6 +64,7 @@ export default function RfiPage() {
   const { rfi, people, responses, files: rfiFiles } = d
   const canClose = isAdmin || me?.id === rfi.manager_id
   const finished = rfi.status === 'closed' || rfi.status === 'void'
+  const isDraft = rfi.status === 'draft'
 
   async function run(f: () => Promise<void>, done?: string) {
     setError(null)
@@ -145,7 +149,24 @@ export default function RfiPage() {
         </div>
         <div className="button-row">
           <button onClick={() => exportRfisPdf(owner, [ctx.rowFor(rfi, people, responses)], `RFI ${rfi.number}`).catch((e) => setError((e as Error).message))}>PDF</button>
-          {!finished && canClose && (
+          {isDraft && (
+            <>
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={() => confirm(tender ? `Mark RFI ${rfi.number} as issued to the client?` : `Issue RFI ${rfi.number}? The people on it are told and it starts to be chased.`) && setStatus('open', 'Issued.')}
+              >
+                {tender ? 'Mark as issued' : 'Issue RFI'}
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => confirm(`Delete the draft RFI ${rfi.number}?`) && run(async () => { await deleteRfi(rfi.id); navigate(owner.base) })}
+              >
+                Delete draft
+              </button>
+            </>
+          )}
+          {!finished && !isDraft && canClose && (
             <button className="primary" disabled={busy} onClick={() => confirm(`Close RFI ${rfi.number}? It stops being chased.`) && setStatus('closed', 'Closed.')}>
               Close RFI
             </button>
@@ -155,7 +176,7 @@ export default function RfiPage() {
               Reopen
             </button>
           )}
-          {!finished && canClose && (
+          {!finished && !isDraft && canClose && (
             <button disabled={busy} onClick={() => confirm('Void this RFI (raised in error)?') && setStatus('void', 'Voided.')}>
               Void
             </button>
@@ -180,26 +201,38 @@ export default function RfiPage() {
             <dl className="rfi-dl">
               <dt>Specification section</dt>
               <dd>{rfi.trade || '–'}</dd>
+{!tender && (
+<>
               <dt>Assigned to</dt>
               <dd>{assigneeNames.join(', ') || '–'}</dd>
               <dt>Cc</dt>
               <dd>{people.filter((p) => p.role === 'cc').map(ctx.nameOf).join(', ') || '–'}</dd>
+</>
+)}
               <dt>RFI manager</dt>
               <dd>{person(rfi.manager_id) || '–'}</dd>
+{!tender && (
+<>
               <dt>Received from</dt>
               <dd>{rfi.received_from ? ctx.dir.find((x) => x.id === rfi.received_from)?.name : '–'}</dd>
+</>
+)}
               <dt>Due</dt>
               <dd className={isOverdue(rfi, today) ? 'late' : ''}>{rfi.due_date ? ukDate(rfi.due_date) : '–'}</dd>
               <dt>Created</dt>
               <dd>
                 {ukDate(rfi.created_at.slice(0, 10))} ({daysOpen(rfi, today)} days{finished ? ' to close' : ' open'})
               </dd>
+{!tender && (
+<>
               <dt>Chased</dt>
               <dd>
                 {chaseLabel(rfi.chase_days)}
                 {rfi.last_chased_at ? `, last ${ukDate(rfi.last_chased_at.slice(0, 10))}` : ''}
                 {!rfi.notify ? ' · emails off' : ''}
               </dd>
+</>
+)}
             </dl>
             <h3 className="sub-head">Question</h3>
             <div className="rte-view" dangerouslySetInnerHTML={{ __html: cleanHtml(rfi.question) }} />
@@ -229,6 +262,8 @@ export default function RfiPage() {
               <span className="label">Question</span>
               <RichTextEditor value={edit.question ?? ''} onChange={(h) => setEdit((c) => (c ? { ...c, question: h } : c))} />
             </div>
+{!tender && (
+<>
             <div className="span-2 rfi-field">
               <span className="label">Assignees</span>
               <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={edit.assignees} onChange={(v) => setEdit({ ...edit, assignees: v })} placeholder="Select an assignee" />
@@ -237,6 +272,8 @@ export default function RfiPage() {
               <span className="label">Cc</span>
               <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={edit.cc} onChange={(v) => setEdit({ ...edit, cc: v })} placeholder="Select Cc" />
             </div>
+</>
+)}
             <label>
               RFI manager
               <select value={edit.manager_id ?? ''} onChange={(e) => setEdit({ ...edit, manager_id: e.target.value || null })}>
@@ -252,6 +289,8 @@ export default function RfiPage() {
               Due date
               <input type="date" value={edit.due_date ?? ''} onChange={(e) => setEdit({ ...edit, due_date: e.target.value || null })} />
             </label>
+{!tender && (
+<>
             <label>
               Received from
               <select value={edit.received_from ?? ''} onChange={(e) => setEdit({ ...edit, received_from: e.target.value || null })}>
@@ -263,10 +302,14 @@ export default function RfiPage() {
                 ))}
               </select>
             </label>
+</>
+)}
             <label>
               Specification section (trade)
               <SuggestInput value={edit.trade ?? ''} onChange={(v) => setEdit({ ...edit, trade: v })} options={ctx.trades} onAdd={(v) => addTrade(v).then(() => ctx.setTrades((l) => [...l, v.trim()]), () => {})} />
             </label>
+{!tender && (
+<>
             <label>
               Chase
               <select value={edit.chase_days} onChange={(e) => setEdit({ ...edit, chase_days: Number(e.target.value) })}>
@@ -280,6 +323,8 @@ export default function RfiPage() {
             <label className="rfi-notify">
               <input type="checkbox" checked={edit.notify} onChange={(e) => setEdit({ ...edit, notify: e.target.checked })} /> Email notifications
             </label>
+</>
+)}
             <div className="form-actions span-2">
               <button className="primary" disabled={busy} onClick={saveEdit}>
                 Save
@@ -306,7 +351,7 @@ export default function RfiPage() {
             </li>
           ))}
         </ul>
-        {!finished && (
+        {!finished && !isDraft && (
           <div className="rfi-reply">
             <div className="app-controls reply-kind">
               <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} aria-label="Type">

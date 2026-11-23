@@ -1,5 +1,5 @@
 -- =====================================================================
--- 059 · RFIs on estimates (tenders) as well as jobs (23 Nov)
+-- 059 · RFIs on estimates (tenders) as well as jobs, and drafts (23 Nov)
 -- Richard: link RFIs to Estimating. As with minutes (046), an RFI belongs to a job OR an Estimating enquiry; when the
 -- enquiry is won and set up as a job, its RFIs (and its directory and templates) move to the job.
 -- - rfis, rfi_templates and job_directory can belong to an enquiry (enquiry_id) instead of a job
@@ -190,3 +190,87 @@ begin
 end $$;
 drop trigger if exists enquiry_rfis_to_job on enquiries;
 create trigger enquiry_rfis_to_job after update of job_id on enquiries for each row execute function public.enquiry_rfis_to_job();
+
+-- ---------- drafts, and issuing tender RFIs to the client as one Excel schedule (Richard, 23 Nov) ----------
+-- At tender stage every RFI goes to the same person (the client), and they're drafted first, then sent together as a
+-- schedule, not one by one. So an RFI can be a draft (not chased, nobody notified) and records when it was issued.
+alter table rfis add column if not exists issued_at timestamptz;
+alter table rfis drop constraint if exists rfis_status_check;
+alter table rfis add constraint rfis_status_check check (status in ('draft', 'open', 'answered', 'closed', 'void'));
+drop index if exists rfis_open;
+create index if not exists rfis_open on rfis (status) where status in ('open', 'answered');
+
+-- a draft becoming open is "issued"
+create or replace function public.rfi_status_dates() returns trigger
+language plpgsql as $$
+begin
+  if new.status = 'answered' and (tg_op = 'INSERT' or old.status is distinct from 'answered') then new.answered_at := now(); end if;
+  if new.status = 'closed' and (tg_op = 'INSERT' or old.status is distinct from 'closed') then new.closed_at := now(); end if;
+  if new.status in ('open', 'draft') then new.closed_at := null; end if;
+  if new.status = 'open' and tg_op = 'UPDATE' and old.status = 'draft' then new.issued_at := now(); end if;
+  if new.status = 'open' and tg_op = 'INSERT' and new.issued_at is null then new.issued_at := now(); end if;
+  return new;
+end $$;
+
+-- nobody is told about a draft
+create or replace function public.rfi_new_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.status <> 'draft' and new.manager_id is not null and new.manager_id is distinct from new.created_by then
+    insert into notifications (profile_id, job_id, kind, title, detail, due_date, link, source_table, source_id)
+    values (new.manager_id, new.job_id, 'rfi_new', public.rfi_label(new) || ' RFI ' || new.number || ': ' || new.title,
+            'You are the RFI manager.', new.due_date, public.rfi_link(new), 'rfis', new.id);
+  end if;
+  return new;
+end $$;
+
+create or replace function public.rfi_person_notify() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare r rfis;
+begin
+  if new.profile_id is null then return new; end if;
+  select * into r from rfis where id = new.rfi_id;
+  if r.status = 'draft' then return new; end if;
+  if new.profile_id is not distinct from r.created_by or new.profile_id is not distinct from r.manager_id then return new; end if;
+  insert into notifications (profile_id, job_id, kind, title, detail, due_date, link, source_table, source_id)
+  values (new.profile_id, r.job_id, 'rfi_new', public.rfi_label(r) || ' RFI ' || r.number || ': ' || r.title,
+          case new.role when 'assignee' then 'Assigned to you.' else 'You are copied in.' end, r.due_date, public.rfi_link(r), 'rfis', r.id);
+  return new;
+end $$;
+
+-- an outside assignee's email only queues for an RFI that isn't a draft
+create or replace function public.rfi_outbox_new() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare r rfis;
+begin
+  select * into r from rfis where id = new.rfi_id;
+  if new.directory_id is not null and new.role = 'assignee' and r.notify and r.status <> 'draft' then
+    insert into rfi_outbox (rfi_id, person_id, kind) values (new.rfi_id, new.id, 'new');
+  end if;
+  return new;
+end $$;
+
+-- a job RFI issued from draft: its people are told now (and outside assignees' emails queue), as if it had been made open.
+-- (Tender RFIs go to the client as one Excel schedule, so they notify nobody.)
+create or replace function public.rfi_issued() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare p record;
+begin
+  if old.status <> 'draft' or new.status <> 'open' or new.enquiry_id is not null then return new; end if;
+  if new.manager_id is not null and new.manager_id is distinct from new.created_by then
+    insert into notifications (profile_id, job_id, kind, title, detail, due_date, link, source_table, source_id)
+    values (new.manager_id, new.job_id, 'rfi_new', public.rfi_label(new) || ' RFI ' || new.number || ': ' || new.title, 'You are the RFI manager.', new.due_date, public.rfi_link(new), 'rfis', new.id);
+  end if;
+  for p in select * from rfi_people where rfi_id = new.id loop
+    if p.profile_id is not null and p.profile_id is distinct from new.created_by and p.profile_id is distinct from new.manager_id then
+      insert into notifications (profile_id, job_id, kind, title, detail, due_date, link, source_table, source_id)
+      values (p.profile_id, new.job_id, 'rfi_new', public.rfi_label(new) || ' RFI ' || new.number || ': ' || new.title,
+              case p.role when 'assignee' then 'Assigned to you.' else 'You are copied in.' end, new.due_date, public.rfi_link(new), 'rfis', new.id);
+    elsif p.directory_id is not null and p.role = 'assignee' and new.notify then
+      insert into rfi_outbox (rfi_id, person_id, kind) values (new.id, p.id, 'new');
+    end if;
+  end loop;
+  return new;
+end $$;
+drop trigger if exists rfi_issued on rfis;
+create trigger rfi_issued after update of status on rfis for each row execute function public.rfi_issued();

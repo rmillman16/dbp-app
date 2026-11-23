@@ -8,7 +8,6 @@ import { createQuotation, enquiryRef, fullRef, loadQuotations } from '../lib/quo
 import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryStatus, type Quotation } from '../lib/types'
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
-import ProjectDirectory from '../components/ProjectDirectory'
 import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
@@ -387,7 +386,6 @@ export function EnquiryPage() {
 
         {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
         <EnquiryRfiCard e={e} />
-        {!e.job_id && <ProjectDirectory enquiryId={e.id} />}
 
         <section className="card">
           <div className="pane-head">
@@ -453,10 +451,10 @@ function EnquiryRfiCard({ e }: { e: Enquiry }) {
       ) : rows === null ? (
         <p className="muted small">Tender queries to the client and design team. RFIs on estimates need script 059 run in Supabase first.</p>
       ) : rows.length === 0 ? (
-        <p className="muted small">No tender RFIs yet. They move to the job when the enquiry is won.</p>
+        <p className="muted small">No tender RFIs yet. Draft your queries, then send them to the client as one Excel schedule. They move to the job when the enquiry is won.</p>
       ) : (
         <p>
-          <strong>{open.length}</strong> open{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
+          <strong>{(rows ?? []).filter((r) => r.status === 'draft').length}</strong> draft · <strong>{open.length}</strong> out to the client{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
         </p>
       )}
     </section>
