@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { saveError } from '../lib/offline'
 import { CHASE_OPTIONS, archiveTemplate, loadTemplates, saveTemplate, type RfiTemplate } from '../lib/rfis'
-import { DIRECTORY_ROLES, TEAM_ROLES } from '../lib/om'
+import { TEAM_ROLES } from '../lib/om'
+import { DEFAULT_ROLES } from '../lib/roles'
 
 // Settings › RFI templates (23 Nov, script 057): a template fills in the people by ROLE, looked up in each job's project
 // directory and team, so one template works on every job: e.g. "Joinery subcontractor" finds whoever holds that role on
@@ -96,7 +97,7 @@ export default function RfiTemplates() {
             <label className="span-2">
               Assignee roles (in the job's directory), separated by commas
               <input value={edit.assignees} onChange={(e) => setEdit({ ...edit, assignees: e.target.value })} placeholder="e.g. Joinery subcontractor" />
-              <span className="hint">Roles in use: {DIRECTORY_ROLES.slice(0, 8).join(', ')}…</span>
+              <span className="hint">Roles in use: {DEFAULT_ROLES.filter((r) => /subcontractor|Architect|engineer|consultant/i.test(r)).slice(0, 8).join(', ')}…</span>
             </label>
             <label className="span-2">
               Cc roles (directory or Team), separated by commas

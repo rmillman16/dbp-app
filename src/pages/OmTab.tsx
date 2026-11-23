@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
+import { useDirectoryRoles } from '../lib/roles'
 import {
-  DIRECTORY_ROLES,
   HANDOVER_TABLES,
   PROJECT_ITEMS,
   checkLink,
@@ -736,6 +736,7 @@ function RowsEditor({ cols, rows, onChange, addLabel }: { cols: Col[]; rows: Row
 function DirectoryEditor({ job, data, run }: { job: Job; data: OmData; run: (what: () => Promise<unknown>, done?: string) => Promise<void> }) {
   const rows = buildDirectory(job, data)
   const [role, setRole] = useState('')
+  const { roles, add: addRole } = useDirectoryRoles()
   const [companyId, setCompanyId] = useState<string | null>(null)
   const [contactId, setContactId] = useState('')
   const [companies, setCompanies] = useState(data.companies)
@@ -793,7 +794,7 @@ function DirectoryEditor({ job, data, run }: { job: Job; data: OmData; run: (wha
       <div className="om-inline-form">
         <label>
           Role
-          <SuggestInput value={role} onChange={setRole} options={DIRECTORY_ROLES} placeholder="e.g. Architect" />
+          <SuggestInput value={role} onChange={setRole} options={roles} limit={80} onAdd={(v) => addRole(v).catch(() => {})} placeholder="e.g. Architect" />
         </label>
         <label>
           Company

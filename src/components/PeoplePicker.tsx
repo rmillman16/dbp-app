@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DIRECTORY_ROLES } from '../lib/om'
+import { useDirectoryRoles } from '../lib/roles'
 import { saveError } from '../lib/offline'
 import { isExternalEmail } from '../lib/users'
 import type { NewPerson, Who } from '../lib/rfiContext'
@@ -23,6 +23,7 @@ export default function PeoplePicker({
   onNew?: (p: NewPerson) => Promise<string>
   companies?: { id: string; name: string; type: string }[]
 }) {
+  const { roles, add: addRole } = useDirectoryRoles()
   const left = whos.filter((w) => !value.includes(w.key))
   const [adding, setAdding] = useState(false)
   const [p, setP] = useState<NewPerson>({ companyId: '', newCompany: '', newCompanyType: 'subcontractor', name: '', email: '', phone: '', role: '' })
@@ -131,7 +132,7 @@ export default function PeoplePicker({
             </label>
             <label>
               Role on this job *
-              <SuggestInput value={p.role} onChange={(v) => set({ role: v })} options={DIRECTORY_ROLES} placeholder="e.g. Joinery subcontractor" />
+              <SuggestInput value={p.role} onChange={(v) => set({ role: v })} options={roles} limit={80} onAdd={(v) => addRole(v).catch((e: Error) => setError(e.message))} placeholder="e.g. Joinery subcontractor" />
             </label>
             <label>
               Phone

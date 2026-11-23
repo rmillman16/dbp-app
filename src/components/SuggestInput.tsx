@@ -13,6 +13,7 @@ export default function SuggestInput({
   'aria-label': ariaLabel,
   autoFocus,
   onAdd,
+  limit = 12,
 }: {
   value: string
   onChange: (v: string) => void
@@ -23,6 +24,7 @@ export default function SuggestInput({
   'aria-label'?: string
   autoFocus?: boolean
   onAdd?: (v: string) => void // offer "+ Add … to the list" for something typed that isn't in it
+  limit?: number // how many suggestions to show at once (a long list: more)
 }) {
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(-1)
@@ -50,8 +52,8 @@ export default function SuggestInput({
     const all = [...new Set(options)]
     const hits = q ? all.filter((o) => o.toLowerCase().includes(q) && o.toLowerCase() !== q) : all
     // starts-with first, then contains
-    return hits.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)) || a.localeCompare(b, 'en-GB')).slice(0, 12)
-  }, [value, options])
+    return hits.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)) || a.localeCompare(b, 'en-GB')).slice(0, limit)
+  }, [value, options, limit])
   const typed = value.trim()
   const canAdd = !!onAdd && !!typed && !options.some((o) => o.toLowerCase() === typed.toLowerCase())
   const pick = (o: string) => {

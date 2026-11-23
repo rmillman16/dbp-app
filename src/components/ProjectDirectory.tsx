@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
-import { DIRECTORY_ROLES, addDirectoryEntry, deleteDirectoryEntry, loadTeam, type DirectoryEntry, type TeamMember } from '../lib/om'
+import { useDirectoryRoles } from '../lib/roles'
+import { addDirectoryEntry, deleteDirectoryEntry, loadTeam, type DirectoryEntry, type TeamMember } from '../lib/om'
 import type { Company, CompanyType, Job } from '../lib/types'
 import SuggestInput from './SuggestInput'
 import { isExternalEmail } from '../lib/users'
@@ -185,6 +186,7 @@ function AddToDirectory({
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [newPeople, setNewPeople] = useState<{ name: string; email: string; phone: string }[]>([])
   const [role, setRole] = useState('')
+  const { roles, add: addRole } = useDirectoryRoles()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const mine = contacts.filter((c) => c.company_id === companyId)
@@ -273,7 +275,7 @@ function AddToDirectory({
         )}
         <label className="span-2">
           Role on this job
-          <SuggestInput value={role} onChange={setRole} options={DIRECTORY_ROLES} placeholder="e.g. Architect, Electrical subcontractor" />
+          <SuggestInput value={role} onChange={setRole} options={roles} limit={80} onAdd={(v) => addRole(v).catch((e: Error) => setError(e.message))} placeholder="e.g. Architect, Electrical subcontractor" />
         </label>
         {companyId && (
           <div className="span-2">
