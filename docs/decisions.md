@@ -136,8 +136,8 @@
 - **Suggestion lists in the app's own style (23 Nov):** typed fields with suggestions (O&M document and project items, directory roles, team roles) use the app's own dropdown rather than the browser's (`SuggestInput`).
 - **Tasks (23 Nov, 052).** My tasks is renamed **Tasks** (sidebar, `/tasks`).
   - **New task box:** what, for whom (me or any DBP team member), due date, and optionally a job and notes.
-  - **For me:** tasks set for me plus my open actions from minutes, each with Done / Complete.
-  - **Set for others:** what I've given colleagues, with done / overdue, Open again and delete.
+  - **One list:** every task for me or set by me, plus my open actions from minutes. Filters: **All / For me / Set by me** (with counts), a job dropdown (All jobs, each job, No job), and Show done. Rows have Done / Complete (for me), Open again, and ✕ delete (tasks I set).
+  - **@someone** in the task line sets the task for them.
   - A task goes on the person's bell, and on the job's TODO if it's on a job. It's emailed once emails are set up. Done on the bell ticks it, and whoever set it is told when it's done.
   - People see tasks given to them and tasks they set; admins see all. Read-only on archived jobs.
 - **Home = "My day" (23 Nov).** It replaces the old Home, which duplicated the bell and the Jobs list.

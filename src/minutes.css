@@ -1748,3 +1748,14 @@
   font: inherit; font-weight: 400; color: #1d1d24; border: 1px solid #c9c9d3; border-radius: 6px; padding: 8px 10px; background: #fff;
 }
 .mint .app-controls input:focus, .mint .app-controls select:focus, .mint .app-controls textarea:focus { outline: 2px solid #007abe; outline-offset: -1px; border-color: #007abe; }
+/* Tasks filters (23 Nov): who, job, show done; app-style segmented buttons */
+.mint .task-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 12px; }
+.mint .task-filters .segmented { display: inline-flex; border: 1px solid #c9c9d3; border-radius: 8px; overflow: hidden; }
+.mint .task-filters .segmented button { border: none; border-radius: 0; padding: 7px 14px; display: inline-flex; gap: 6px; align-items: center; background: #fff; }
+.mint .task-filters .segmented button + button { border-left: 1px solid #c9c9d3; }
+.mint .task-filters .segmented button.on { background: #1f1246; color: #fff; }
+.mint .task-filters .seg-count { font-size: 12px; background: #eef0f5; border-radius: 10px; padding: 0 7px; color: #1d1d24; }
+.mint .task-filters .segmented button.on .seg-count { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.mint .task-show-done { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+.mint .task-show-done input { width: auto; padding: 0; }
+.mint .task-buttons button.primary { padding: 6px 14px; }

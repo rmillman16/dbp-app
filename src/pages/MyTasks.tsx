@@ -1,6 +1,6 @@
-// Tasks (renamed from My tasks, 23 Nov). Everything given to me: tasks set in the app (script 052) and open action
-// items from meeting minutes (script 045), overdue first. Plus a box to set a new task, for myself or any DBP team
-// member (optionally on a job, with a due date), and the tasks I've set for others with whether they're done.
+// Tasks (renamed from My tasks, 23 Nov): one list of every task for me or set by me (script 052) and my open action
+// items from meeting minutes (script 045), filtered by who (All / For me / Set by me) and by job; a box to set a new task
+// for myself or any DBP team member (@someone in the line), optionally on a job, with a due date.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../minutes.css'
@@ -11,7 +11,7 @@ import { useAccess } from '../lib/access'
 import { nudgeEmails, useNotifications } from '../lib/notifications'
 import * as M from '../lib/minutes'
 import { addTask, deleteTask, loadTasks, setTaskDone, type Task } from '../lib/tasks'
-import { Icon, Mentions, useToast } from '../components/MinutesBits'
+import { Mentions, useToast } from '../components/MinutesBits'
 import type { Profile } from '../lib/types'
 
 type Person = Pick<Profile, 'id' | 'full_name' | 'email'>
@@ -19,6 +19,25 @@ const personName = (p: Person | undefined) => (p ? (p.full_name && p.full_name !
 const dueChip = (due: string | null, done = false) => {
   const point = { done, dueDate: due }
   return due ? <span className={'chip due status-' + M.dueStatus(point)}>{M.dueLabel(point)}</span> : null
+}
+
+// one list (23 Nov): every task for me or set by me (and my open minutes actions), filtered by who and by job
+type Who = 'all' | 'mine' | 'set'
+interface Row {
+  key: string
+  kind: 'task' | 'action'
+  text: string
+  notes: string | null
+  jobId: string | null
+  due: string | null
+  done: boolean
+  doneAt: string | null
+  forMe: boolean
+  setByMe: boolean
+  forName: string
+  fromName: string | null
+  task?: Task
+  action?: M.OpenAction
 }
 
 export default function MyTasks() {
@@ -30,6 +49,9 @@ export default function MyTasks() {
   const [people, setPeople] = useState<Person[]>([])
   const [jobs, setJobs] = useState<{ id: string; label: string }[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [who, setWho] = useState<Who>('all')
+  const [jobFilter, setJobFilter] = useState('')
+  const [showDone, setShowDone] = useState(false)
   const { showToast, toastElement } = useToast()
 
   useEffect(() => {
@@ -42,17 +64,60 @@ export default function MyTasks() {
     supabase
       .from('jobs')
       .select('id, job_no, code, name')
-      .in('status', ['live', 'tender'])
       .order('job_no', { ascending: false })
       .then(({ data }) => setJobs((data ?? []).map((j) => ({ id: j.id as string, label: `${j.job_no} ${j.code} · ${j.name}` }))))
   }, [])
   const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people])
   const jobLabel = (id: string | null) => (id ? (jobs.find((j) => j.id === id)?.label ?? null) : null)
+  const uid = me?.id
 
-  async function completeAction(t: M.OpenAction) {
+  // tasks and minutes actions as one list, overdue first, then by due date, undated last
+  const rows: Row[] = useMemo(() => {
+    const out: Row[] = (tasks ?? []).map((t) => ({
+      key: 't' + t.id,
+      kind: 'task',
+      text: t.title,
+      notes: t.notes,
+      jobId: t.job_id,
+      due: t.due_date,
+      done: t.done,
+      doneAt: t.done_at,
+      forMe: t.assigned_to === uid,
+      setByMe: t.created_by === uid,
+      forName: t.assigned_to === uid ? 'Me' : personName(personById.get(t.assigned_to)),
+      fromName: t.created_by && t.created_by !== uid ? personName(personById.get(t.created_by)) : null,
+      task: t,
+    }))
+    for (const a of actions ?? [])
+      out.push({
+        key: 'a' + a.pointId,
+        kind: 'action',
+        text: a.text || '(no description)',
+        notes: null,
+        jobId: a.jobId,
+        due: a.dueDate,
+        done: false,
+        doneAt: null,
+        forMe: true,
+        setByMe: false,
+        forName: 'Me',
+        fromName: null,
+        action: a,
+      })
+    return out.sort((x, y) => Number(x.done) - Number(y.done) || (x.due ?? '9999').localeCompare(y.due ?? '9999'))
+  }, [tasks, actions, uid, personById])
+
+  const byWho = (r: Row, w: Who) => w === 'all' || (w === 'mine' ? r.forMe : r.setByMe)
+  const byJob = (r: Row) => !jobFilter || (jobFilter === 'none' ? !r.jobId : r.jobId === jobFilter)
+  const shown = rows.filter((r) => byWho(r, who) && byJob(r) && (showDone || !r.done))
+  const count = (w: Who) => rows.filter((r) => byWho(r, w) && byJob(r) && !r.done).length
+  const jobIds = [...new Set(rows.map((r) => r.jobId).filter(Boolean) as string[])]
+  const today = todayIso()
+
+  async function completeAction(a: M.OpenAction) {
     try {
-      await M.completeAction(t.pointId, true)
-      setActions((l) => (l ?? []).filter((x) => x.pointId !== t.pointId))
+      await M.completeAction(a.pointId, true)
+      setActions((l) => (l ?? []).filter((x) => x.pointId !== a.pointId))
       reload()
       showToast('Marked complete.')
     } catch (e) {
@@ -81,21 +146,13 @@ export default function MyTasks() {
     }
   }
 
-  const uid = me?.id
-  const mineOpen = (tasks ?? []).filter((t) => t.assigned_to === uid && !t.done)
-  const setForOthers = (tasks ?? []).filter((t) => t.created_by === uid && t.assigned_to !== uid)
-  const today = todayIso()
-  const openCount = mineOpen.length + (actions?.length ?? 0)
-
   return (
     <div className="mint my-tasks">
       <main className="note">
         <div className="note-inner">
           <h1 className="dash-title">Tasks</h1>
           <p className="dash-sub">
-            {tasks === null || actions === null
-              ? 'Loading…'
-              : `${openCount} open task${openCount === 1 ? '' : 's'} for ${personName(me ?? undefined)}, across all jobs and estimates.`}
+            {tasks === null || actions === null ? 'Loading…' : `${count('mine')} open for ${personName(me ?? undefined)} · ${count('set')} set for others, still open.`}
           </p>
           {error && <p className="mint-error">{error}</p>}
 
@@ -112,86 +169,89 @@ export default function MyTasks() {
             onError={(m) => showToast(m, true)}
           />
 
-          <h2 className="task-section">For me</h2>
-          {tasks && actions && openCount === 0 && <div className="dash-empty">Nothing outstanding. Tasks set for you, and actions from meeting minutes, show here.</div>}
-          <div className="dash-list">
-            {mineOpen.map((t) => (
-              <div key={t.id} className="dash-task">
-                <div className="dash-task-text">{t.title}</div>
-                {t.notes && <div className="task-notes">{t.notes}</div>}
-                <div className="dash-task-meta">
-                  {dueChip(t.due_date)}
-                  {jobLabel(t.job_id) && <span className="chip">{jobLabel(t.job_id)}</span>}
-                  {t.created_by && t.created_by !== uid && <span className="chip">From {personName(personById.get(t.created_by))}</span>}
-                </div>
-                <button className="btn-complete" type="button" aria-label="Mark done" onClick={() => tick(t, true)}>
-                  {Icon.check()}
-                  Done
+          <div className="task-filters app-controls">
+            <div className="segmented">
+              {(
+                [
+                  ['all', 'All'],
+                  ['mine', 'For me'],
+                  ['set', 'Set by me'],
+                ] as [Who, string][]
+              ).map(([w, label]) => (
+                <button key={w} type="button" className={who === w ? 'on' : ''} onClick={() => setWho(w)}>
+                  {label}
+                  <span className="seg-count">{count(w)}</span>
                 </button>
-              </div>
-            ))}
-            {(actions ?? []).map((t) => {
-              const open = () => navigate(M.meetingPath({ id: t.meetingId, jobId: t.jobId, enquiryId: t.enquiryId }))
+              ))}
+            </div>
+            <select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} aria-label="Job">
+              <option value="">All jobs</option>
+              {jobIds.map((id) => (
+                <option key={id} value={id}>
+                  {jobLabel(id) ?? 'A job'}
+                </option>
+              ))}
+              <option value="none">No job</option>
+            </select>
+            <label className="task-show-done">
+              <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> Show done
+            </label>
+          </div>
+
+          {tasks && actions && shown.length === 0 && <div className="dash-empty">Nothing here. Tasks for you or set by you, and actions from meeting minutes, show here.</div>}
+          <div className="dash-list">
+            {shown.map((r) => {
+              const openMeeting = r.action ? () => navigate(M.meetingPath({ id: r.action!.meetingId, jobId: r.action!.jobId, enquiryId: r.action!.enquiryId })) : null
               return (
                 <div
-                  key={t.pointId}
-                  className="dash-task"
-                  role="link"
-                  tabIndex={0}
-                  onClick={(e) => !(e.target as HTMLElement).closest('.btn-complete') && open()}
-                  onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && open()}
+                  key={r.key}
+                  className={'dash-task' + (r.done ? ' task-done' : '')}
+                  role={openMeeting ? 'link' : undefined}
+                  tabIndex={openMeeting ? 0 : undefined}
+                  onClick={(e) => openMeeting && !(e.target as HTMLElement).closest('button') && openMeeting()}
                 >
-                  <div className="dash-task-text">
-                    <Mentions text={t.text || '(no description)'} attendees={t.attendees} />
-                  </div>
+                  <div className="dash-task-text">{r.action ? <Mentions text={r.text} attendees={r.action.attendees} /> : r.text}</div>
+                  {r.notes && <div className="task-notes">{r.notes}</div>}
                   <div className="dash-task-meta">
-                    {dueChip(t.dueDate)}
-                    {t.urgent && <span className="chip flag-urgent">Urgent</span>}
-                    <span className="chip">
-                      Minutes: {M.projectNameOf(t)}
-                      {t.meetingDate ? ' · ' + M.formatDateSidebar(t.meetingDate) : ''}
-                    </span>
+                    {r.done ? <span className="chip">✓ Done {r.doneAt ? ukDate(r.doneAt.slice(0, 10)) : ''}</span> : dueChip(r.due)}
+                    <span className="chip">{r.forMe ? 'For me' : `For ${r.forName}`}</span>
+                    {r.fromName && <span className="chip">From {r.fromName}</span>}
+                    {r.action && (
+                      <span className="chip">
+                        Minutes: {M.projectNameOf(r.action)}
+                        {r.action.meetingDate ? ' · ' + M.formatDateSidebar(r.action.meetingDate) : ''}
+                      </span>
+                    )}
+                    {!r.action && jobLabel(r.jobId) && <span className="chip">{jobLabel(r.jobId)}</span>}
+                    {r.action?.urgent && <span className="chip flag-urgent">Urgent</span>}
+                    {!r.done && !r.forMe && r.due && r.due < today && <span className="chip">⚠ overdue</span>}
                   </div>
-                  {!t.jobArchived && (
-                    <button className="btn-complete" type="button" aria-label="Mark complete" onClick={() => completeAction(t)}>
-                      {Icon.check()}
-                      Complete
-                    </button>
-                  )}
+                  <span className="task-buttons app-controls">
+                    {r.action && !r.action.jobArchived && (
+                      <button type="button" className="primary" onClick={() => completeAction(r.action!)}>
+                        Complete
+                      </button>
+                    )}
+                    {r.task && r.forMe && !r.done && (
+                      <button type="button" className="primary" onClick={() => tick(r.task!, true)}>
+                        Done
+                      </button>
+                    )}
+                    {r.task && r.done && (r.forMe || r.setByMe) && (
+                      <button type="button" className="link-button" onClick={() => tick(r.task!, false)}>
+                        Open again
+                      </button>
+                    )}
+                    {r.task && r.setByMe && (
+                      <button type="button" className="link-button" onClick={() => remove(r.task!)} aria-label="Delete task" title="Delete task">
+                        ✕
+                      </button>
+                    )}
+                  </span>
                 </div>
               )
             })}
           </div>
-
-          {setForOthers.length > 0 && (
-            <>
-              <h2 className="task-section">Set for others</h2>
-              <div className="dash-list">
-                {setForOthers.map((t) => (
-                  <div key={t.id} className={'dash-task' + (t.done ? ' task-done' : '')}>
-                    <div className="dash-task-text">{t.title}</div>
-                    {t.notes && <div className="task-notes">{t.notes}</div>}
-                    <div className="dash-task-meta">
-                      <span className="chip">For {personName(personById.get(t.assigned_to))}</span>
-                      {t.done ? <span className="chip">✓ Done {t.done_at ? ukDate(t.done_at.slice(0, 10)) : ''}</span> : dueChip(t.due_date)}
-                      {jobLabel(t.job_id) && <span className="chip">{jobLabel(t.job_id)}</span>}
-                      {!t.done && t.due_date && t.due_date < today && <span className="chip">⚠ overdue</span>}
-                    </div>
-                    <span className="task-buttons app-controls">
-                      {t.done && (
-                        <button className="link-button small" onClick={() => tick(t, false)}>
-                          Open again
-                        </button>
-                      )}
-                      <button className="link-button small" onClick={() => remove(t)} aria-label="Delete task">
-                        ✕
-                      </button>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
         </div>
       </main>
       {toastElement}
