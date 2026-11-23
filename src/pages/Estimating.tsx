@@ -9,6 +9,8 @@ import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryS
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
 import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
+import { fireConfetti } from '../lib/confetti'
+import { TenderTracker } from './TenderEnquiry'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
 // works, new enquiries, tenders), each with its own quotations; when won, it's set up as
@@ -66,10 +68,15 @@ export default function Estimating() {
         <NavLink to="/estimating" end className="pill">
           Enquiries
         </NavLink>
+        <NavLink to="/estimating/tracker" className="pill">
+          Tender tracker
+        </NavLink>
         <NavLink to="/estimating/wording" className="pill">
           Standard wording & clauses
         </NavLink>
       </nav>
+
+      {tab === 'tracker' && <TenderTracker />}
 
       {!tab && (
         <section className="card">
@@ -318,13 +325,30 @@ export function EnquiryPage() {
           <Link to={`/estimating/e/${e.id}/edit`} className="button">
             Edit enquiry
           </Link>
+          {!e.job_id && e.status !== 'lost' && (
+            <Link to={`/estimating/tracker/new?enquiry=${e.id}`} className="button" title="Send a package out to contractors for pricing">
+              Send tender enquiries
+            </Link>
+          )}
           {e.job_id ? (
             <Link to={`/jobs/${e.job_id}`} className="button primary">
               Open the job →
             </Link>
           ) : (
             e.status !== 'lost' && (
-              <Link to={`/jobs/new?enquiry=${e.id}`} className="button primary" title="Create the job from this enquiry and move its quotations into it">
+              <Link
+                to={`/jobs/new?enquiry=${e.id}`}
+                className="button primary"
+                title="Create the job from this enquiry and move its quotations into it"
+                onClick={(ev) => {
+                  // a win deserves confetti: let it fly for a moment, then on to setting up the job
+                  const ms = fireConfetti()
+                  if (ms) {
+                    ev.preventDefault()
+                    window.setTimeout(() => navigate(`/jobs/new?enquiry=${e.id}`), 1400)
+                  }
+                }}
+              >
                 Won: set up as job
               </Link>
             )

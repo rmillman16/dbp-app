@@ -35,6 +35,7 @@ import ProgressReportPage from './pages/ProgressReportPage'
 import SubmittalsTab from './pages/SubmittalsTab'
 import SubmittalPage from './pages/SubmittalPage'
 import EnquiryRfis from './pages/EnquiryRfis'
+import TenderEnquiry from './pages/TenderEnquiry'
 import ExternalRoutes from './pages/ExternalPages'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
@@ -171,6 +172,14 @@ export default function App() {
             element={
               <A section="estimating">
                 <Estimating />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/tracker/new"
+            element={
+              <A section="estimating">
+                <TenderEnquiry />
               </A>
             }
           />
