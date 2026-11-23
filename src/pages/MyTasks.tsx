@@ -52,6 +52,7 @@ export default function MyTasks() {
   const [who, setWho] = useState<Who>('all')
   const [jobFilter, setJobFilter] = useState('')
   const [showDone, setShowDone] = useState(false)
+  const [teamJobs, setTeamJobs] = useState<string[]>([]) // the jobs I'm on the Team of
   const { showToast, toastElement } = useToast()
 
   useEffect(() => {
@@ -59,6 +60,15 @@ export default function MyTasks() {
     loadTasks().then(setTasks, (e: Error) => {
       setError(e.message)
       setTasks([])
+    })
+    supabase.auth.getSession().then(({ data }) => {
+      const id = data.session?.user.id
+      if (id)
+        supabase
+          .from('job_team')
+          .select('job_id')
+          .eq('profile_id', id)
+          .then(({ data: t }) => setTeamJobs([...new Set((t ?? []).map((x) => x.job_id as string))]))
     })
     cached('profiles', () => must<Person[]>(supabase.from('profiles').select('*').order('full_name'))).then(setPeople, () => {})
     supabase
@@ -111,7 +121,10 @@ export default function MyTasks() {
   const byJob = (r: Row) => !jobFilter || (jobFilter === 'none' ? !r.jobId : r.jobId === jobFilter)
   const shown = rows.filter((r) => byWho(r, who) && byJob(r) && (showDone || !r.done))
   const count = (w: Who) => rows.filter((r) => byWho(r, w) && byJob(r) && !r.done).length
-  const jobIds = [...new Set(rows.map((r) => r.jobId).filter(Boolean) as string[])]
+  // my jobs (on the job's Team) first, then any other job that has tasks here; by job number, newest first
+  const jobIds = [...new Set([...teamJobs, ...(rows.map((r) => r.jobId).filter(Boolean) as string[])])].sort(
+    (a, b) => jobs.findIndex((j) => j.id === a) - jobs.findIndex((j) => j.id === b),
+  )
   const today = todayIso()
 
   async function completeAction(a: M.OpenAction) {
