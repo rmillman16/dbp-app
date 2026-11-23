@@ -107,6 +107,10 @@ export default function PeoplePicker({
               {!p.email && <span className="hint">Needed for them to be emailed the RFI and chasers.</span>}
             </label>
             <label>
+              Phone
+              <input type="tel" value={p.phone} onChange={(e) => set({ phone: e.target.value })} />
+            </label>
+            <label>
               Company *
               <select value={p.companyId} onChange={(e) => set({ companyId: e.target.value, newCompany: e.target.value === '__new' ? p.newCompany : '' })}>
                 <option value="">Choose…</option>
@@ -147,10 +151,6 @@ export default function PeoplePicker({
             <label>
               Role on this job *
               <SuggestInput value={p.role} onChange={(v) => set({ role: v })} options={roles} limit={80} onAdd={(v) => addRole(v).catch((e: Error) => setError(e.message))} placeholder="e.g. Joinery subcontractor" />
-            </label>
-            <label>
-              Phone
-              <input type="tel" value={p.phone} onChange={(e) => set({ phone: e.target.value })} />
             </label>
           </div>
           {error && <p className="error">{error}</p>}
