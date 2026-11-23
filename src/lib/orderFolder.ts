@@ -42,10 +42,33 @@ export async function folderAccess(jobId: string): Promise<Dir | null> {
   }
 }
 
+const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+async function subfolders(d: Dir) {
+  const out: string[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for await (const [name, h] of (d as any).entries() as AsyncIterable<[string, FileSystemHandle]>) if (h.kind === 'directory') out.push(name)
+  return out
+}
+// an existing folder with the same name (ignoring capitals and punctuation) is used rather than making a twin
 async function dive(root: Dir, path: string[]) {
   let d = root
-  for (const p of path) d = await d.getDirectoryHandle(clean(p), { create: true })
+  for (const p of path) {
+    const want = clean(p)
+    const have = (await subfolders(d)).find((n) => norm(n) === norm(want))
+    d = await d.getDirectoryHandle(have ?? want, { create: true })
+  }
   return d
+}
+
+// The order's folder in "3. Orders" may already exist under its own name ("1. Mechanical - Mercury", "01 - Electrical - Lumen"):
+// find it by the company's name, else by its folder number, else make "NN - Trade - Subcontractor".
+export async function orderFolderName(root: Dir, folderNo: number | null, companyName: string, label: string) {
+  const names = await subfolders(root)
+  const firstWords = norm(companyName).split(' ').filter((w) => w.length > 2 && !['ltd', 'limited', 'the', 'and', 'plc', 'llp'].includes(w)).slice(0, 2).join(' ')
+  const byCompany = firstWords ? names.find((n) => norm(n).includes(firstWords)) : undefined
+  if (byCompany) return byCompany
+  const byNo = folderNo != null ? names.find((n) => new RegExp(`^0*${folderNo}(\\D|$)`).test(n.trim())) : undefined
+  return byNo ?? label
 }
 // writes a file at root/path/name (replacing one of the same name); returns the path shown to people
 export async function writeInto(root: Dir, path: string[], name: string, data: Blob) {

@@ -39,7 +39,7 @@ import OmOutstanding from '../components/OmOutstanding'
 import MoneyInput from '../components/MoneyInput'
 import OrderVariations from '../components/OrderVariations'
 import OrderFolder from '../components/OrderFolder'
-import { folderAccess, writeInto } from '../lib/orderFolder'
+import { folderAccess, orderFolderName, writeInto } from '../lib/orderFolder'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -619,7 +619,7 @@ export function OrderPage() {
     if (!root) return setError('Link the synced "3. Orders" folder first, and allow access when the browser asks.')
     setBusy('folder')
     try {
-      const label = orderLabel(order, company)
+      const label = await orderFolderName(root, order.folder_no ?? null, company.name, orderLabel(order, company))
       const list = appendices ?? []
       const docx = await orderDocx({ job, order, company, contact, packageLabel, appendices: list, signer: me })
       const where = await writeInto(root, [label], orderFileName(job, order, company), docx)

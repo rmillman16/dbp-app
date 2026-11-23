@@ -18,7 +18,7 @@ import { logPqqSent } from '../lib/pqq'
 import type { Company, Job, Order, Profile, SubVariation } from '../lib/types'
 import type { Contact } from './ContactsEditor'
 import MoneyInput from './MoneyInput'
-import { folderAccess, writeInto } from '../lib/orderFolder'
+import { folderAccess, orderFolderName, writeInto } from '../lib/orderFolder'
 import { orderLabel } from '../lib/subcontracts'
 import { removeVarFile } from '../lib/orders'
 
@@ -82,6 +82,7 @@ export default function OrderVariations({
   async function upload(i: number, list: File[]) {
     const root = await folderAccess(job.id) // first, while the click's permission prompt is still allowed
     await run('up' + i, async () => {
+      const folder = root ? await orderFolderName(root, order.folder_no, company?.name ?? '', label) : label
       const saved = await ensureSaved()
       const v = saved?.find((x) => x.ref === vars[i].ref && x.description === vars[i].description) ?? saved?.[i]
       if (!v?.id) throw new Error('Give the variation a reference or description first.')
@@ -89,7 +90,7 @@ export default function OrderVariations({
       let where = ''
       for (const f of list) {
         added.push(await addVarFile(order.id, { id: v.id, ref: v.ref }, f, kind))
-        if (root) where = await writeInto(root, [label, 'Variations', v.ref || 'variation'], f.name, f)
+        if (root) where = await writeInto(root, [folder, 'Variations', v.ref || 'variation'], f.name, f)
       }
       setFiles((l) => [...l, ...added])
       onMsg(
@@ -104,6 +105,7 @@ export default function OrderVariations({
     if (!company) return
     const root = await folderAccess(job.id)
     await run('ins' + i, async () => {
+      const folder = root ? await orderFolderName(root, order.folder_no, company.name, label) : label
       const saved = await ensureSaved()
       const v = saved?.find((x) => x.ref === vars[i].ref && x.description === vars[i].description) ?? saved?.[i]
       if (!v?.id) throw new Error('Give the variation a reference or description first.')
@@ -113,7 +115,7 @@ export default function OrderVariations({
       const revisedValue = order.order_value != null ? Number(order.order_value) + all : null
       const letter = await variationDocx({ job, order, company, contact, v, revisedOrderValue: revisedValue, signer: me })
       const letterName = `${order.order_no ?? 'Order'} ${v.ref ?? 'Variation'} instruction.docx`
-      const where = root ? await writeInto(root, [label, 'Variations', v.ref || 'variation'], letterName, letter) : ''
+      const where = root ? await writeInto(root, [folder, 'Variations', v.ref || 'variation'], letterName, letter) : ''
       // file the instruction itself with the variation's other files
       const letterFile = new File([letter], letterName, { type: letter.type })
       const filed = await addVarFile(order.id, { id: v.id, ref: v.ref }, letterFile, 'instruction', `${v.ref ?? 'Variation'} instruction`)
