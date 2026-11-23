@@ -14,7 +14,7 @@ const stateLabel = (state: string | undefined, status: string) =>
 const dueTone = (due: string | null | undefined, live: boolean) => {
   if (!due || !live) return ''
   const days = Math.floor((new Date(due.slice(0, 10)).getTime() - new Date(new Date().toISOString().slice(0, 10)).getTime()) / 86400000)
-  return days < 0 ? 'overdue' : days <= 3 ? 'soon' : 'ok'
+  return days < 0 ? 'overdue' : days <= 3 ? 'soon' : ''
 }
 const OUTCOMES: [string, string][] = [
   ['approved', 'Approved'],
@@ -238,7 +238,7 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
                 <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
                   <td className="ext-ref">
                     <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
-                      {i.kind === 'rfi' ? 'RFI' : 'Sub'} {i.number}
+                      {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : 'Sub'} ${i.number}`}
                     </Link>
                   </td>
                   <td>{i.project}</td>
@@ -325,6 +325,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
         <h1>
           {rfi ? 'RFI' : 'Submittal'} {item.number}: {item.title}
         </h1>
+        {item.ref && <p className="muted small">Reference: <strong>{item.ref}</strong> (quote this if you phone us)</p>}
         <p>
           <span className={`q-status ext-${item.state ?? item.status}`}>{stateLabel(item.state, item.status)}</span>
           {!rfi && <span className="rfi-kind"> Rev {String.fromCharCode(64 + (item.current_rev ?? 1))}</span>}

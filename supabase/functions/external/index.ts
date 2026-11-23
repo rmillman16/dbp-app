@@ -182,6 +182,9 @@ function stateOf(kind: string, role: string, status: string) {
   if (status !== "out") return "done";
   return role === "reviewer" ? "with_you" : "fyi";
 }
+// a reference that is unique across projects, to quote over the phone: 2611_FISL_RFI_004
+// deno-lint-ignore no-explicit-any
+const refOf = (kind: string, number: number, j: any) => `${j?.job_no ?? ""}_${j?.code ?? ""}_${kind === "rfi" ? "RFI" : "SUB"}_${String(number).padStart(3, "0")}`;
 const plain = (h: string | null, n = 170) => {
   const t = String(h ?? "")
     .replace(/<br\s*\/?>|<\/p>|<\/li>/gi, " ")
@@ -205,7 +208,7 @@ async function names(db: DB, ids: (string | null)[]) {
 }
 
 async function viewRfi(db: DB, ctx: Ctx) {
-  const { data: r } = await db.from("rfis").select("id, job_id, number, title, question, status, due_date, trade, manager_id, jobs(name, status)").eq("id", ctx.itemId).maybeSingle();
+  const { data: r } = await db.from("rfis").select("id, job_id, number, title, question, status, due_date, trade, manager_id, jobs(name, status, job_no, code)").eq("id", ctx.itemId).maybeSingle();
   if (!r || !r.job_id || !RFI_VISIBLE.includes(r.status)) throw new Fail(404, "This RFI isn't available.");
   const [{ data: resp }, { data: files }] = await Promise.all([
     db.from("rfi_responses").select("id, kind, body, author_id, author_name, created_at").eq("rfi_id", r.id).neq("kind", "note").order("created_at"),
@@ -215,6 +218,7 @@ async function viewRfi(db: DB, ctx: Ctx) {
   return {
     kind: "rfi",
     id: r.id,
+    ref: refOf("rfi", r.number, r.jobs),
     project: r.jobs?.name ?? "",
     number: r.number,
     title: r.title,
@@ -239,7 +243,7 @@ async function viewRfi(db: DB, ctx: Ctx) {
 }
 
 async function viewSubmittal(db: DB, ctx: Ctx) {
-  const { data: s } = await db.from("submittals").select("id, job_id, number, title, description, type, trade, status, current_rev, due_date, manager_id, jobs(name, status)").eq("id", ctx.itemId).maybeSingle();
+  const { data: s } = await db.from("submittals").select("id, job_id, number, title, description, type, trade, status, current_rev, due_date, manager_id, jobs(name, status, job_no, code)").eq("id", ctx.itemId).maybeSingle();
   if (!s || !SUB_VISIBLE.includes(s.status)) throw new Fail(404, "This submittal isn't available.");
   const [{ data: revs }, { data: files }] = await Promise.all([
     db.from("submittal_revisions").select("id, rev, submitted_on, due_date, outcome, response_notes, responded_by, responded_on").eq("submittal_id", s.id).order("rev"),
@@ -249,6 +253,7 @@ async function viewSubmittal(db: DB, ctx: Ctx) {
   return {
     kind: "submittal",
     id: s.id,
+    ref: refOf("submittal", s.number, s.jobs),
     project: s.jobs?.name ?? "",
     number: s.number,
     title: s.title,
@@ -326,15 +331,15 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
   const rfiIds = acc.filter((a) => a.kind === "rfi").map((a) => a.itemId);
   const subIds = acc.filter((a) => a.kind === "submittal").map((a) => a.itemId);
   const [rf, sb] = await Promise.all([
-    rfiIds.length ? db.from("rfis").select("id, job_id, number, title, question, trade, status, due_date, jobs(name)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
-    subIds.length ? db.from("submittals").select("id, job_id, number, title, description, trade, status, due_date, jobs(name)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
+    rfiIds.length ? db.from("rfis").select("id, job_id, number, title, question, trade, status, due_date, jobs(name, job_no, code)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
+    subIds.length ? db.from("submittals").select("id, job_id, number, title, description, trade, status, due_date, jobs(name, job_no, code)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
   ]);
   const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
   const items = [
     // deno-lint-ignore no-explicit-any
-    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
+    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, ref: refOf("rfi", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
     // deno-lint-ignore no-explicit-any
-    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
+    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, ref: refOf("submittal", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
   ];
   return items;
 }

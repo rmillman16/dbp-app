@@ -28,6 +28,7 @@ export interface ExtFile {
 export interface ExtItem {
   kind: 'rfi' | 'submittal'
   id: string
+  ref?: string
   project: string
   number: number
   title: string
@@ -48,6 +49,7 @@ export interface ExtItem {
 export interface ExtListItem {
   kind: 'rfi' | 'submittal'
   id: string
+  ref?: string
   number: number
   title: string
   status: string
