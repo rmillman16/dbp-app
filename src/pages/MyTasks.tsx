@@ -312,7 +312,7 @@ function NewTask({
           ))}
       </select>
       <input type="date" value={due} min={todayIso()} onChange={(e) => setDue(e.target.value)} aria-label="Due date" title="Due date (optional)" />
-      <button type="submit" className="primary new-task-add" disabled={busy || !title.trim()}>
+      <button type="submit" className="primary new-task-add" disabled={busy}>
         {busy ? 'Adding…' : 'Add task'}
       </button>
       <button type="button" className="link-button small" onClick={() => setMore(!more)}>
