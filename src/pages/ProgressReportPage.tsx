@@ -5,6 +5,8 @@ import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
 import { downloadBlob } from '../lib/letter'
 import { supabase } from '../lib/supabase'
+import { loadProgramme, listRevisions } from '../lib/programme'
+import { revName } from '../lib/timelineFormat'
 import { loadRfi, loadRfis } from '../lib/rfis'
 import { loadSubmittals, loadSubmittal } from '../lib/submittals'
 import { useRfiContext } from '../lib/rfiContext'
@@ -95,6 +97,14 @@ export default function ProgressReportPage() {
     return () => clearTimeout(t)
   }, [content, sections, period.start, period.end]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the programme's issued revisions, for the revision dropdown
+  const [revs, setRevs] = useState<string[]>([])
+  useEffect(() => {
+    loadProgramme(job.id)
+      .then((p) => (p.programme ? listRevisions(p.programme.id) : []))
+      .then((l) => setRevs(l.map((r) => revName(r.rev_no))))
+      .catch(() => setRevs([]))
+  }, [job.id])
   const [dragHs, setDragHs] = useState(false) // keep with the other hooks: above the early returns
   if (error && !report) return <p className="error">{error}</p>
   if (!report || !content) return <p className="muted">Loading…</p>
@@ -292,7 +302,13 @@ export default function ProgressReportPage() {
           <div className="form-grid">
             <label className="span-2">
               Programme revision
-              <input disabled={ro} value={content.programme.revision} onChange={(e) => setSection('programme', { revision: e.target.value })} placeholder="e.g. Rev 4, 12/11/2026" />
+              <select disabled={ro} value={content.programme.revision} onChange={(e) => setSection('programme', { revision: e.target.value })}>
+                <option value="">{revs.length ? 'Choose a revision…' : 'No revisions saved in the programme yet'}</option>
+                {content.programme.revision && !revs.includes(content.programme.revision) && <option value={content.programme.revision}>{content.programme.revision}</option>}
+                {revs.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
             </label>
             {area(`${num.programme}.2 Progress this period`, content.programme.progress, (v) => setSection('programme', { progress: v }), 7)}
             {area(`${num.programme}.${photos.length ? 4 : 3} Look-ahead`, content.programme.lookahead, (v) => setSection('programme', { lookahead: v }), 5)}
