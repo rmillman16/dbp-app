@@ -172,6 +172,21 @@ async function findAccess(db: DB, email: string) {
 const RFI_VISIBLE = ["open", "answered", "closed"];
 const SUB_VISIBLE = ["out", "approved", "approved_noted", "revise", "rejected"];
 
+// where an item stands for THIS person: with them (they need to act), with DBP (they have answered), for information (copied in), or finished
+function stateOf(kind: string, role: string, status: string) {
+  if (kind === "rfi") {
+    if (status === "closed") return "done";
+    if (role === "assignee") return status === "open" ? "with_you" : "with_dbp";
+    return "fyi";
+  }
+  if (status !== "out") return "done";
+  return role === "reviewer" ? "with_you" : "fyi";
+}
+const plain = (h: string | null, n = 170) => {
+  const t = String(h ?? "").replace(/<brs*/?>|</p>|</li>/gi, " ").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
+};
+
 async function names(db: DB, ids: (string | null)[]) {
   const u = [...new Set(ids.filter(Boolean))] as string[];
   if (!u.length) return new Map<string, string>();
@@ -199,6 +214,7 @@ async function viewRfi(db: DB, ctx: Ctx) {
     trade: r.trade,
     manager: r.manager_id ? nm.get(r.manager_id) : null,
     you: { name: ctx.name, company: ctx.company, role: ctx.role },
+    state: stateOf("rfi", ctx.role, r.status),
     can_act: ctx.role === "assignee" && (r.status === "open" || r.status === "answered"),
     responses: (resp ?? []).map((x: { id: string; kind: string; body: string; author_id: string | null; author_name: string | null; created_at: string }) => ({
       id: x.id,
@@ -234,6 +250,7 @@ async function viewSubmittal(db: DB, ctx: Ctx) {
     due_date: s.due_date,
     manager: s.manager_id ? nm.get(s.manager_id) : null,
     you: { name: ctx.name, company: ctx.company, role: ctx.role },
+    state: stateOf("submittal", ctx.role, s.status),
     can_act: ctx.role === "reviewer" && s.status === "out",
     revisions: (revs ?? []).map((r: { id: string }) => ({ ...r, files: (files ?? []).filter((f: { revision_id: string }) => f.revision_id === r.id).map((f: { id: string; kind: string; name: string }) => ({ id: f.id, name: f.name, kind: f.kind })) })),
   };
@@ -299,15 +316,15 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
   const rfiIds = acc.filter((a) => a.kind === "rfi").map((a) => a.itemId);
   const subIds = acc.filter((a) => a.kind === "submittal").map((a) => a.itemId);
   const [rf, sb] = await Promise.all([
-    rfiIds.length ? db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
-    subIds.length ? db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
+    rfiIds.length ? db.from("rfis").select("id, job_id, number, title, question, trade, status, due_date, jobs(name)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
+    subIds.length ? db.from("submittals").select("id, job_id, number, title, description, trade, status, due_date, jobs(name)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
   ]);
   const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
   const items = [
     // deno-lint-ignore no-explicit-any
-    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("rfi", r.id) === "assignee" && (r.status === "open" || r.status === "answered") })),
+    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
     // deno-lint-ignore no-explicit-any
-    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("submittal", r.id) === "reviewer" && r.status === "out" })),
+    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
   ];
   return items;
 }

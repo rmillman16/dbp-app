@@ -1021,3 +1021,23 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .drop-zone { display: block; border: 2px dashed #b9b3d6; border-radius: 8px; padding: 18px; text-align: center; cursor: pointer; background: #faf9ff; margin-top: 8px; }
 .drop-zone.dragging { border-color: #2b2257; background: #eeebff; }
 .drop-zone input[type="file"] { display: none; }
+
+/* outside pages: wider, informative item cards coloured by the date required */
+.ext-main { max-width: 980px; }
+.ext-list li.ext-item { display: block; padding: 0; border: 1px solid var(--line); border-left: 5px solid #2e7d32; border-radius: 8px; margin: 10px 0; background: #fff; }
+.ext-list li.ext-item.overdue { border-left-color: #c62828; background: #fff7f7; }
+.ext-list li.ext-item.soon { border-left-color: #e08a00; background: #fffaf0; }
+.ext-list li.ext-item.ok { border-left-color: #2e7d32; }
+.ext-list li.ext-item.quiet { border-left-color: #b9b9c6; }
+.ext-item-link { display: block; padding: 12px 14px; color: inherit; text-decoration: none; }
+.ext-item-link:hover strong { text-decoration: underline; }
+.ext-item-top { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: baseline; }
+.ext-snippet { margin: 6px 0 8px; color: var(--muted); font-size: 0.93rem; }
+.ext-item-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ext-due { font-weight: 600; color: var(--muted); white-space: nowrap; }
+.ext-due.overdue { color: #c62828; }
+.ext-due.soon { color: #b26a00; }
+.ext-due.ok { color: #2e7d32; }
+.q-status.ext-with_you { background: #fff2cc; color: #8a5a00; }
+.q-status.ext-with_dbp { background: #ddebf7; color: #1f4e79; }
+.q-status.ext-fyi, .q-status.ext-done { background: #ececf2; color: #555; }

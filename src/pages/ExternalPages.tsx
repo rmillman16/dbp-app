@@ -7,6 +7,15 @@ import { ext, extOpenFile, extUpload, getSession, setSession, type ExtAuth, type
 // through the "external" Edge Function. /r/<token> is one item by private link; /external is the email-code page.
 const ukDate = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '')
 const STATUS: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', out: 'Out for review', approved: 'Approved', approved_noted: 'Approved as noted', revise: 'Revise and resubmit', rejected: 'Rejected' }
+// how an item stands for the person looking: an answered RFI that DBP has the ball on is "replied", not "answered"
+const stateLabel = (state: string | undefined, status: string) =>
+  state === 'with_you' ? 'Waiting for you' : state === 'with_dbp' ? 'You have replied: with du Boulay Projects' : state === 'fyi' ? 'For your information' : (STATUS[status] ?? status)
+// colour by the date required: red overdue, amber within 3 days, green otherwise; only for what is waiting for them
+const dueTone = (due: string | null | undefined, live: boolean) => {
+  if (!due || !live) return ''
+  const days = Math.floor((new Date(due.slice(0, 10)).getTime() - new Date(new Date().toISOString().slice(0, 10)).getTime()) / 86400000)
+  return days < 0 ? 'overdue' : days <= 3 ? 'soon' : 'ok'
+}
 const OUTCOMES: [string, string][] = [
   ['approved', 'Approved'],
   ['approved_noted', 'Approved as noted'],
@@ -208,17 +217,30 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
           <h2>{project}</h2>
           <ul className="ext-list">
             {list
-              .sort((a, b) => Number(b.act) - Number(a.act) || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1))
-              .map((i) => (
-                <li key={i.kind + i.id}>
-                  <Link to={to(i)}>
-                    {i.kind === 'rfi' ? 'RFI' : 'Submittal'} {i.number}: {i.title}
-                  </Link>
-                  <span className={`q-status ext-${i.status}`}>{STATUS[i.status] ?? i.status}</span>
-                  {i.act && <strong className="ext-act">Waiting for you{i.due_date ? `, due ${ukDate(i.due_date)}` : ''}</strong>}
-                  {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act"> · the one you were sent</span>}
-                </li>
-              ))}
+              .sort((a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1))
+              .map((i) => {
+                const tone = dueTone(i.due_date, i.state === 'with_you')
+                return (
+                  <li key={i.kind + i.id} className={`ext-item ${tone || (i.state === 'with_you' ? '' : 'quiet')}`}>
+                    <Link to={to(i)} className="ext-item-link">
+                      <div className="ext-item-top">
+                        <strong>
+                          {i.kind === 'rfi' ? 'RFI' : 'Submittal'} {i.number}: {i.title}
+                        </strong>
+                        <span className={`ext-due ${tone}`}>
+                          {i.due_date ? (i.kind === 'rfi' ? 'Reply by ' : 'Respond by ') + ukDate(i.due_date) + (tone === 'overdue' ? ' (overdue)' : '') : 'No date set'}
+                        </span>
+                      </div>
+                      {i.snippet && <p className="ext-snippet">{i.snippet}</p>}
+                      <div className="ext-item-meta">
+                        <span className={`q-status ext-${i.state ?? i.status}`}>{stateLabel(i.state, i.status)}</span>
+                        {i.trade && <span className="muted small">{i.trade}</span>}
+                        {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
+                      </div>
+                    </Link>
+                  </li>
+                )
+              })}
           </ul>
         </section>
       ))}
@@ -290,9 +312,9 @@ function ItemView({ auth }: { auth: ExtAuth }) {
           {rfi ? 'RFI' : 'Submittal'} {item.number}: {item.title}
         </h1>
         <p>
-          <span className={`q-status ext-${item.status}`}>{STATUS[item.status] ?? item.status}</span>
+          <span className={`q-status ext-${item.state ?? item.status}`}>{stateLabel(item.state, item.status)}</span>
           {!rfi && <span className="rfi-kind"> Rev {String.fromCharCode(64 + (item.current_rev ?? 1))}</span>}
-          {item.due_date && <span> · {rfi ? 'Reply' : 'Respond'} by <strong>{ukDate(item.due_date)}</strong></span>}
+          {item.due_date && <span> · {rfi ? 'Reply' : 'Respond'} by <strong className={`ext-due ${dueTone(item.due_date, item.state === 'with_you')}`}>{ukDate(item.due_date)}</strong></span>}
           {item.trade && <span> · {item.trade}</span>}
         </p>
         {item.manager && <p className="muted small">From {item.manager}, du Boulay Projects</p>}

@@ -40,6 +40,7 @@ export interface ExtItem {
   current_rev?: number
   you: { name: string; company: string; role: string }
   can_act: boolean
+  state?: 'with_you' | 'with_dbp' | 'fyi' | 'done'
   responses?: { id: string; kind: string; body: string | null; author: string; at: string; files: ExtFile[] }[]
   files?: ExtFile[]
   revisions?: { id: string; rev: number; submitted_on: string | null; due_date: string | null; outcome: string | null; response_notes: string | null; responded_by: string | null; responded_on: string | null; files: ExtFile[] }[]
@@ -53,6 +54,9 @@ export interface ExtListItem {
   due_date: string | null
   project: string
   act: boolean
+  snippet?: string
+  trade?: string | null
+  state?: 'with_you' | 'with_dbp' | 'fyi' | 'done'
 }
 
 export const authBody = (a: ExtAuth) => a
