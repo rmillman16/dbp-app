@@ -36,9 +36,20 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 - [ ] Decide who else holds owner access to the Supabase project (currently Richard).
 
 ## 4. Hosting and the web address
-- [ ] Host the app (suggested Firebase Hosting, like Timeline and Minutes) so staff can use it outside Richard's laptop; it's a static site, so hosting is low cost.
-- [ ] Web address: `dbp-app.com` (if DBP owns it) or e.g. `app.duboulay.co.uk`, pointed at the hosting.
-- [ ] Once hosted, the app installs to phones / tablets and works offline (already built in).
+**Recommended (Richard, 23 Nov): Azure Static Web Apps**, in DBP's own Microsoft Azure. The app is a static website: its data stays in Supabase, so hosting only serves the app's files.
+- **In the meantime,** Richard is using a free Netlify site for testing with colleagues. Moving to Azure later just means deploying the same files there and changing the address in two settings. Nothing is rebuilt or lost.
+- Why Azure:
+  - IT owns and manages it alongside the rest of DBP's Microsoft set-up.
+  - It has a free tier, and the custom domain gets free HTTPS.
+  - It can **require a DBP Microsoft sign-in before the site loads**, on top of the app's own login, using the same Entra app as §2.
+  - Deploys are one command, so the way changes are made doesn't change.
+- [ ] Create an **Azure Static Web App** (free tier) in DBP's Azure subscription. Give Richard a deployment token, or deploy access, so updates can be published.
+- [ ] **SPA routing:** the app needs every path to serve `index.html` (navigation fallback in `staticwebapp.config.json`, which Claude will add to the app).
+- [ ] **Web address:** e.g. `app.duboulay.co.uk` (or `dbp-app.com` if DBP owns it), pointed at the static web app.
+- [ ] Optional: restrict the site to DBP accounts (Entra ID authentication on the static web app). Note that site managers and any External users would then need DBP accounts or guest access.
+- [ ] Once it's live, Richard updates **Supabase › Authentication › URL Configuration** (Site URL) and the email secret **APP_URL** to the new address.
+- The app already installs to phones and tablets and works offline.
+- **Not Firebase Hosting:** Timeline and Minutes are on Firebase under the developer's Google account, which DBP doesn't control. Minutes has now been rebuilt inside this app.
 
 ## 5. Code backup (no GitHub)
 Richard would rather not use GitHub. The code is kept in Git on his laptop and a single backup file is refreshed in OneDrive after every change (`OneDrive - du Boulay Projects\RM\Claude\dbp APP\dbp-app-backup.bundle`).
