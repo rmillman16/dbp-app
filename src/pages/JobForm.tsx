@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { money } from '../lib/format'
 import { cached, must, saveError } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Company, type Enquiry, type Job, type JobStatus } from '../lib/types'
-import { loadCompanies } from '../lib/subcontracts'
+import { addCompany, loadCompanies } from '../lib/subcontracts'
 import { enquiryRef, moveEnquiryToJob } from '../lib/quotations'
 import { moveEnquiryProgramme } from '../lib/programme'
 import { loadEnquiry } from './Estimating'
@@ -81,6 +81,28 @@ export default function JobForm() {
   const [form, setForm] = useState<FormState>(EMPTY)
   const [carLimit, setCarLimit] = useState<number | null>(null)
   const [clients, setClients] = useState<Company[]>([])
+  // a client that isn't on the list yet, added from the dropdown (23 Nov)
+  const [newClient, setNewClient] = useState<string | null>(null)
+  const [clientErr, setClientErr] = useState<string | null>(null)
+  async function addClient() {
+    const name = (newClient ?? '').trim()
+    if (!name) return
+    setClientErr(null)
+    const existing = clients.find((c) => c.name.trim().toLowerCase() === name.toLowerCase())
+    if (existing) {
+      set('client_company_id', existing.id)
+      setNewClient(null)
+      return
+    }
+    try {
+      const c = await addCompany(name, 'client')
+      setClients((l) => [...l, c].sort((a, b) => a.name.localeCompare(b.name, 'en-GB')))
+      set('client_company_id', c.id)
+      setNewClient(null)
+    } catch (e) {
+      setClientErr(saveError(e))
+    }
+  }
   useEffect(() => {
     loadCompanies().then(
       (cs) => setClients(cs.filter((c) => c.type === 'client')),
@@ -261,16 +283,41 @@ export default function JobForm() {
         </label>
         <label>
           Client
-          <select value={form.client_company_id} onChange={(e) => set('client_company_id', e.target.value)}>
-            <option value="">Not set</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {newClient === null ? (
+            <select value={form.client_company_id} onChange={(e) => (e.target.value === '__new' ? setNewClient('') : set('client_company_id', e.target.value))}>
+              <option value="">Not set</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="__new">+ Add a new client…</option>
+            </select>
+          ) : (
+            <span className="new-client">
+              <input
+                autoFocus
+                value={newClient}
+                placeholder="New client's name"
+                onChange={(e) => setNewClient(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addClient()
+                  } else if (e.key === 'Escape') setNewClient(null)
+                }}
+              />
+              <button type="button" className="small-button primary" onClick={addClient} disabled={!newClient.trim()}>
+                Add
+              </button>
+              <button type="button" className="small-button" onClick={() => setNewClient(null)}>
+                Cancel
+              </button>
+            </span>
+          )}
+          {clientErr && <span className="error small">{clientErr}</span>}
           <span className="hint">
-            Letters are addressed to them. Add clients under <Link to="/contractors">Contractors</Link> (type Client).
+            Letters are addressed to them. A new client is added to <Link to="/contractors">Contractors</Link> (type Client), where you can add their address and contacts.
           </span>
         </label>
         <label>

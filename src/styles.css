@@ -877,3 +877,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .quick-meeting select { margin-top: 4px; width: 100%; font-size: 13px; padding: 3px 6px; }
 .todo-head { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 14px 0 6px; }
 .todo-head.overdue { color: var(--red); }
+.new-client { display: flex; gap: 6px; align-items: center; } .new-client input { flex: 1; } /* add a client from the job form (23 Nov) */
