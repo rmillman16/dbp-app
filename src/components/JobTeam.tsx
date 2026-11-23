@@ -6,6 +6,8 @@ import { cached, must, saveError } from '../lib/offline'
 import { TEAM_ROLES, loadTeam, type TeamMember } from '../lib/om'
 import type { Job } from '../lib/types'
 import SuggestInput from './SuggestInput'
+import { useAccess } from '../lib/access'
+import { createLogin, welcomeEmail } from '../lib/users'
 
 type Person = { id: string; full_name: string | null; email: string | null; job_title: string | null }
 
@@ -16,6 +18,29 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
   const [role, setRole] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // someone not on the list yet: admins create their login here (manage-users function), then add them (23 Nov)
+  const { isAdmin } = useAccess()
+  const [newPerson, setNewPerson] = useState<{ name: string; email: string } | null>(null)
+  const [made, setMade] = useState<{ name: string; email: string; password: string } | null>(null)
+  async function createPerson() {
+    if (!newPerson) return
+    const nm = newPerson.name.trim()
+    const em = newPerson.email.trim().toLowerCase()
+    if (!nm || !em) return
+    setErr(null)
+    setBusy(true)
+    try {
+      const r = await createLogin(em, nm, [])
+      const p: Person = { id: r.user_id, full_name: nm, email: em, job_title: null }
+      setPeople((l) => [...l, p].sort((a, b) => name(a).localeCompare(name(b), 'en-GB')))
+      setWho(p.id)
+      setMade({ name: nm, email: em, password: r.password })
+      setNewPerson(null)
+    } catch (e) {
+      setErr((e as Error).message)
+    }
+    setBusy(false)
+  }
 
   const reload = () => loadTeam(job.id).then(setTeam, (e: Error) => (setErr(e.message), setTeam([])))
   useEffect(() => {
@@ -76,8 +101,9 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
           act(() => supabase.from('job_team').insert({ job_id: job.id, profile_id: who, role: role.trim() })).then(() => (setWho(''), setRole('')))
         }}
       >
-        <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Person">
+        <select value={who} onChange={(e) => (e.target.value === '__new' ? (setNewPerson({ name: '', email: '' }), setWho('')) : setWho(e.target.value))} aria-label="Person">
           <option value="">Add someone…</option>
+          {isAdmin && <option value="__new">+ Add a new person (creates their login)…</option>}
           {people.map((p) => (
             <option key={p.id} value={p.id}>
               {name(p)}
@@ -90,6 +116,39 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
           Add
         </button>
       </form>
+      {newPerson && (
+        <div className="new-person">
+          <input autoFocus value={newPerson.name} placeholder="Full name" onChange={(e) => setNewPerson({ ...newPerson, name: e.target.value })} />
+          <input type="email" value={newPerson.email} placeholder="name@duboulay.co.uk" onChange={(e) => setNewPerson({ ...newPerson, email: e.target.value })} />
+          <button type="button" className="small-button primary" onClick={createPerson} disabled={busy || !newPerson.name.trim() || !newPerson.email.trim()}>
+            {busy ? 'Creating…' : 'Create login'}
+          </button>
+          <button type="button" className="small-button" onClick={() => setNewPerson(null)}>
+            Cancel
+          </button>
+          <p className="muted small">Creates their app login (no profile type yet: set it in Settings › Users), then choose their role here and press Add.</p>
+        </div>
+      )}
+      {made && (
+        <div className="password-card">
+          <strong>Login made for {made.name}</strong>
+          <p>
+            Temporary password: <code className="temp-password">{made.password}</code>{' '}
+            <button type="button" className="link-button small" onClick={() => navigator.clipboard?.writeText(made.password)}>
+              Copy
+            </button>
+          </p>
+          <p className="muted small">It’s shown only now. Now choose their role above and press Add.</p>
+          <div className="form-actions">
+            <a className="button primary" href={welcomeEmail(made.email, made.name, made.password)}>
+              Draft email to them
+            </a>
+            <button type="button" onClick={() => setMade(null)}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }

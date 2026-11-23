@@ -878,3 +878,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .todo-head { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 14px 0 6px; }
 .todo-head.overdue { color: var(--red); }
 .new-client { display: flex; gap: 6px; align-items: center; } .new-client input { flex: 1; } /* add a client from the job form (23 Nov) */
+.new-person { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; } .new-person input { flex: 1 1 180px; } .new-person p { flex-basis: 100%; margin: 0; } /* add a person from the Team card (23 Nov) */
