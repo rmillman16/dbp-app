@@ -133,6 +133,11 @@
     - **Removing** (a line, a package, or all of General) marks items not required: hidden ("Show removed" to see them), and kept so the draft pack doesn't bring them back. Restore or delete for good from there. **Only admins and Operations can remove items** (Richard, 23 Nov), enforced by the database; everyone else can add items and links.
     - The chase email lists the missing items. Reminders are now one per package per due date.
 - **Suggestion lists in the app's own style (23 Nov):** typed fields with suggestions (O&M document and project items, directory roles, team roles) use the app's own dropdown rather than the browser's (`SuggestInput`).
+- **Home = "My day" (23 Nov).** It replaces the old Home, which duplicated the bell and the Jobs list.
+  - A greeting.
+  - **Quick actions:** only what the person can open, e.g. + Material / + Hire requisition, the Req - ADMIN lists for buyers, + Enquiry, + Job, New meeting (choose the job; your Team jobs listed first), Tasks and Dashboard.
+  - **My TODO:** everything on their bell, including minutes tasks, in Overdue, This week and Later sections, each with Done and Snooze.
+  - Richard chose just these two for now. The other ideas (this week strip, my jobs cards, noticeboard, tenders due, activity, management tiles) are on hold.
 - **Job Overview reworked (23 Nov).**
   - **All pages are full width** (the 1280 px cap is gone).
   - On the Overview, from the top:

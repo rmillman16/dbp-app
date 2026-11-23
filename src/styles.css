@@ -848,3 +848,14 @@ select.req-status.req-off_hired { background: #eee; }
 .suggest-list li.on { background: var(--navy); color: #fff; }
 .suggest-list li.suggest-add { color: var(--blue); font-weight: 600; border-top: 1px solid var(--line); margin-top: 2px; }
 .site-filter { flex-wrap: wrap; } /* a button per site (23 Nov) */
+
+/* Home = My day (23 Nov): quick actions and my TODO */
+.quick-actions { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.quick-action { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px; background: #fff; border: 1px solid var(--line); text-decoration: none; color: inherit; }
+a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43, 34, 87, 0.12); }
+.quick-action strong { display: block; color: var(--navy); }
+.quick-action small { display: block; color: var(--muted); font-size: 12px; }
+.quick-icon { font-size: 26px; line-height: 1; }
+.quick-meeting select { margin-top: 4px; width: 100%; font-size: 13px; padding: 3px 6px; }
+.todo-head { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 14px 0 6px; }
+.todo-head.overdue { color: var(--red); }
