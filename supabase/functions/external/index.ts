@@ -197,7 +197,7 @@ const plain = (h: string | null, n = 170) => {
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
-  return t.length > n ? t.slice(0, n - 1).trimEnd() + "â€¦" : t;
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
 async function names(db: DB, ids: (string | null)[]) {

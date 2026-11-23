@@ -233,6 +233,7 @@ export async function setSubmittalPeople(id: string, role: 'reviewer' | 'cc', re
 }
 // the revision goes out for review
 export async function submitForReview(id: string, revisionId: string, due: string | null) {
+  if (!due) throw new Error('Set a "return by" date before sending it out for review.')
   const rv = await supabase.from('submittal_revisions').update({ submitted_on: todayIso(), due_date: due }).eq('id', revisionId)
   if (rv.error) throw fail(rv.error)
   return updateSubmittal(id, { status: 'out', due_date: due })

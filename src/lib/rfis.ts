@@ -303,6 +303,11 @@ export async function updateRfi(id: string, patch: Partial<Omit<Rfi, 'id' | 'job
 // tender RFIs are drafted, then issued to the client together: drafts become open
 export async function issueRfis(ids: string[]) {
   if (!ids.length) return
+  // every RFI needs a date to reply by before it goes out: that is what it is chased against
+  const chk = await supabase.from('rfis').select('number, due_date').in('id', ids)
+  if (chk.error) throw fail(chk.error)
+  const missing = (chk.data ?? []).filter((x) => !x.due_date).map((x) => `RFI ${x.number}`)
+  if (missing.length) throw new Error(`Set a "reply by" date before sending: ${missing.join(', ')}.`)
   const r = await supabase.from('rfis').update({ status: 'open' }).in('id', ids)
   if (r.error) throw fail(r.error)
 }

@@ -113,6 +113,7 @@ export default function SubmittalPage() {
   async function sendOut() {
     if (!cur) return
     if (!reviewers.length) return setError('Add at least one reviewer first (Edit).')
+    if (!s.due_date) return setError('Set a "return by" date first (Edit): reviewers need to know when you need it back.')
     if (!files.some((f) => f.revision_id === cur.id && f.kind === 'submission')) return setError('Attach the submittal document (drawing, data sheet, sample details…) to this revision first: the reviewers have nothing to review without it.')
     if (!confirm(`Send Submittal ${s.number} (Rev ${revLetter(s.current_rev)}) out for review? The reviewers are told and it starts to be chased.`)) return
     await run(async () => {
