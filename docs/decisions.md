@@ -118,10 +118,13 @@
     - Front page, contents with page numbers and links, section dividers, the generated sections, then documents by package.
     - Bookmarks for each section and document.
     - You pick the PDFs from the synced SharePoint O&Ms folder. The app matches them to tracker lines, you confirm, and then it merges them. Files are only read in the browser, never uploaded.
+  - **Link check (23 Nov, 048 + Edge Function `check-link`):** each SharePoint link (e.g. as-builts, which only ever live in SharePoint) is opened from the server with no sign-in, as the client would. Results: **green ✓ anyone can open**, 🔒 sign-in needed (share it as "Anyone with the link"), or ✗ doesn't open. It's checked once per link, again when the link changes, and ↻ rechecks.
+  - Project items list now includes **Maintenance instructions**.
   - **Job Team card** on the Overview (who's on the job, and their role).
   - **Reminders:** O&Ms due / overdue go on the bell and the job TODO for everyone on the team (the admins if there's no team), one per company per due date. Not emailed yet; this can be added with a due-date filter like off-hire.
   - **O&Ms outstanding** shows on payment notices and the order page. Nothing is blocked.
   - Access: Job › O&M in Settings › Access (Project manager, Commercial, Site management). Commercial can also see what's outstanding.
+- **Suggestion lists in the app's own style (23 Nov):** typed fields with suggestions (O&M document and project items, directory roles, team roles) use the app's own dropdown rather than the browser's (`SuggestInput`).
 - **Job Overview reworked (23 Nov).**
   - **All pages are full width** (the 1280 px cap is gone).
   - On the Overview, from the top:

@@ -839,3 +839,10 @@ select.req-status.req-off_hired { background: #eee; }
 .table th.num, .table td.num { padding-right: 20px; }
 .table th.num + th, .table td.num + td { padding-left: 16px; }
 .table .col-grow { width: 40%; }
+
+/* the app's own suggestions list (replaces the browser's datalist, 23 Nov) */
+.suggest { position: relative; display: inline-block; width: 100%; }
+.suggest > input { width: 100%; }
+.suggest-list { position: fixed; z-index: 200; max-width: 420px; max-height: 280px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(31, 29, 43, 0.14); }
+.suggest-list li { padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.suggest-list li.on { background: var(--navy); color: #fff; }

@@ -261,3 +261,12 @@
   margin: 6px 0;
   padding-left: 18px;
 }
+
+/* can anyone open the link (23 Nov) */
+.om-link-row { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
+.om-tick-wrap { display: inline-flex; gap: 4px; align-items: center; }
+.om-tick { font-weight: 600; white-space: nowrap; }
+.om-tick.ok { color: #1d6b3a; }
+.om-tick.warn { color: var(--amber); }
+.om-tick.bad { color: var(--red); }
+.om-recheck { padding: 0 2px; text-decoration: none; }

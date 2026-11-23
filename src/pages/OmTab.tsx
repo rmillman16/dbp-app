@@ -8,6 +8,9 @@ import {
   OM_STATUSES,
   OM_STATUS_LABELS,
   PROJECT_ITEMS,
+  checkLink,
+  LINK_STATUS_TEXT,
+  type LinkStatus,
   RISK_COLS,
   addDirectoryEntry,
   addLines,
@@ -45,6 +48,7 @@ import ContractorPicker from '../components/ContractorPicker'
 import type { Job } from '../lib/types'
 import { useJob } from './JobLayout'
 import '../om.css'
+import SuggestInput from '../components/SuggestInput'
 
 // what's shown: statuses switched off are hidden; overdue only; remembered per job on this device
 type Filters = { hide: OmStatus[]; overdue: boolean }
@@ -161,7 +165,6 @@ export default function OmTab() {
     !fl.hide.includes(l.status) && (!fl.overdue || isOverdue(l, today)) && (!ql || `${lineName(l, data.docTypes)} ${l.reviewer_comment ?? ''}`.toLowerCase().includes(ql))
   const filtering = fl.hide.length > 0 || fl.overdue || !!ql
   const trades = [...new Set(data.docTypes.map((t) => t.trade))].sort((a, b) => a.localeCompare(b, 'en-GB'))
-  const nameOptions = [...new Set([...PROJECT_ITEMS, ...data.docTypes.map((t) => t.name)])].sort((a, b) => a.localeCompare(b, 'en-GB'))
   const statusChip = (st: OmStatus) => (
     <button
       key={st}
@@ -272,11 +275,6 @@ export default function OmTab() {
             </tbody>
           </table>
         </div>
-        <datalist id="om-names">
-          {nameOptions.map((n) => (
-            <option key={n} value={n} />
-          ))}
-        </datalist>
         <p className="muted small om-foot">
           Documents stay in SharePoint: paste each one’s link. Outstanding documents with a due date go on the bell of everyone in the job’s team (
           <Link to="..">Overview › Team</Link>), one reminder per package per due date.
@@ -455,9 +453,12 @@ function GroupRows({
                 aria-label="SharePoint link"
               />
               {l.file_url && (
-                <a href={l.file_url} target="_blank" rel="noreferrer" className="small" title="Open it in SharePoint">
-                  Open ↗
-                </a>
+                <span className="om-link-row">
+                  <a href={l.file_url} target="_blank" rel="noreferrer" className="small" title="Open it in SharePoint">
+                    Open ↗
+                  </a>
+                  <LinkTick line={l} />
+                </span>
               )}
             </td>
             <td data-label="Comment">
@@ -494,10 +495,10 @@ function GroupRows({
               add([{ name: name.trim(), doc_type_id: data.docTypes.find((t) => t.name.toLowerCase() === name.trim().toLowerCase())?.id ?? null }]).then(() => setName(''))
             }}
           >
-            <input
-              list="om-names"
+            <SuggestInput
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={setName}
+              options={[...PROJECT_ITEMS, ...data.docTypes.map((t) => t.name)]}
               placeholder={g.kind === 'job' ? 'Add a project item…' : `Add a document for ${g.title}…`}
             />
             <button type="submit" className="small-button" disabled={!name.trim()}>
@@ -753,12 +754,7 @@ function DirectoryEditor({ job, data, run }: { job: Job; data: OmData; run: (wha
       <div className="om-inline-form">
         <label>
           Role
-          <input list="om-dir-roles" value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Architect" />
-          <datalist id="om-dir-roles">
-            {DIRECTORY_ROLES.map((r) => (
-              <option key={r} value={r} />
-            ))}
-          </datalist>
+          <SuggestInput value={role} onChange={setRole} options={DIRECTORY_ROLES} placeholder="e.g. Architect" />
         </label>
         <label>
           Company
@@ -996,5 +992,56 @@ function PdfPanel({ job, data, groups, onClose }: { job: Job; data: OmData; grou
         </div>
       </aside>
     </div>
+  )
+}
+
+// can anyone open the link? Green tick if so; checked once per link (again when the link changes, or on ↻)
+function LinkTick({ line }: { line: OmLine }) {
+  const known = line.link_checked_url === line.file_url ? (line.link_status ?? null) : null
+  const [st, setSt] = useState<LinkStatus | null>(known)
+  const [busy, setBusy] = useState(false)
+  const run = () => {
+    setBusy(true)
+    checkLink(line).then((r) => {
+      if (r) {
+        setSt(r.status)
+        line.link_status = r.status
+        line.link_checked_url = line.file_url
+      }
+      setBusy(false)
+    })
+  }
+  useEffect(() => {
+    if (known) setSt(known)
+    else if (line.file_url) run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [line.file_url])
+  if (busy) return <span className="om-tick muted small">checking…</span>
+  return (
+    <span className="om-tick-wrap">
+      {st === 'public' && (
+        <span className="om-tick ok" title={LINK_STATUS_TEXT.public}>
+          ✓ <span className="small">anyone can open</span>
+        </span>
+      )}
+      {st === 'sign_in' && (
+        <span className="om-tick warn" title={LINK_STATUS_TEXT.sign_in}>
+          🔒 <span className="small">sign-in needed</span>
+        </span>
+      )}
+      {st === 'broken' && (
+        <span className="om-tick bad" title={LINK_STATUS_TEXT.broken}>
+          ✗ <span className="small">doesn’t open</span>
+        </span>
+      )}
+      {st === 'unknown' && (
+        <span className="om-tick muted" title={LINK_STATUS_TEXT.unknown}>
+          ? <span className="small">not checked</span>
+        </span>
+      )}
+      <button type="button" className="link-button small om-recheck" onClick={run} title="Check the link again">
+        ↻
+      </button>
+    </span>
   )
 }

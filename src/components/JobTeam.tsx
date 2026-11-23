@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
 import { TEAM_ROLES, loadTeam, type TeamMember } from '../lib/om'
 import type { Job } from '../lib/types'
+import SuggestInput from './SuggestInput'
 
 type Person = { id: string; full_name: string | null; email: string | null; job_title: string | null }
 
@@ -84,12 +85,7 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
             </option>
           ))}
         </select>
-        <input list="job-team-roles" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role, e.g. PM" aria-label="Role" style={{ maxWidth: 180 }} />
-        <datalist id="job-team-roles">
-          {TEAM_ROLES.map((r) => (
-            <option key={r} value={r} />
-          ))}
-        </datalist>
+        <SuggestInput value={role} onChange={setRole} options={TEAM_ROLES} placeholder="Role, e.g. PM" aria-label="Role" style={{ maxWidth: 180 }} />
         <button type="submit" disabled={busy || !who || !role.trim()}>
           Add
         </button>

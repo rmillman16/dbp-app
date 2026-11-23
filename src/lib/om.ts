@@ -32,6 +32,8 @@ export interface OmLine {
   due_date: string | null
   received_date: string | null
   file_url: string | null // SharePoint link
+  link_status?: LinkStatus | null // script 048: can anyone open it (checked by the check-link function)
+  link_checked_url?: string | null // the link that was checked: a changed link is checked again
   reviewer_comment: string | null
   sort: number
 }
@@ -142,6 +144,7 @@ export const PROJECT_ITEMS = [
   'Fire strategy',
   'Asbestos register',
   'As-built general arrangement drawings',
+  'Maintenance instructions',
   'Client-specific requirements',
 ]
 
@@ -548,4 +551,22 @@ export function matchFiles(files: File[], lines: OmLine[], groups: OmGroup[], ty
     }
     return { file, lineId: best?.id ?? null, skip: kind === 'other', how: best ? 'name' : 'none', kind }
   })
+}
+
+// ---------- can anyone open the SharePoint link? (23 Nov, script 048 + the check-link Edge Function) ----------
+export type LinkStatus = 'public' | 'sign_in' | 'broken' | 'unknown'
+export const LINK_STATUS_TEXT: Record<LinkStatus, string> = {
+  public: 'Anyone with the link can open it',
+  sign_in: 'Needs a DBP sign-in: in SharePoint, share it as “Anyone with the link”',
+  broken: 'This link doesn’t open a document',
+  unknown: 'Couldn’t check this link',
+}
+// opens the link from the server with no sign-in (as the client would) and keeps the answer against the line
+export async function checkLink(l: Pick<OmLine, 'id' | 'file_url'>): Promise<{ status: LinkStatus; detail: string } | null> {
+  if (!l.file_url || !navigator.onLine) return null
+  const { data, error } = await supabase.functions.invoke('check-link', { body: { url: l.file_url } })
+  if (error || !data?.status) return null // not deployed yet: no tick either way
+  const status = data.status as LinkStatus
+  await supabase.from('om_requirements').update({ link_status: status, link_checked_url: l.file_url, link_checked_at: new Date().toISOString() }).eq('id', l.id)
+  return { status, detail: String(data.detail ?? '') }
 }
