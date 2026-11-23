@@ -5,7 +5,7 @@
 import { supabase } from './supabase'
 import { addDaysIso, todayIso, ukDate } from './format'
 import { emlDraft, escHtml, fileBlob, loadLibrary, needs054, uploadFile, type Attachment, type StandardDoc } from './orders'
-import type { Company, PqqStatus } from './types'
+import type { Company, PqqPack, PqqStatus } from './types'
 
 const fail = (e: { message: string }) => new Error(needs054(e.message))
 
@@ -131,20 +131,34 @@ export async function pqqWentOut(c: Company, sentTo: string | null, documents: s
 
 // ---------- the standard PQQ pack ----------
 export const loadPqqPack = (): Promise<StandardDoc[]> => loadLibrary('pqq')
+
+// which form a company gets: set on the company, else by type (sole traders are set to PQQ B by hand)
+export const PACK_LABELS: Record<PqqPack, string> = {
+  subcontractor: 'PQQ (subcontractor)',
+  sole_trader: 'PQQ B (sole trader / small subcontractor)',
+  consultant: 'PQQ C (consultant)',
+  supplier: 'New supplier account form',
+}
+export const packOf = (c: Pick<Company, 'type' | 'pqq_pack'>): PqqPack =>
+  c.pqq_pack ?? (c.type === 'supplier' ? 'supplier' : c.type === 'consultant' || c.type === 'designer' ? 'consultant' : 'subcontractor')
+// the library documents that go to this company: its form, and anything not tied to a form
+export const packFor = (c: Pick<Company, 'type' | 'pqq_pack'>, all: StandardDoc[]) => all.filter((d) => !d.pack || d.pack === packOf(c))
 export async function pqqPackFiles(pack?: StandardDoc[]): Promise<Attachment[]> {
   const docs = pack ?? (await loadPqqPack())
   return Promise.all(docs.map(async (d) => ({ name: d.file_name, blob: await fileBlob(d.path) })))
 }
 
-export const pqqParagraph = (c: Pick<Company, 'pqq_status' | 'pqq_expires_on'>) =>
-  pqqState(c) === 'expired'
+export const pqqParagraph = (c: Pick<Company, 'pqq_status' | 'pqq_expires_on' | 'type' | 'pqq_pack'>) =>
+  packOf(c) === 'supplier'
+    ? 'Please complete and return the attached new supplier account form so we can set up your account.'
+    : pqqState(c) === 'expired'
     ? 'Your pre-qualification with us has lapsed (it runs for 12 months). Please complete and return the attached pre-qualification questionnaire (PQQ), with the documents it asks for, so we can renew it.'
     : 'As you are not yet on our approved list, please complete and return the attached pre-qualification questionnaire (PQQ), with the documents it asks for.'
 
 // an email with just the PQQ pack (from Contractors), as an Outlook draft
 export async function pqqEmail(c: Company, to: { name: string | null; email: string | null }, sender: string | null) {
-  const pack = await loadPqqPack()
-  if (!pack.length) throw new Error('There is no PQQ pack yet: add the PQQ documents in Settings › Standard documents.')
+  const pack = packFor(c, await loadPqqPack())
+  if (!pack.length) throw new Error(`There is no ${PACK_LABELS[packOf(c)]} in the library yet: add it in Settings › Standard documents.`)
   const greeting = to.name ? `Dear ${escHtml(to.name.split(' ')[0])},` : 'Dear Sir or Madam,'
   const html = [
     `<p>${greeting}</p>`,

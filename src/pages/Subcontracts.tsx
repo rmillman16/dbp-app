@@ -29,7 +29,7 @@ import {
   type OrderPackage,
   type StandardDoc,
 } from '../lib/orders'
-import { STATE_LABELS, loadPqqPack, logPqqSent, needsPqq, pqqParagraph, pqqPackFiles, pqqState, pqqWentOut, stateClass } from '../lib/pqq'
+import { STATE_LABELS, loadPqqPack, packFor, logPqqSent, needsPqq, pqqParagraph, pqqPackFiles, pqqState, pqqWentOut, stateClass } from '../lib/pqq'
 import { downloadBlob } from '../lib/letter'
 import { loadContacts, type Contact } from '../components/ContactsEditor'
 import type { Company, Order, PaymentNotice, SubVariation } from '../lib/types'
@@ -488,7 +488,7 @@ export function OrderPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [appendices, setAppendices] = useState<Appendix[] | null>(null)
   const [library, setLibrary] = useState<StandardDoc[]>([])
-  const [pqqPack, setPqqPack] = useState<StandardDoc[]>([])
+  const [pqqAll, setPqqPack] = useState<StandardDoc[]>([])
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -513,6 +513,7 @@ export function OrderPage() {
     loadOrderPackages(job).then(setPackages, () => {})
   }, [orderId, job])
 
+  const pqqPack = useMemo(() => (company ? packFor(company, pqqAll) : []), [company, pqqAll])
   const pkg = useMemo(() => packages.find((p) => p.name === order?.package_name) ?? null, [packages, order?.package_name])
 
   if (error && !data) return <p className="error">{error}</p>

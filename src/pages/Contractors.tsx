@@ -13,6 +13,8 @@ import {
   addCompanyDoc,
   docExpiry,
   lastSentText,
+  PACK_LABELS,
+  packOf,
   loadCompanyDocs,
   loadPqqLog,
   logPqqSent,
@@ -29,7 +31,7 @@ import {
   type PqqState,
 } from '../lib/pqq'
 import ContactsEditor, { loadContacts, type Contact } from '../components/ContactsEditor'
-import type { Company, CompanyType, PqqStatus, Profile } from '../lib/types'
+import type { Company, CompanyType, PqqPack, PqqStatus, Profile } from '../lib/types'
 
 // The company list: subcontractors, suppliers, clients, consultants. Used for orders and
 // payment notices (name and address printed) and the CVR (iPlicit code). From 23 Nov (script 054) it also
@@ -260,6 +262,7 @@ function CompanyForm({ company, tab, people, onSaved, onCancel }: { company: Com
     iplicit_code: company?.iplicit_code ?? '',
     notes: company?.notes ?? '',
     pqq_owner: company?.pqq_owner ?? '',
+    pqq_pack: company?.pqq_pack ?? '',
   })
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -282,6 +285,7 @@ function CompanyForm({ company, tab, people, onSaved, onCancel }: { company: Com
       notes: f.notes.trim() || null,
     }
     if (company?.pqq_status !== undefined || (!company && f.pqq_owner)) row.pqq_owner = f.pqq_owner || null
+    if (company?.pqq_status !== undefined) row.pqq_pack = f.pqq_pack || null
     const r = company ? await supabase.from('companies').update(row).eq('id', company.id).select('*').single() : await supabase.from('companies').insert(row).select('*').single()
     setBusy(false)
     if (r.error) return setError(saveError(r.error))
@@ -329,6 +333,18 @@ function CompanyForm({ company, tab, people, onSaved, onCancel }: { company: Com
             ))}
           </select>
           <span className="hint">Who gets the reminders to chase this company's PQQ and documents</span>
+        </label>
+        <label>
+          PQQ / account form
+          <select value={f.pqq_pack} onChange={(e) => set('pqq_pack', e.target.value)}>
+            <option value="">By type ({PACK_LABELS[packOf({ type: f.type, pqq_pack: null })]})</option>
+            {(Object.keys(PACK_LABELS) as PqqPack[]).map((p) => (
+              <option key={p} value={p}>
+                {PACK_LABELS[p]}
+              </option>
+            ))}
+          </select>
+          <span className="hint">Which form is emailed to them. Choose PQQ B for a sole trader.</span>
         </label>
         <label className="span-2">
           Notes

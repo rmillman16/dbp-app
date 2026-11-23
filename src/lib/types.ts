@@ -269,7 +269,10 @@ export interface Company {
   pqq_expires_on?: string | null // approved + 12 months
   pqq_owner?: string | null // who chases it
   pqq_notes?: string | null
+  pqq_pack?: PqqPack | null // which form goes to them (055); blank = by type
 }
+
+export type PqqPack = 'subcontractor' | 'sole_trader' | 'consultant' | 'supplier'
 
 export type PqqStatus = 'not_sent' | 'sent' | 'received' | 'approved' | 'rejected' | 'not_required'
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { saveError } from '../lib/offline'
+import { PACK_LABELS } from '../lib/pqq'
 import { addLibraryDoc, archiveLibraryDoc, loadLibrary, openFile, replaceLibraryFile, updateLibraryDoc, type StandardDoc } from '../lib/orders'
 
 // Settings › Standard documents (23 Nov, script 054): the appendices every order can carry (any file type: Word, PDF,
@@ -54,7 +55,7 @@ export default function StandardDocuments() {
         hint="e.g. Appendix A: payment and application dates; Appendix B: DBP's general terms; Appendix C: health and safety requirements"
         run={run}
       />
-      <Group title="PQQ pack" kind="pqq" docs={pqq} busy={busy} hint="e.g. the PQQ form, the insurance requirements, the health and safety questionnaire. All of these attach to the PQQ email." run={run} />
+      <Group title="PQQ pack" kind="pqq" docs={pqq} busy={busy} hint="Add each form and say who it is for: PQQ (subcontractor), PQQ B (sole trader), PQQ C (consultant), New supplier account form. Each company is sent its own form; anything marked 'every form' goes with all of them." run={run} />
     </section>
   )
 }
@@ -77,6 +78,7 @@ function Group({
   const [name, setName] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [defaultOn, setDefaultOn] = useState(true)
+  const [pack, setPack] = useState('')
   const picker = useRef<HTMLInputElement>(null)
   return (
     <div className="std-group">
@@ -91,6 +93,16 @@ function Group({
               <button type="button" className="link-button small" onClick={() => openFile(d.path).catch(() => {})} title="Open">
                 {d.file_name}
               </button>
+              {kind === 'pqq' && (
+                <select value={d.pack ?? ''} aria-label="Which form" onChange={(e) => run(() => updateLibraryDoc(d.id, { pack: (e.target.value || null) as StandardDoc['pack'] }))}>
+                  <option value="">Goes with every form</option>
+                  {Object.entries(PACK_LABELS).map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              )}
               {kind === 'appendix' && (
                 <label className="small">
                   <input type="checkbox" checked={d.default_on} onChange={(e) => run(() => updateLibraryDoc(d.id, { default_on: e.target.checked }))} /> On every new order
@@ -120,6 +132,16 @@ function Group({
           <input ref={picker} type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
           <span className="button">{file ? file.name : 'Choose file…'}</span>
         </label>
+        {kind === 'pqq' && (
+          <select value={pack} aria-label="Which form" onChange={(e) => setPack(e.target.value)}>
+            <option value="">Goes with every form</option>
+            {Object.entries(PACK_LABELS).map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+        )}
         {kind === 'appendix' && (
           <label className="small">
             <input type="checkbox" checked={defaultOn} onChange={(e) => setDefaultOn(e.target.checked)} /> On every new order
@@ -132,7 +154,7 @@ function Group({
           onClick={() =>
             file &&
             run(async () => {
-              await addLibraryDoc(kind, name, file, defaultOn)
+              await addLibraryDoc(kind, name, file, defaultOn, (pack || null) as StandardDoc['pack'])
               setName('')
               setFile(null)
               if (picker.current) picker.current.value = ''

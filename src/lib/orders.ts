@@ -102,6 +102,7 @@ export interface StandardDoc {
   path: string
   file_name: string
   default_on: boolean
+  pack?: 'subcontractor' | 'sole_trader' | 'consultant' | 'supplier' | null // PQQ library: which form (055); blank = every form
   archived: boolean
   sort: number
 }
@@ -112,13 +113,13 @@ export async function loadLibrary(kind?: StandardDoc['kind']): Promise<StandardD
   if (r.error) throw fail(r.error)
   return r.data as StandardDoc[]
 }
-export async function addLibraryDoc(kind: StandardDoc['kind'], name: string, file: File, defaultOn = true) {
+export async function addLibraryDoc(kind: StandardDoc['kind'], name: string, file: File, defaultOn = true, pack: StandardDoc['pack'] = null) {
   const path = await uploadFile('library', file)
-  const r = await supabase.from('standard_documents').insert({ kind, name: name.trim() || file.name, path, file_name: file.name, default_on: defaultOn }).select('*').single()
+  const r = await supabase.from('standard_documents').insert({ kind, name: name.trim() || file.name, path, file_name: file.name, default_on: defaultOn, ...(pack ? { pack } : {}) }).select('*').single()
   if (r.error) throw fail(r.error)
   return r.data as StandardDoc
 }
-export async function updateLibraryDoc(id: string, patch: Partial<Pick<StandardDoc, 'name' | 'description' | 'default_on' | 'sort'>>) {
+export async function updateLibraryDoc(id: string, patch: Partial<Pick<StandardDoc, 'name' | 'description' | 'default_on' | 'sort' | 'pack'>>) {
   const r = await supabase.from('standard_documents').update(patch).eq('id', id)
   if (r.error) throw fail(r.error)
 }
