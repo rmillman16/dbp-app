@@ -55,6 +55,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `049_om_item_names.sql` | O&M: add your own project items to the dropdown list (offered on every job) | ✅ Run |
 | `050_om_packages.sql` | O&M: items by SoW package (package_id), received = has a link (status follows the link), removing items / list entries for admins and Operations only, reminders per package | ⬜ Not yet |
 | `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ⬜ Not yet |
+| `052_tasks.sql` | Tasks: set a task for yourself or any DBP team member (optionally on a job, with a due date); it goes on their bell and the job's TODO; done tells whoever set it | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

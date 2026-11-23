@@ -145,7 +145,8 @@ export default function App() {
             <Route path="om" element={<OmTab />} />
           </Route>
           <Route path="/help/programme" element={<ProgrammeHelp />} />
-          <Route path="/my-tasks" element={<MyTasks />} />
+          <Route path="/tasks" element={<MyTasks />} />
+          <Route path="/my-tasks" element={<Navigate to="/tasks" replace />} />
           <Route
             path="/estimating"
             element={

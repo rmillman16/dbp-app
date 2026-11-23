@@ -11,7 +11,7 @@ import { PageErrorBoundary } from './NoAccess'
 // Company-wide areas (agreed 20 Nov). Each job's modules are tabs inside the job (see JobLayout).
 const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: boolean; section?: Section }[] = [
   { to: '/', label: 'Home', icon: 'M3 11 12 3l9 8v10h-6v-6H9v6H3z' },
-  { to: '/my-tasks', label: 'My tasks', icon: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' },
+  { to: '/tasks', label: 'Tasks', icon: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' },
   { to: '/dashboard', label: 'Dashboard', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2', section: 'dashboard' },
   { to: '/jobs', label: 'Jobs', icon: 'M4 7h16v13H4zM9 7V4h6v3', section: 'jobs' },
   {

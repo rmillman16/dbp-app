@@ -55,7 +55,7 @@ function QuickActions() {
     { to: '/site/buyer/hire', icon: '🧾', label: ADMIN_LIST_NAME.hire, sub: 'Every hire requisition', show: can('buyer_hire') },
     { to: '/estimating/new', icon: '✏️', label: 'New enquiry', sub: 'Small works, enquiry or tender', show: can('estimating') },
     { to: '/jobs/new', icon: '➕', label: 'New job', sub: 'Set up a won job', show: can('jobs') },
-    { to: '/my-tasks', icon: '✅', label: 'My tasks', sub: 'Actions from minutes', show: true },
+    { to: '/tasks', icon: '✅', label: 'Tasks', sub: 'Set a task, or see yours', show: true },
     { to: '/dashboard', icon: '📊', label: 'Dashboard', sub: 'Every job at a glance', show: can('dashboard') },
   ]
   return (
@@ -123,8 +123,8 @@ function MyTodo() {
     <section className="card my-todo">
       <div className="pane-head">
         <h2>My TODO</h2>
-        <Link to="/my-tasks" className="link-button small">
-          My tasks from minutes →
+        <Link to="/tasks" className="link-button small">
+          Tasks →
         </Link>
       </div>
       {error && <p className="error">{error}</p>}

@@ -20,7 +20,7 @@ export default function JobOverview() {
   const navigate = useNavigate()
   // the To do box (22 Nov): requisition questions and answers waiting on me for this job
   const todo = items.filter(
-    (n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || ((n.kind === 'off_hire_due' || n.kind === 'om_due') && needsAttention(n))),
+    (n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || ((n.kind === 'off_hire_due' || n.kind === 'om_due' || n.kind === 'task') && needsAttention(n))),
   )
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
   const [calMsg, setCalMsg] = useState<string | null>(null)

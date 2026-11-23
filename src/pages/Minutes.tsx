@@ -1321,9 +1321,9 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
             </div>
           )}
         </div>
-        <Link className="btn btn-ghost" to="/my-tasks" title="Your open action items across all meetings">
+        <Link className="btn btn-ghost" to="/tasks" title="Your open action items across all meetings">
           <Icon.tasks />
-          My tasks
+          Tasks
         </Link>
         <button className="btn btn-primary" type="button" onClick={startNewMeeting}>
           <Icon.plus />

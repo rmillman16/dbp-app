@@ -554,8 +554,8 @@ export async function completeAction(pointId: string, done = true) {
 }
 
 export const minutesBase = (m: { jobId: string | null; enquiryId: string | null }) =>
-  m.jobId ? `/jobs/${m.jobId}/minutes` : m.enquiryId ? `/estimating/e/${m.enquiryId}/minutes` : '/my-tasks'
-export const meetingPath = (m: { id: string; jobId: string | null; enquiryId: string | null }) => (m.jobId || m.enquiryId ? `${minutesBase(m)}/${m.id}` : '/my-tasks')
+  m.jobId ? `/jobs/${m.jobId}/minutes` : m.enquiryId ? `/estimating/e/${m.enquiryId}/minutes` : '/tasks'
+export const meetingPath = (m: { id: string; jobId: string | null; enquiryId: string | null }) => (m.jobId || m.enquiryId ? `${minutesBase(m)}/${m.id}` : '/tasks')
 
 // ---------- My tasks and the job's To do ----------
 export interface OpenAction {

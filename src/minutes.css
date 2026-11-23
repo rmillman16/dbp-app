@@ -1714,3 +1714,15 @@
     overflow-y: auto;
   }
 }
+
+/* Tasks (23 Nov): set a task for me or a colleague; for me / set for others */
+.mint .new-task { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; border: 1px solid var(--line, #e2e0ea); border-radius: 10px; background: #fff; margin: 0 0 18px; }
+.mint .new-task-title { flex: 1 1 280px; min-width: 200px; }
+.mint .new-task select, .mint .new-task input, .mint .new-task textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--line, #d9d6e3); border-radius: 6px; }
+.mint .new-task-more { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
+.mint .new-task-more select { flex: 0 1 320px; }
+.mint .new-task-more textarea { flex: 1 1 300px; }
+.mint .task-section { font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6880; margin: 18px 0 8px; }
+.mint .task-notes { font-size: 13px; color: #6b6880; white-space: pre-wrap; margin-top: 2px; }
+.mint .task-done { opacity: 0.6; }
+.mint .task-buttons { display: inline-flex; gap: 8px; align-items: center; }
