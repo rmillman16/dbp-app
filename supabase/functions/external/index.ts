@@ -183,7 +183,17 @@ function stateOf(kind: string, role: string, status: string) {
   return role === "reviewer" ? "with_you" : "fyi";
 }
 const plain = (h: string | null, n = 170) => {
-  const t = String(h ?? "").replace(/<brs*/?>|</p>|</li>/gi, " ").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/s+/g, " ").trim();
+  const t = String(h ?? "")
+    .replace(/<br\s*\/?>|<\/p>|<\/li>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
