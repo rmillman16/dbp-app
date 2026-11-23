@@ -9,6 +9,7 @@ import {
   OM_STATUS_LABELS,
   PROJECT_ITEMS,
   checkLink,
+  addItemName,
   LINK_STATUS_TEXT,
   type LinkStatus,
   RISK_COLS,
@@ -498,7 +499,11 @@ function GroupRows({
             <SuggestInput
               value={name}
               onChange={setName}
-              options={[...PROJECT_ITEMS, ...data.docTypes.map((t) => t.name)]}
+              options={[...PROJECT_ITEMS, ...data.itemNames, ...data.docTypes.map((t) => t.name)]}
+              onAdd={(v) => {
+                data.itemNames.push(v)
+                addItemName(v).catch((e: Error) => alert(e.message))
+              }}
               placeholder={g.kind === 'job' ? 'Add a project item…' : `Add a document for ${g.title}…`}
             />
             <button type="submit" className="small-button" disabled={!name.trim()}>

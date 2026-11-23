@@ -179,6 +179,7 @@ export interface OmData {
   omJob: OmJob
   settings: CompanySettings | null
   team: { profile_id: string; role: string; full_name: string | null; email: string | null; job_title: string | null }[]
+  itemNames: string[] // project items people have added to the list (script 049)
 }
 
 export function buildGroups(d: Pick<OmData, 'lines' | 'orders' | 'packages' | 'companies' | 'directory'>): OmGroup[] {
@@ -257,7 +258,7 @@ const emptyOmJob = (jobId: string): OmJob => ({ job_id: jobId, description: null
 
 export async function loadOm(job: Pick<Job, 'id'>): Promise<OmData> {
   const jobId = job.id
-  const [lines, docTypes, orders, packages, companies, contacts, directory, omJob, settings, team] = await Promise.all([
+  const [lines, docTypes, orders, packages, companies, contacts, directory, omJob, settings, team, itemNames] = await Promise.all([
     cached(`om:${jobId}`, () => must<OmLine[]>(supabase.from('om_requirements').select('*').eq('job_id', jobId).order('sort').order('id'))),
     cached('om-doc-types', () => must<OmDocType[]>(supabase.from('om_doc_types').select('*').is('job_id', null).order('trade').order('name'))).catch(() => [] as OmDocType[]),
     loadOrders(jobId).catch(() => [] as Order[]), // orders follow Job › Commercial: someone without it sees no packages
@@ -268,6 +269,7 @@ export async function loadOm(job: Pick<Job, 'id'>): Promise<OmData> {
     cached(`om-job:${jobId}`, () => must<OmJob | null>(supabase.from('om_job').select('*').eq('job_id', jobId).maybeSingle())).catch(() => null), // before 047: nothing
     cached('company-settings', () => must<CompanySettings>(supabase.from('company_settings').select('*').eq('id', 1).single())).catch(() => null),
     loadTeam(jobId).catch(() => []),
+    cached('om-item-names', () => must<{ name: string }[]>(supabase.from('om_item_names').select('name').order('name'))).catch(() => [] as { name: string }[]), // before 049: none
   ])
   const oj = omJob ?? emptyOmJob(jobId)
   return {
@@ -281,7 +283,15 @@ export async function loadOm(job: Pick<Job, 'id'>): Promise<OmData> {
     omJob: { ...oj, risks: Array.isArray(oj.risks) ? oj.risks : [], handover: oj.handover && typeof oj.handover === 'object' ? oj.handover : {} },
     settings,
     team,
+    itemNames: itemNames.map((r) => r.name),
   }
+}
+
+// add a project item to the list for every job (script 049); already there is fine
+export async function addItemName(name: string) {
+  const r = await supabase.from('om_item_names').insert({ name: name.trim() })
+  if (r.error && !/duplicate|unique/i.test(r.error.message))
+    throw new Error(/relation|schema cache|does not exist/i.test(r.error.message) ? 'Adding to the list needs script 049 run in Supabase first.' : r.error.message)
 }
 
 // ---------- saving document lines ----------

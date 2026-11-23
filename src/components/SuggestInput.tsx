@@ -12,6 +12,7 @@ export default function SuggestInput({
   style,
   'aria-label': ariaLabel,
   autoFocus,
+  onAdd,
 }: {
   value: string
   onChange: (v: string) => void
@@ -21,6 +22,7 @@ export default function SuggestInput({
   style?: CSSProperties
   'aria-label'?: string
   autoFocus?: boolean
+  onAdd?: (v: string) => void // offer "+ Add … to the list" for something typed that isn't in it
 }) {
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(-1)
@@ -50,6 +52,8 @@ export default function SuggestInput({
     // starts-with first, then contains
     return hits.sort((a, b) => Number(!a.toLowerCase().startsWith(q)) - Number(!b.toLowerCase().startsWith(q)) || a.localeCompare(b, 'en-GB')).slice(0, 12)
   }, [value, options])
+  const typed = value.trim()
+  const canAdd = !!onAdd && !!typed && !options.some((o) => o.toLowerCase() === typed.toLowerCase())
   const pick = (o: string) => {
     onChange(o)
     setOpen(false)
@@ -93,7 +97,7 @@ export default function SuggestInput({
           }
         }}
       />
-      {open && shown.length > 0 && (
+      {open && (shown.length > 0 || canAdd) && (
         <ul className="suggest-list" id={listId} role="listbox" style={at ? { top: at.top, left: at.left, minWidth: at.width } : undefined}>
           {shown.map((o, i) => (
             <li
@@ -110,6 +114,20 @@ export default function SuggestInput({
               {o}
             </li>
           ))}
+          {canAdd && (
+            <li
+              className="suggest-add"
+              role="option"
+              aria-selected={false}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                onAdd!(typed)
+                pick(typed)
+              }}
+            >
+              + Add “{typed}” to the list
+            </li>
+          )}
         </ul>
       )}
     </span>
