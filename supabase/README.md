@@ -62,7 +62,7 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
 | `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ✅ Deployed |
 | `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests, minutes actions) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
-| `check-link` | Opens an O&M SharePoint link with no sign-in (as the client would) to see if anyone can open it: green tick / sign-in needed / broken. Only SharePoint / OneDrive links; signed-in users only | None | ⬜ Not yet |
+| `check-link` | Opens an O&M SharePoint link with no sign-in (as the client would) to see if anyone can open it: green tick / sign-in needed / broken. Only SharePoint / OneDrive links; signed-in users only | None | ✅ Deployed |
 
 ## Rules
 - **Never re-run a script that has already been run.** 001 builds the tables from scratch and will fail (or duplicate data) on a database that already has them.
