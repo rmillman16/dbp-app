@@ -1017,3 +1017,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .job-team-embedded { margin-bottom: 8px; } .job-team-embedded .intro { margin-top: 0; }
 .module-card.coming-card { cursor: default; } .module-card.coming-card:hover { border-color: var(--line); }
 @media (max-width: 900px) { .overview-top, .overview-bottom { grid-template-columns: 1fr; } }
+
+.drop-zone { display: block; border: 2px dashed #b9b3d6; border-radius: 8px; padding: 18px; text-align: center; cursor: pointer; background: #faf9ff; margin-top: 8px; }
+.drop-zone.dragging { border-color: #2b2257; background: #eeebff; }
+.drop-zone input[type="file"] { display: none; }

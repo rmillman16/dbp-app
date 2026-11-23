@@ -176,11 +176,12 @@ export default function ProgressReportPage() {
       setMsg(`Downloaded ${fileBase}.docx (text and tables; photos and appendices are in the PDF).`)
     })
   }
-  async function upload(kind: 'photo' | 'appendix', list: File[]) {
+  const [dragHs, setDragHs] = useState(false)
+  async function upload(kind: 'photo' | 'appendix', list: File[], title = '') {
     await run('up' + kind, async () => {
       const added: ReportFile[] = []
       let sort = Math.max(-1, ...files.filter((f) => f.kind === kind).map((f) => f.sort)) + 1
-      for (const f of list) added.push(await addReportFile(report!.id, kind, f, '', sort++))
+      for (const f of list) added.push(await addReportFile(report!.id, kind, f, title, sort++))
       setFiles((l) => [...l, ...added])
     })
   }
@@ -412,8 +413,27 @@ export default function ProgressReportPage() {
                 <input disabled={ro} value={content.hs[k]} onChange={(e) => setSection('hs', { [k]: e.target.value })} />
               </label>
             ))}
-            {area('Notes', content.hs.notes, (v) => setSection('hs', { notes: v }), 3, 'Attach the Inndex report below as an appendix.')}
+            {area('Notes', content.hs.notes, (v) => setSection('hs', { notes: v }), 3)}
           </div>
+          <h3 className="sub-head">Inndex inspection report</h3>
+          {appendices.filter((f) => f.name.startsWith('Inndex')).map((f) => (
+            <p key={f.id} className="small">
+              <button type="button" className="link-button" onClick={() => openReportFile(f.path).catch((e) => setError((e as Error).message))}>{f.file_name}</button>{' '}
+              {!ro && <button type="button" className="small-button" onClick={() => confirm(`Remove ${f.file_name}?`) && run('rm', async () => { await removeReportFile(f); setFiles((l) => l.filter((x) => x.id !== f.id)) })}>✕</button>}
+            </p>
+          ))}
+          {!ro && (
+            <label
+              className={'drop-zone' + (dragHs ? ' dragging' : '')}
+              onDragOver={(e) => { e.preventDefault(); setDragHs(true) }}
+              onDragLeave={() => setDragHs(false)}
+              onDrop={(e) => { e.preventDefault(); setDragHs(false); const l = [...e.dataTransfer.files]; if (l.length) upload('appendix', l, 'Inndex inspection report') }}
+            >
+              <input type="file" accept="application/pdf,image/jpeg,image/png" multiple onChange={(e) => { const l = [...(e.target.files ?? [])]; e.target.value = ''; if (l.length) upload('appendix', l, 'Inndex inspection report') }} />
+              {busy === 'upappendix' ? 'Uploading…' : 'Drag the Inndex inspection report here, or click to choose it'}
+              <span className="muted small"> It goes into the combined PDF as an appendix.</span>
+            </label>
+          )}
         </section>
       )}
 
