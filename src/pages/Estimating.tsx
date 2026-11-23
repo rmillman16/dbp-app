@@ -384,6 +384,15 @@ export function EnquiryPage() {
           </p>
         </section>
 
+        {/* tender RFIs: coming soon (23 Nov) */}
+        <section className="card coming-card">
+          <div className="pane-head">
+            <h2>RFIs</h2>
+            <span className="soon">soon</span>
+          </div>
+          <p className="muted small">Tender queries to the client / design team: who they're with, response due dates and reminders.</p>
+        </section>
+
         <section className="card">
           <div className="pane-head">
             <h2>Quotations</h2>

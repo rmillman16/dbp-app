@@ -14,7 +14,7 @@
     - It reverses the 19 Nov decision that DBP records the designer's decision. Should the designer's response land directly, or as "proposed" for DBP to confirm?
     - It needs the app on a public web address (with IT).
   - About one session to build.
-- **Submittals and RFIs** (Richard, 22 Nov): to scope. Technical submittals (drawings, data sheets, method statements) and requests for information, tracked per job. The 19 Nov sampling scope noted SubmittalLink covers technical submissions and drawings today, so agree first whether this replaces it or links to it. Progress report 2.2 shows the submittals summary (before samples) and design queries.
+- **Submittals and RFIs** (Richard, 22 Nov): to scope. Technical submittals (drawings, data sheets, method statements) and requests for information, tracked per job. The 19 Nov sampling scope noted SubmittalLink covers technical submissions and drawings today, so agree first whether this replaces it or links to it. Progress report 2.2 shows the submittals summary (before samples) and design queries. **Placeholders in place (23 Nov):** "soon" tabs Submittals and RFIs on each job, side-by-side cards under TODO on the job Overview, and an RFIs card on each estimate (tender RFIs).
 - **Enquiry generator** (Richard, 22 Nov): as in his "Enquiry Generator Preview" artifact. It drafts subcontractor enquiries in Outlook and never sends them (drafts only, as for all email). Read the artifact before scoping.
 - **Archiving jobs: built 22 Nov (script 042), admins only.**
   - Admins see **Archive / Unarchive** on a job's header; it asks to confirm. Unarchiving puts it back to Complete.
@@ -106,6 +106,14 @@
       - Material Req - ADMIN columns: **kept as built** (Richard, 22 Nov: "what you have made is better" than the SharePoint list).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
+- **Job Overview reworked (23 Nov).**
+  - **All pages are full width** (the 1280 px cap is gone).
+  - On the Overview, from the top:
+    1. **TODO**, full width (minutes actions, requisition questions, off-hire reminders).
+    2. Submittals and RFIs side by side (coming soon).
+    3. **Variations**: totals plus every VO, newest first, click to open.
+    4. The modules at a glance: Programme finish against PC, Procurement ordered / past order-by, Sampling approved / awaited, Minutes, Requisitions. Each shows only if you can open that part.
+    5. Job details, valuation dates, SoW and the job's notifications.
 - **Company dashboard: built 22 Nov (044).** Sidebar › Dashboard, one row per live job (or live and complete):
   - Value: the anticipated final value from the latest finalised CVR, else the contract sum.
   - Margin: £ and % from that CVR.

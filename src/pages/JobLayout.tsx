@@ -23,6 +23,8 @@ const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] =
   { to: 'sampling', label: 'Sampling', section: 'job_sampling' },
   { to: 'eot', label: 'EOT', section: 'job_eot' },
   { to: 'cvr', label: 'CVR', section: 'job_commercial' },
+  { to: 'submittals', label: 'Submittals', soon: true },
+  { to: 'rfis', label: 'RFIs', soon: true },
   { to: 'om', label: 'O&M', soon: true },
 ]
 
