@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -81,9 +81,17 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
   // a job's (not archived) or an estimate's (not lost)
   // deno-lint-ignore no-explicit-any
   const open = (rfis ?? []).filter((r: any) => r.manager_id && ((r.jobs && r.jobs.status !== "archived") || (r.enquiries && r.enquiries.status !== "lost")));
-  if (!open.length) return 0;
+  // submittals still out for review (script 060): listed in the same email
+  const { data: subs } = await db
+    .from("submittals")
+    .select("id, job_id, number, title, trade, due_date, submitted_at, created_at, manager_id, jobs(job_no, code, status)")
+    .eq("status", "out")
+    .order("created_at");
   // deno-lint-ignore no-explicit-any
-  const ids = [...new Set(open.map((r: any) => r.manager_id as string))];
+  const openS = (subs ?? []).filter((s: any) => s.manager_id && s.jobs && s.jobs.status !== "archived");
+  if (!open.length && !openS.length) return 0;
+  // deno-lint-ignore no-explicit-any
+  const ids = [...new Set([...open, ...openS].map((r: any) => r.manager_id as string))];
   const { data: people } = await db.from("profiles").select("id, email, full_name, email_notifications").in("id", ids);
   const token = await getToken();
   const cell = "padding:4px 8px";
@@ -92,6 +100,9 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
     if (!p.email || p.email_notifications === false) continue;
     // deno-lint-ignore no-explicit-any
     const mine = open.filter((r: any) => r.manager_id === p.id);
+    // deno-lint-ignore no-explicit-any
+    const mineS = openS.filter((s: any) => s.manager_id === p.id);
+    if (!mine.length && !mineS.length) continue;
     const rows = mine
       // deno-lint-ignore no-explicit-any
       .map((r: any) => {
@@ -103,12 +114,28 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
         return `<tr><td style="${cell}"><a href="${esc(link)}">${esc(label)} RFI ${r.number}</a></td><td style="${cell}">${esc(r.title)}</td><td style="${cell}">${esc(r.trade ?? "")}</td><td style="${cell}${late ? ";color:#c00;font-weight:600" : ""}">${due}${late ? " (overdue)" : ""}</td><td style="${cell}">${days} days</td></tr>`;
       })
       .join("");
-    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f1d2b"><p style="font-size:17px;font-weight:600">Your unanswered RFIs (${mine.length})</p><table style="border-collapse:collapse"><tr style="background:#eef2ff;text-align:left"><th style="${cell}">RFI</th><th style="${cell}">Title</th><th style="${cell}">Trade</th><th style="${cell}">Due</th><th style="${cell}">Open for</th></tr>${rows}</table><p style="font-size:12px;color:#777">Weekly list from the DBP app. Open an RFI to chase it or close it.</p></div>`;
+    const sRows = mineS
+      // deno-lint-ignore no-explicit-any
+      .map((s: any) => {
+        const late = s.due_date && s.due_date < week;
+        const days = Math.floor((now.getTime() - new Date(s.submitted_at ?? s.created_at).getTime()) / 86400000);
+        const due = s.due_date ? s.due_date.split("-").reverse().join("/") : "–";
+        const link = `${appUrl}/jobs/${s.job_id}/submittals/${s.id}`;
+        return `<tr><td style="${cell}"><a href="${esc(link)}">${esc(s.jobs.job_no + " " + s.jobs.code)} S${s.number}</a></td><td style="${cell}">${esc(s.title)}</td><td style="${cell}">${esc(s.trade ?? "")}</td><td style="${cell}${late ? ";color:#c00;font-weight:600" : ""}">${due}${late ? " (overdue)" : ""}</td><td style="${cell}">${days} days</td></tr>`;
+      })
+      .join("");
+    const head = (label: string) => `<tr style="background:#eef2ff;text-align:left"><th style="${cell}">${label}</th><th style="${cell}">Title</th><th style="${cell}">Trade</th><th style="${cell}">Due</th><th style="${cell}">Open for</th></tr>`;
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f1d2b">${
+      mine.length ? `<p style="font-size:17px;font-weight:600">Your unanswered RFIs (${mine.length})</p><table style="border-collapse:collapse">${head("RFI")}${rows}</table>` : ""
+    }${
+      mineS.length ? `<p style="font-size:17px;font-weight:600">Your submittals out for review (${mineS.length})</p><table style="border-collapse:collapse">${head("Submittal")}${sRows}</table>` : ""
+    }<p style="font-size:12px;color:#777">Weekly list from the DBP app. Open one to chase it or record the response.</p></div>`;
+    const parts = [mine.length ? `${mine.length} unanswered RFI${mine.length === 1 ? "" : "s"}` : "", mineS.length ? `${mineS.length} submittal${mineS.length === 1 ? "" : "s"} out for review` : ""].filter(Boolean).join(" and ");
     const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: { subject: `DBP app: your ${mine.length} unanswered RFI${mine.length === 1 ? "" : "s"}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: p.email } }] },
+        message: { subject: `DBP app: your ${parts}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: p.email } }] },
         saveToSentItems: false,
       }),
     });
@@ -139,6 +166,11 @@ Deno.serve(async (req) => {
       await db.rpc("rfi_chase_tick");
     } catch {
       /* script 057 not run yet */
+    }
+    try {
+      await db.rpc("submittal_chase_tick"); // script 060
+    } catch {
+      /* script 060 not run yet */
     }
 
     const tenant = Deno.env.get("MS_TENANT_ID"), client = Deno.env.get("MS_CLIENT_ID"), secret = Deno.env.get("MS_CLIENT_SECRET");

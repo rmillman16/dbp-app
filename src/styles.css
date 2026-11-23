@@ -976,3 +976,12 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .rfi-reply { border-top: 2px solid var(--line); padding-top: 10px; } .reply-kind { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
 .rfi-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .rfi-actions .rfi-notify { margin: 0 0 0 8px; }
 .q-status.rfi-draft { background: #eee; color: #555; border: 1px dashed #bbb; }
+/* Submittals (23 Nov, 060) */
+.q-status.sub-draft, .q-status.sub-void { background: #eee; color: #666; }
+.q-status.sub-out { background: #fff2cc; color: #8a5a00; }
+.q-status.sub-approved, .q-status.sub-approved_noted { background: #e2f0d9; color: #2e7d32; }
+.q-status.sub-revise { background: #fce4d6; color: #a04a00; }
+.q-status.sub-rejected { background: #f3e1e1; color: var(--red); }
+.rfi-thread li.rev-approved, .rfi-thread li.rev-approved_noted { border-left: 3px solid #70ad47; padding-left: 10px; }
+.rfi-thread li.rev-revise { border-left: 3px solid #ed7d31; padding-left: 10px; }
+.rfi-thread li.rev-rejected { border-left: 3px solid var(--red); padding-left: 10px; }

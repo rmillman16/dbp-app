@@ -69,10 +69,7 @@ export default function JobOverview() {
       {/* space kept for the next two modules, side by side under TODO: RFIs left, Submittals right (23 Nov) */}
       <div className="span-all overview-pair">
         <RfiCard jobId={job.id} />
-        <section className="card coming-card">
-          <h2>Submittals</h2>
-          <p className="muted small">Coming soon: what's been submitted to the client / design team, who it's with and when a response is due.</p>
-        </section>
+        <SubmittalsCard jobId={job.id} />
       </div>
 
       {/* all the VOs */}
@@ -203,6 +200,45 @@ export default function JobOverview() {
         </section>
       )}
     </div>
+  )
+}
+
+// submittals at a glance (23 Nov, script 060): out for review, overdue, and those to revise
+function SubmittalsCard({ jobId }: { jobId: string }) {
+  const { can } = useAccess()
+  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
+  useEffect(() => {
+    if (!can('job_rfis')) return
+    supabase
+      .from('submittals')
+      .select('status, due_date')
+      .eq('job_id', jobId)
+      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
+  }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!can('job_rfis')) return null
+  const today = todayIso()
+  const out = (rows ?? []).filter((r) => r.status === 'out')
+  const late = out.filter((r) => r.due_date && r.due_date < today).length
+  const revise = (rows ?? []).filter((r) => r.status === 'revise' || r.status === 'rejected').length
+  const approved = (rows ?? []).filter((r) => r.status === 'approved' || r.status === 'approved_noted').length
+  return (
+    <section className="card coming-card">
+      <div className="pane-head">
+        <h2>Submittals</h2>
+        <Link to="submittals" className="link-button small">
+          Open →
+        </Link>
+      </div>
+      {rows === null ? (
+        <p className="muted small">Submittals need script 060 run in Supabase first.</p>
+      ) : rows.length === 0 ? (
+        <p className="muted small">No submittals yet.</p>
+      ) : (
+        <p>
+          <strong>{out.length}</strong> out for review{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{revise}</strong> to revise · <strong>{approved}</strong> approved · {rows.length} in all
+        </p>
+      )}
+    </section>
   )
 }
 
