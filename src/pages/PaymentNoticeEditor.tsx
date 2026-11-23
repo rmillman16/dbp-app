@@ -6,6 +6,7 @@ import { certAmount, certifyBy, isCertified, lineAmount, loadCompanies, loadNoti
 import { addDaysIso } from '../lib/format'
 import { exportPaymentNotice } from '../lib/exportPaymentNotice'
 import { readApplicationPdf } from '../lib/readPdf'
+import { readApplicationXlsx } from '../lib/readXlsxApplication'
 import type { Adjustment, Block, Company, Order, PaymentNotice, SubAppLine, SubApplication, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
@@ -107,9 +108,10 @@ export default function PaymentNoticeEditor() {
 
   async function readPdf(file: File) {
     setError(null)
-    setMsg('Reading the PDF… (this can take up to a minute)')
+    const isExcel = /\.xls[xm]$/i.test(file.name)
+    setMsg(isExcel ? 'Reading the Excel file…' : 'Reading the PDF… (this can take up to a minute)')
     try {
-      const r = await readApplicationPdf(file)
+      const r = isExcel ? await readApplicationXlsx(file) : await readApplicationPdf(file)
       setLines(r.lines.map((l, i) => ({ ...l, amount: lineAmount(l), sort: i })))
       setApp((a) =>
         a
@@ -122,7 +124,7 @@ export default function PaymentNoticeEditor() {
             }
           : a,
       )
-      setMsg(`Read ${r.lines.length} lines from ${file.name}. Check them against the PDF, then Save.${r.warnings.length ? ' Claude noted: ' + r.warnings.join(' ') : ''}`)
+      setMsg(`Read ${r.lines.length} lines from ${file.name}. Check them against their file, then Save.${r.warnings.length ? ' Claude noted: ' + r.warnings.join(' ') : ''}`)
     } catch (e) {
       setMsg(null)
       setError((e as Error).message)
@@ -188,8 +190,8 @@ export default function PaymentNoticeEditor() {
         <div className="pane-head">
           <h2>{company.name}'s application</h2>
           <label className="file-button">
-            <input type="file" accept=".pdf" onChange={(e) => (e.target.files?.[0] && readPdf(e.target.files[0]), (e.target.value = ''))} />
-            <span className="button">Read their PDF…</span>
+            <input type="file" accept=".pdf,.xlsx,.xlsm" onChange={(e) => (e.target.files?.[0] && readPdf(e.target.files[0]), (e.target.value = ''))} />
+            <span className="button">Read their PDF or Excel…</span>
           </label>
         </div>
         <div className="form-grid three">
