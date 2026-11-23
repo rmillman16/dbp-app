@@ -210,7 +210,7 @@ function ExternalHome() {
 function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
   const navigate = useNavigate()
   const rows = [...items].sort(
-    (a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.project.localeCompare(b.project) || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1),
+    (a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.project.localeCompare(b.project) || (a.kind === b.kind ? b.number - a.number : a.kind < b.kind ? -1 : 1),
   )
   const waiting = items.filter((i) => i.act).length
   const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
