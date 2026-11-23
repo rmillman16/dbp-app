@@ -1,4 +1,4 @@
-﻿// Supabase Edge Function "external": the ONLY way outside people (subcontractors, consultants, the client) reach RFIs and
+// Supabase Edge Function "external": the ONLY way outside people (subcontractors, consultants, the client) reach RFIs and
 // submittals (script 061). They have no login and no database access: this function checks who they are and returns
 // just their own item. Deploy with "Verify JWT" OFF (they have no Supabase sign-in); it does its own checks.
 //
