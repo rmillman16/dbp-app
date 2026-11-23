@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate } from '../lib/format'
@@ -7,6 +7,7 @@ import { useAccess } from '../lib/access'
 import { downloadBlob } from '../lib/letter'
 import { enquiryRef } from '../lib/quotations'
 import { addTrade, loadTrades } from '../lib/rfis'
+import { draftScope, scopePdf, uploadDrawings } from '../lib/tenderScope'
 import { fileBlob, type Attachment } from '../lib/orders'
 import { loadPqqPack, needsPqq, packFor, pqqState, pqqWentOut, STATE_LABELS } from '../lib/pqq'
 import type { Company, Enquiry } from '../lib/types'
@@ -55,6 +56,12 @@ export default function TenderEnquiry() {
   // only what is particular to this package is typed here: everything else comes from the enquiry and from My details
   const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', scope: '', link: '' })
   const [trades, setTrades] = useState<string[]>([])
+  const [drawings, setDrawings] = useState<File[]>([])
+  const [dragDraw, setDragDraw] = useState(false)
+  const [scopeBusy, setScopeBusy] = useState(false)
+  const [scopeErr, setScopeErr] = useState<string | null>(null)
+  const [attachScope, setAttachScope] = useState(false)
+  const uploaded = useRef(new Map<File, string>()) // drawings already in storage
   const [files, setFiles] = useState<File[]>([])
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
   const [body, setBody] = useState(DEFAULT_BODY)
@@ -93,7 +100,7 @@ export default function TenderEnquiry() {
   const sender = me?.full_name ?? ''
   const phone = me?.phone ?? ''
   const ret = enquiry?.due_date ?? ''
-  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', link: f.link, scope: f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
+  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', link: f.link, scope: attachScope && f.scope.trim() ? 'The scope of works for this package is attached.' : f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
 
   const pkgWords = f.pkg.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
   const matchesTrade = (c: Co) => !!c.trade && (pkgWords.length === 0 || pkgWords.some((w) => c.trade!.toLowerCase().includes(w)) || f.pkg.toLowerCase().includes(c.trade.toLowerCase()))
@@ -116,12 +123,40 @@ export default function TenderEnquiry() {
     setStep(step + 1)
   }
 
+  const DRAW_OK = /\.(pdf|png|jpe?g|gif|webp)$/i
+  function addDrawings(list: File[]) {
+    const ok = list.filter((x) => DRAW_OK.test(x.name))
+    if (ok.length < list.length) setScopeErr('Only PDF and picture files can be read. Export DWG drawings to PDF first.')
+    else setScopeErr(null)
+    setDrawings((l) => [...l, ...ok])
+  }
+  async function makeScope() {
+    if (!enquiry) return
+    setScopeErr(null)
+    if (drawings.reduce((n, x) => n + x.size, 0) > 22 * 1024 * 1024) return setScopeErr('The drawings are over about 22 MB together. Upload just the relevant sheets.')
+    setScopeBusy(true)
+    try {
+      const fresh = drawings.filter((x) => !uploaded.current.has(x))
+      const paths = await uploadDrawings(enquiry.id, fresh)
+      fresh.forEach((x, i) => uploaded.current.set(x, paths[i]))
+      const text = await draftScope({ paths: drawings.map((x) => uploaded.current.get(x)!), package: f.pkg, job: `${enquiryRef(enquiry)} ${enquiry.name}`, address: mail.address, summary: mail.summary, notes: mail.notes, existing: f.scope })
+      set('scope', text)
+      setAttachScope(true)
+    } catch (e) {
+      setScopeErr(saveError(e))
+    }
+    setScopeBusy(false)
+  }
+
   async function createDrafts() {
     if (!enquiry) return
     setBusy(true)
     setError(null)
     try {
       const extra: Attachment[] = files.map((x) => ({ name: x.name, blob: x }))
+      if (attachScope && f.scope.trim()) {
+        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, scope: f.scope, returnBy: ukDate(ret) }) })
+      }
       const skipped: string[] = []
       const pqqSent: string[] = []
       const invites: Omit<TenderInvite, 'id' | 'package_id'>[] = []
@@ -183,110 +218,166 @@ export default function TenderEnquiry() {
       {error && <p className="error">{error}</p>}
 
       {step === 1 && (
-        <section className="card tg-form">
-          <h2>Job details</h2>
-          <div className="span-2 tg-for">
-            For enquiry: <strong>{enquiry ? `${enquiryRef(enquiry)} · ${enquiry.name}` : 'Loading…'}</strong>
-          </div>
-          <label>
-            Package * <small className="muted">the trade you are asking them to price</small>
-            <select
-              value={f.pkg}
-              onChange={(e) => {
-                if (e.target.value === '__new') addNewTrade()
-                else set('pkg', e.target.value)
+        <div className="tg-cols">
+          <section className="card tg-form tg-main">
+            <h2>The package</h2>
+            <div className="span-2 tg-for">
+              For enquiry: <strong>{enquiry ? `${enquiryRef(enquiry)} · ${enquiry.name}` : 'Loading…'}</strong>
+            </div>
+            <label className="span-2">
+              Package * <small className="muted">the trade you are asking them to price</small>
+              <select
+                value={f.pkg}
+                onChange={(e) => {
+                  if (e.target.value === '__new') addNewTrade()
+                  else set('pkg', e.target.value)
+                }}
+              >
+                <option value="">Pick the package…</option>
+                {f.pkg && !trades.includes(f.pkg) && <option value={f.pkg}>{f.pkg}</option>}
+                {trades.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+                <option value="__new">+ Add a new trade…</option>
+              </select>
+            </label>
+            <p className="span-2 muted small">Next you add the drawings and the scope of works for this package, then check the email and pick who it goes to.</p>
+          </section>
+
+          <aside className="tg-side">
+            <section className="card tg-from">
+              <div className="pane-head">
+                <h3 className="sub-head">From the enquiry</h3>
+                {enquiry && (
+                  <Link to={`/estimating/e/${enquiry.id}/edit`} className="small-button">
+                    Edit enquiry
+                  </Link>
+                )}
+              </div>
+              <dl className="tg-dl">
+                {(
+                  [
+                    ['Tender due', ret ? ukDate(ret) : '', true],
+                    ['Job address', mail.address, false],
+                    ['Main contract', mail.main, false],
+                    ['Sub-contract', mail.sub, false],
+                    ['Project summary', mail.summary, false],
+                    ['Tender notes', mail.notes, false],
+                  ] as [string, string, boolean][]
+                ).map(([k, v, required]) => (
+                  <div key={k}>
+                    <dt>{k}</dt>
+                    <dd>{v || <span className={required ? 'error' : 'muted'}>{required ? 'Not set: needed. Add it on the enquiry.' : 'Not set: left out of the email.'}</span>}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section className="card tg-from">
+              <div className="pane-head">
+                <h3 className="sub-head">From you (the sender)</h3>
+                <Link to="/me" className="small-button">
+                  My details
+                </Link>
+              </div>
+              <dl className="tg-dl">
+                <div>
+                  <dt>Name</dt>
+                  <dd>{sender || <span className="muted">Not set: add it in My details.</span>}</dd>
+                </div>
+                <div>
+                  <dt>Phone</dt>
+                  <dd>{phone || <span className="muted">Not set: add it in My details.</span>}</dd>
+                </div>
+              </dl>
+            </section>
+          </aside>
+        </div>
+      )}
+
+      {step === 2 && (
+        <div className="tg-stack">
+          <section className="card tg-form">
+            <h2>Tender documents link</h2>
+            <label className="span-2">
+              Link to the tender documents (SharePoint or OneDrive)
+              <input value={f.link} onChange={(e) => set('link', e.target.value)} placeholder="https://duboulayprojects.sharepoint.com/…" />
+              <small className="muted">Check its sharing is set so the contractors can open it ("Anyone with the link" or the people you are sending to). The app can't check that.</small>
+            </label>
+          </section>
+
+          <section className="card tg-form">
+            <h2>Drawings and scope of works</h2>
+            <p className="span-2 muted small">
+              Drop the drawings for {f.pkg || 'this package'} here (PDFs or pictures, the relevant sheets, up to about 20 MB). The app reads them and drafts a scope of works for you to check and edit. Nothing is sent anywhere else.
+            </p>
+            <label
+              className={'drop-zone span-2' + (dragDraw ? ' dragging' : '')}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragDraw(true)
+              }}
+              onDragLeave={() => setDragDraw(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragDraw(false)
+                addDrawings([...e.dataTransfer.files])
               }}
             >
-              <option value="">Pick the package…</option>
-              {f.pkg && !trades.includes(f.pkg) && <option value={f.pkg}>{f.pkg}</option>}
-              {trades.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-              <option value="__new">+ Add a new trade…</option>
-            </select>
-          </label>
-          <label>
-            What this package covers
-            <textarea rows={3} value={f.scope} onChange={(e) => set('scope', e.target.value)} />
-          </label>
-
-          <div className="span-2 tg-from">
-            <div className="pane-head">
-              <h3 className="sub-head">From the enquiry</h3>
-              {enquiry && (
-                <Link to={`/estimating/e/${enquiry.id}/edit`} className="small-button">
-                  Edit enquiry
-                </Link>
-              )}
-            </div>
-            <dl className="tg-dl">
-              {(
-                [
-                  ['Tender due', ret ? ukDate(ret) : '', true],
-                  ['Job address', mail.address, false],
-                  ['Main contract', mail.main, false],
-                  ['Sub-contract', mail.sub, false],
-                  ['Project summary', mail.summary, false],
-                  ['Tender notes', mail.notes, false],
-                ] as [string, string, boolean][]
-              ).map(([k, v, required]) => (
-                <div key={k}>
-                  <dt>{k}</dt>
-                  <dd>{v || <span className={required ? 'error' : 'muted'}>{required ? 'Not set: needed. Add it on the enquiry.' : 'Not set (left out of the email). Add it on the enquiry.'}</span>}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-          <div className="span-2 tg-from">
-            <div className="pane-head">
-              <h3 className="sub-head">From you (the sender)</h3>
-              <Link to="/me" className="small-button">
-                My details
-              </Link>
-            </div>
-            <dl className="tg-dl">
-              <div>
-                <dt>Name</dt>
-                <dd>{sender || <span className="muted">Not set: add it in My details.</span>}</dd>
-              </div>
-              <div>
-                <dt>Phone</dt>
-                <dd>{phone || <span className="muted">Not set: add it in My details.</span>}</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-      )}
-      {step === 2 && (
-        <section className="card tg-form">
-          <h2>The documents</h2>
-          <label className="span-2">
-            Link to the tender documents (SharePoint or OneDrive)
-            <input value={f.link} onChange={(e) => set('link', e.target.value)} placeholder="https://duboulayprojects.sharepoint.com/…" />
-            <small className="muted">Check its sharing is set so the contractors can open it ("Anyone with the link" or the people you are sending to). The app can't check that.</small>
-          </label>
-          <div className="span-2 rfi-field">
-            <span className="label">Files to attach to every draft (optional, 20 MB in total)</span>
-            <label className="file-button">
-              <input type="file" multiple onChange={(e) => (setFiles((l) => [...l, ...(e.target.files ?? [])]), (e.target.value = ''))} />
-              <span className="button">+ Add files</span>
+              <input type="file" accept="application/pdf,image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => (addDrawings([...(e.target.files ?? [])]), (e.target.value = ''))} />
+              Drag the drawings here, or click to choose them
+              <span className="muted small"> PDF or picture files. Export DWG drawings to PDF first.</span>
             </label>
-            {files.map((x, i) => (
-              <span key={i} className="var-file">
-                {x.name} ({Math.round(x.size / 1024)} KB){' '}
-                <button type="button" className="small-button" onClick={() => setFiles(files.filter((_, j) => j !== i))}>
-                  ✕
-                </button>
-              </span>
-            ))}
-            {attachBytes > MAX_ATTACH && <span className="error">Over 20 MB: use the link for the large drawings.</span>}
-            <span className="hint">Large drawings go behind the link. The PQQ is added automatically for any contractor who isn't yet approved (from Settings › Standard documents), as long as it is no more than 3 MB.</span>
-          </div>
-        </section>
-      )}
+            {drawings.length > 0 && (
+              <div className="span-2 tg-files">
+                {drawings.map((x, i) => (
+                  <span key={i} className="var-file">
+                    {x.name} ({x.size > 1024 * 1024 ? (x.size / 1024 / 1024).toFixed(1) + ' MB' : Math.round(x.size / 1024) + ' KB'}){' '}
+                    <button type="button" className="small-button" onClick={() => setDrawings(drawings.filter((_, j) => j !== i))}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="span-2 button-row">
+              <button type="button" className="primary" disabled={scopeBusy || !drawings.length || !f.pkg} onClick={makeScope} title={!f.pkg ? 'Pick the package first (step 1)' : ''}>
+                {scopeBusy ? 'Reading the drawings… this can take a minute or two' : f.scope.trim() ? 'Draft the scope again from the drawings' : 'Draft the scope of works from the drawings'}
+              </button>
+            </div>
+            {scopeErr && <p className="span-2 error">{scopeErr}</p>}
+            <label className="span-2">
+              Scope of works {f.scope.trim() && <small className="muted">(a draft: check it against the drawings and edit)</small>}
+              <textarea rows={14} value={f.scope} onChange={(e) => set('scope', e.target.value)} placeholder="Draft it from the drawings above, or type it yourself." />
+            </label>
+            <label className="check span-2">
+              <input type="checkbox" checked={attachScope} disabled={!f.scope.trim()} onChange={(e) => setAttachScope(e.target.checked)} /> Attach the scope of works to each email (as a PDF)
+            </label>
+          </section>
 
+          <section className="card tg-form">
+            <h2>Other files to attach</h2>
+            <div className="span-2 rfi-field">
+              <span className="label">Attached to every draft (optional, 20 MB in total)</span>
+              <label className="file-button">
+                <input type="file" multiple onChange={(e) => (setFiles((l) => [...l, ...(e.target.files ?? [])]), (e.target.value = ''))} />
+                <span className="button">+ Add files</span>
+              </label>
+              {files.map((x, i) => (
+                <span key={i} className="var-file">
+                  {x.name} ({Math.round(x.size / 1024)} KB){' '}
+                  <button type="button" className="small-button" onClick={() => setFiles(files.filter((_, j) => j !== i))}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+              {attachBytes > MAX_ATTACH && <span className="error">Over 20 MB: use the link for the large drawings.</span>}
+              <span className="hint">Large drawings go behind the link. The PQQ is added automatically for any contractor who isn't yet approved (from Settings › Standard documents), as long as it is no more than 3 MB.</span>
+            </div>
+          </section>
+        </div>
+      )}
       {step === 3 && (
         <section className="card tg-form">
           <div className="pane-head span-2">

@@ -1148,3 +1148,27 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .enq-quotes { margin: 0; }
 .enq-layout .card { margin-top: 0; }
 @media (max-width: 1000px) { .enq-layout { grid-template-columns: 1fr; } }
+
+/* tender generator: look */
+.tender-gen { max-width: 1180px; }
+.tender-gen h1 { margin: 6px 0 10px; }
+.tg-steps { gap: 0; align-items: center; margin: 14px 0 6px; }
+.tg-steps li { display: flex; align-items: center; }
+.tg-steps li + li::before { content: ''; width: 36px; height: 2px; background: var(--line, #d9d9e3); margin: 0 6px; }
+.tg-steps li.done + li::before, .tg-steps li.on::before { background: var(--navy); }
+.tg-steps button { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 4px 6px; border-radius: 20px; font-weight: 600; color: #666; }
+.tg-steps button span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line, #cfcfdc); background: #fff; font-size: .8rem; opacity: 1; margin: 0; color: #666; }
+.tg-steps li.on button { background: transparent; color: var(--navy); border: 0; }
+.tg-steps li.on button span { background: var(--navy); border-color: var(--navy); color: #fff; }
+.tg-steps li.done button span { background: #2a9d3f; border-color: #2a9d3f; color: #fff; }
+.tg-steps li.done button { color: #2a6b35; }
+.tg-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.tg-side { display: flex; flex-direction: column; gap: 20px; }
+.tg-side .card, .tg-stack .card, .tg-cols .card { margin: 0; }
+.tg-stack { display: flex; flex-direction: column; gap: 20px; }
+.tg-form h2 { grid-column: 1 / -1; margin: 0 0 2px; }
+.tg-form select, .tg-form input:not([type=checkbox]):not([type=file]), .tg-form textarea { width: 100%; }
+.tg-form .drop-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 26px 16px; min-height: 90px; text-align: center; }
+.tg-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.tg-nav { position: sticky; bottom: 0; background: var(--bg, #fff); padding: 12px 0; border-top: 1px solid var(--line, #e3e3ec); margin-top: 18px; justify-content: space-between; z-index: 5; }
+@media (max-width: 900px) { .tg-cols { grid-template-columns: 1fr; } .tg-steps li + li::before { width: 14px; } .tg-steps button { font-size: 0; } .tg-steps button span { font-size: .8rem; } }
