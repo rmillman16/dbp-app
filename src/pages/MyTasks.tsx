@@ -220,18 +220,25 @@ function NewTask({
   const [notes, setNotes] = useState('')
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
   async function submit(e: FormEvent) {
     e.preventDefault()
-    if (!title.trim() || !me) return
+    setErr(null)
+    if (!title.trim()) return setErr('Type what the task is first.')
+    // the signed-in person, from the app's own sign-in if the profile hasn't loaded
+    const mine = me ?? (await supabase.auth.getSession()).data.session?.user.id ?? null
+    if (!mine) return setErr('Your login hasn’t loaded yet: refresh the page and try again.')
     setBusy(true)
     try {
-      const t = await addTask({ title: title.trim(), notes: notes.trim() || null, job_id: job || null, assigned_to: who || me, due_date: due || null })
+      const t = await addTask({ title: title.trim(), notes: notes.trim() || null, job_id: job || null, assigned_to: who || mine, due_date: due || null })
       onAdded(t)
       setTitle('')
       setNotes('')
       setDue('')
-    } catch (err) {
-      onError((err as Error).message)
+    } catch (x) {
+      const m = (x as Error).message
+      setErr(m)
+      onError(m)
     }
     setBusy(false)
   }
@@ -255,6 +262,7 @@ function NewTask({
       <button type="button" className="link-button small" onClick={() => setMore(!more)}>
         {more ? 'Fewer options' : 'Job and notes…'}
       </button>
+      {err && <p className="mint-error new-task-err">Couldn’t add the task: {err}</p>}
       {more && (
         <div className="new-task-more">
           <select value={job} onChange={(e) => setJob(e.target.value)} aria-label="Job (optional)">
