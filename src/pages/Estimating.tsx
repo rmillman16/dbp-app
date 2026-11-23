@@ -395,7 +395,7 @@ export function EnquiryPage() {
 
         <section className="card">
           <div className="pane-head">
-            <h2>Quotations</h2>
+            <h2>Quotations (upstream)</h2>
             {!e.job_id && (
               <button className="primary" onClick={newQuote} disabled={busy}>
                 + New quotation
