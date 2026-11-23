@@ -263,10 +263,90 @@
 }
 
 /* can anyone open the link (23 Nov) */
-.om-link-row { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
-.om-tick-wrap { display: inline-flex; gap: 4px; align-items: center; }
-.om-tick { font-weight: 600; white-space: nowrap; }
-.om-tick.ok { color: #1d6b3a; }
-.om-tick.warn { color: var(--amber); }
-.om-tick.bad { color: var(--red); }
-.om-recheck { padding: 0 2px; text-decoration: none; }
+.om-link-row {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.om-tick-wrap {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.om-tick {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.om-tick.ok {
+  color: #1d6b3a;
+}
+.om-tick.warn {
+  color: var(--amber);
+}
+.om-tick.bad {
+  color: var(--red);
+}
+.om-recheck {
+  padding: 0 2px;
+  text-decoration: none;
+}
+
+/* 23 Nov: item + contents; received (green) / missing (grey), always with the word */
+.om .segmented button.om-seg-received {
+  color: #2e7d32;
+}
+.om .segmented button.om-seg-missing {
+  color: var(--muted);
+}
+.om .segmented button.on.om-seg-received {
+  background: #2e7d32;
+  color: #fff;
+}
+.om .segmented button.on.om-seg-missing {
+  background: #6b6b78;
+  color: #fff;
+}
+.om-show-removed {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.om-section-head {
+  margin: 18px 0 2px;
+  color: var(--navy);
+  font-size: 16px;
+}
+.om-section-note {
+  margin: 0 0 8px;
+}
+.om .tag.om-state {
+  display: inline-block;
+  margin-top: 3px;
+  font-weight: 600;
+}
+.om .tag.om-state.received {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.om .tag.om-state.missing {
+  background: #eeeef2;
+  color: #55555f;
+}
+.om .tag.om-state.removed {
+  background: #fff;
+  color: var(--muted);
+  border: 1px dashed #c9c9d3;
+}
+.om-pkg select {
+  max-width: 200px;
+  height: 30px;
+  padding: 2px 6px;
+  font-size: 13px;
+}
+.om-removed-actions {
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}

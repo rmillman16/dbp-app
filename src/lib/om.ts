@@ -1,7 +1,8 @@
-// The O&M manual (script 047): a tracker of the documents each package owes for the client's O&M
+// The O&M manual (scripts 047–050): a tracker of the items each package owes for the client's O&M
 // manual, the file sections typed per job (description of works, residual risks, handover document)
-// and the project directory. Groups: one per order (DBP's appointed subcontractors), one per client
-// direct contractor (job_directory, client_direct ticked) and the job's own items (no package).
+// and the project directory. Groups: one per package of the job's SoW / procurement schedule (with its
+// appointed subcontractor when known), one per client direct contractor (job_directory, client_direct
+// ticked) and General / packs (the job's own items, no package).
 // Documents stay in SharePoint: each line holds a link; the client's PDF is built in the browser.
 import { supabase } from './supabase'
 import { cached, must } from './offline'
@@ -23,7 +24,8 @@ export const OM_STATUSES = Object.keys(OM_STATUS_LABELS) as OmStatus[]
 export interface OmLine {
   id: string
   job_id: string
-  order_id: string | null // DBP subcontractor
+  package_id?: string | null // the SoW package it belongs to (script 050)
+  order_id: string | null // an order with no package (lines made before 050)
   company_id: string | null // client direct contractor (no order)
   doc_type_id: string | null // from the standard list
   custom_name: string | null // its name (copied from the standard list, or typed)
@@ -154,25 +156,12 @@ export const isOverdue = (l: Pick<OmLine, 'status' | 'due_date'>, today = todayI
 export const defaultDue = (job: Pick<Job, 'pc_date'>) => (job.pc_date ? addDaysIso(job.pc_date, -28) : null)
 export const lineName = (l: Pick<OmLine, 'custom_name' | 'doc_type_id'>, types: OmDocType[] = []) => l.custom_name || types.find((t) => t.id === l.doc_type_id)?.name || 'Document'
 
-// ---------- groups ----------
-export type GroupKind = 'order' | 'client' | 'job'
-export interface OmGroup {
-  key: string // o:<order id> · c:<company id> · job
-  kind: GroupKind
-  orderId: string | null
-  companyId: string | null
-  company: Company | null
-  title: string // the company (or "Project items")
-  subtitle: string // the package / trade
-  directoryId: string | null // client direct: its job_directory row
-}
-export const groupKeyOf = (l: Pick<OmLine, 'order_id' | 'company_id'>) => (l.order_id ? `o:${l.order_id}` : l.company_id ? `c:${l.company_id}` : 'job')
-
 export interface OmData {
   lines: OmLine[]
   docTypes: OmDocType[]
   orders: Order[]
-  packages: { id: string; name: string }[]
+  packages: OmPackage[]
+  procItems: ProcLink[] // the procurement schedule's package rows: subcontractor, display name
   companies: Company[]
   contacts: Contact[]
   directory: DirectoryEntry[]
@@ -182,65 +171,155 @@ export interface OmData {
   itemNames: string[] // project items people have added to the list (script 049)
 }
 
-export function buildGroups(d: Pick<OmData, 'lines' | 'orders' | 'packages' | 'companies' | 'directory'>): OmGroup[] {
+// ---------- what's received (23 Nov, Richard: "just the item and its contents") ----------
+// A line is an item and its contents (the SharePoint link): received = it has a link. The status in the database
+// follows the link (here and by a trigger in script 050), so reminders, payment notices and the PDF keep working.
+// Removing an item marks it not required (admins and Operations only, script 050): it's hidden, and the draft
+// pack doesn't bring it back.
+export const isRemoved = (l: Pick<OmLine, 'status'>) => l.status === 'not_required'
+export const isReceived = (l: Pick<OmLine, 'status' | 'file_url'>) => !isRemoved(l) && !!l.file_url?.trim()
+export const isMissing = (l: Pick<OmLine, 'status' | 'file_url'>) => !isRemoved(l) && !l.file_url?.trim()
+// the status that goes with a link being set or cleared
+export function withLink(l: OmLine, url: string | null): Partial<OmLine> {
+  if (isRemoved(l)) return { file_url: url }
+  return url
+    ? { file_url: url, status: l.status === 'accepted' ? 'accepted' : 'received', received_date: l.received_date ?? todayIso() }
+    : { file_url: null, status: l.requested_date ? 'requested' : 'not_requested', received_date: null }
+}
+
+// ---------- groups: the job's packages (from the SoW / procurement schedule), client direct contractors, General ----------
+export type GroupKind = 'package' | 'order' | 'client' | 'job'
+export interface OmGroup {
+  key: string // p:<package id> · o:<order id> (an order with no package) · c:<company id> · job
+  kind: GroupKind
+  packageId: string | null
+  orderId: string | null
+  companyId: string | null
+  company: Company | null // the appointed subcontractor / client direct contractor, when known
+  title: string // the package (or the company for client direct; "General / packs")
+  subtitle: string // the subcontractor, or what it is
+  label: string // for the PDF and directory: "Electrical (Acme Ltd)"
+  directoryId: string | null // client direct: its job_directory row
+}
+export interface OmPackage {
+  id: string
+  name: string
+  kind: string
+  is_remainder: boolean
+  budget: number | null
+  sort: number
+}
+export interface ProcLink {
+  id: string
+  description: string
+  display_name: string | null
+  package_id: string | null
+  order_id: string | null
+  company_id: string | null
+}
+type GroupData = Pick<OmData, 'lines' | 'orders' | 'packages' | 'procItems' | 'companies' | 'directory'>
+
+// an order's package (orders made before the package link: none)
+const orderPackage = (orderId: string | null, orders: Order[]) => orders.find((o) => o.id === orderId)?.package_id ?? null
+export function groupKeyOf(l: Pick<OmLine, 'order_id' | 'company_id'> & { package_id?: string | null }, orders: Order[] = []) {
+  const pkg = l.package_id ?? orderPackage(l.order_id, orders)
+  return pkg ? `p:${pkg}` : l.order_id ? `o:${l.order_id}` : l.company_id ? `c:${l.company_id}` : 'job'
+}
+// the package's procurement row (by its link, else by the SoW name it's saved under)
+const procFor = (p: OmPackage, items: ProcLink[]) => items.find((i) => i.package_id === p.id) ?? items.find((i) => i.description === p.name) ?? null
+// the appointed subcontractor of a package: its order, else the procurement schedule's order / company
+export function packageCompany(p: OmPackage, d: Pick<OmData, 'orders' | 'procItems' | 'companies'>) {
+  const pi = procFor(p, d.procItems)
+  const order = d.orders.find((o) => o.package_id === p.id) ?? d.orders.find((o) => o.id === pi?.order_id) ?? null
+  const id = order?.company_id ?? pi?.company_id ?? null
+  return { company: d.companies.find((c) => c.id === id) ?? null, orderId: order?.id ?? null }
+}
+// the packages O&M is asked of: costed SoW packages (not prelims, omissions or EP), plus any with O&M lines
+export function omPackages(d: Pick<OmData, 'packages' | 'procItems' | 'lines' | 'orders'>) {
+  const used = new Set(d.lines.map((l) => groupKeyOf(l, d.orders)))
+  return d.packages
+    .filter((p) => used.has(`p:${p.id}`) || (p.kind === 'cost' && !p.is_remainder && (Number(p.budget ?? 0) > 0 || !!procFor(p, d.procItems))))
+    .sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name, 'en-GB'))
+}
+
+export function buildGroups(d: GroupData): OmGroup[] {
   const co = (id: string | null) => d.companies.find((c) => c.id === id) ?? null
-  const out: OmGroup[] = d.orders.map((o) => {
-    const c = co(o.company_id)
-    const pkg = d.packages.find((p) => p.id === o.package_id)?.name
+  const out: OmGroup[] = omPackages(d).map((p) => {
+    const { company, orderId } = packageCompany(p, d)
+    const title = procFor(p, d.procItems)?.display_name || p.name
     return {
-      key: `o:${o.id}`,
-      kind: 'order',
-      orderId: o.id,
-      companyId: o.company_id,
-      company: c,
-      title: c?.name ?? 'Subcontractor',
-      subtitle: [o.folder_no != null ? String(o.folder_no).padStart(2, '0') : null, pkg || o.trade].filter(Boolean).join(' · ') || 'Order',
+      key: `p:${p.id}`,
+      kind: 'package',
+      packageId: p.id,
+      orderId,
+      companyId: company?.id ?? null,
+      company,
+      title,
+      subtitle: company?.name ?? 'No subcontractor yet',
+      label: company ? `${title} (${company.name})` : title,
       directoryId: null,
     }
   })
-  const clients = new Map<string, OmGroup>()
-  for (const e of d.directory.filter((x) => x.client_direct && x.company_id)) {
-    if (clients.has(e.company_id!)) continue
-    const c = co(e.company_id)
-    clients.set(e.company_id!, {
-      key: `c:${e.company_id}`,
-      kind: 'client',
-      orderId: null,
-      companyId: e.company_id,
+  // lines under an order with no package (made before packages were linked)
+  for (const l of d.lines) {
+    const key = groupKeyOf(l, d.orders)
+    if (!key.startsWith('o:') || out.some((g) => g.key === key)) continue
+    const o = d.orders.find((x) => x.id === l.order_id)
+    const c = co(o?.company_id ?? null)
+    const title = o?.trade || c?.name || 'Order'
+    out.push({
+      key,
+      kind: 'order',
+      packageId: null,
+      orderId: l.order_id,
+      companyId: c?.id ?? null,
       company: c,
-      title: c?.name ?? 'Client direct contractor',
-      subtitle: `${e.role || 'Client direct'} · client direct`,
-      directoryId: e.id,
+      title,
+      subtitle: c?.name ?? '',
+      label: c && title !== c.name ? `${title} (${c.name})` : title,
+      directoryId: null,
     })
   }
-  // lines for a company that's no longer listed as client direct still show
-  for (const l of d.lines)
-    if (!l.order_id && l.company_id && !clients.has(l.company_id)) {
-      const c = co(l.company_id)
-      clients.set(l.company_id, {
-        key: `c:${l.company_id}`,
-        kind: 'client',
-        orderId: null,
-        companyId: l.company_id,
-        company: c,
-        title: c?.name ?? 'Contractor',
-        subtitle: 'Client direct',
-        directoryId: null,
-      })
+  const clients = new Map<string, OmGroup>()
+  const client = (companyId: string, role: string | null, directoryId: string | null): OmGroup => {
+    const c = co(companyId)
+    const name = c?.name ?? 'Client direct contractor'
+    return {
+      key: `c:${companyId}`,
+      kind: 'client',
+      packageId: null,
+      orderId: null,
+      companyId,
+      company: c,
+      title: name,
+      subtitle: `${role || 'Client direct'} · client direct`,
+      label: `${name} (${role ? `${role}, ` : ''}client direct)`,
+      directoryId,
     }
-  // lines for an order that's gone (shouldn't happen: they're deleted with it)
-  for (const l of d.lines)
-    if (l.order_id && !out.some((g) => g.orderId === l.order_id))
-      out.push({ key: `o:${l.order_id}`, kind: 'order', orderId: l.order_id, companyId: null, company: null, title: 'Order', subtitle: '', directoryId: null })
+  }
+  for (const e of d.directory.filter((x) => x.client_direct && x.company_id)) if (!clients.has(e.company_id!)) clients.set(e.company_id!, client(e.company_id!, e.role, e.id))
+  // lines for a company that's no longer listed as client direct still show
+  for (const l of d.lines) if (groupKeyOf(l, d.orders) === `c:${l.company_id}` && !clients.has(l.company_id!)) clients.set(l.company_id!, client(l.company_id!, null, null))
   return [
     ...out,
     ...[...clients.values()].sort((a, b) => a.title.localeCompare(b.title, 'en-GB')),
-    { key: 'job', kind: 'job', orderId: null, companyId: null, company: null, title: 'Project items', subtitle: 'Not tied to a package', directoryId: null },
+    {
+      key: 'job',
+      kind: 'job',
+      packageId: null,
+      orderId: null,
+      companyId: null,
+      company: null,
+      title: 'General / packs',
+      subtitle: 'Not tied to a package',
+      label: 'General / packs',
+      directoryId: null,
+    },
   ]
 }
-// the standard list's trade that best fits a group (its package / trade name)
+// the standard list's trade that best fits a group (its package name, the subcontractor's trade)
 export function suggestTrade(g: OmGroup, trades: string[], orders: Order[]) {
-  const hay = `${g.subtitle} ${orders.find((o) => o.id === g.orderId)?.trade ?? ''} ${g.company?.trade ?? ''}`.toLowerCase()
+  const hay = `${g.title} ${orders.find((o) => o.id === g.orderId)?.trade ?? ''} ${g.company?.trade ?? ''}`.toLowerCase()
   return (
     trades.find((t) => hay.includes(t.toLowerCase())) ??
     trades.find((t) =>
@@ -252,17 +331,78 @@ export function suggestTrade(g: OmGroup, trades: string[], orders: Order[]) {
     null
   )
 }
+// where a line goes when it's put in a group
+export function groupFields(g: OmGroup): Pick<OmLine, 'package_id' | 'order_id' | 'company_id'> {
+  if (g.kind === 'package') return { package_id: g.packageId, order_id: null, company_id: null }
+  if (g.kind === 'order') return { package_id: null, order_id: g.orderId, company_id: null }
+  if (g.kind === 'client') return { package_id: null, order_id: null, company_id: g.companyId }
+  return { package_id: null, order_id: null, company_id: null }
+}
+
+// ---------- the draft pack: a starting list from the SoW / procurement schedule ----------
+// a package whose trade has no standard documents gets these
+export const GENERIC_PACKAGE_DOCS = ['O&M manual', 'Warranty', 'Test certificates', 'As-built drawings']
+export const DEFAULT_GENERAL = [
+  'Building control completion certificate',
+  'Regulation 38 fire safety information pack',
+  'Health & safety file',
+  'Fire strategy',
+  'As-built general arrangement drawings',
+  'Maintenance instructions',
+]
+export interface DraftPlan {
+  g: OmGroup
+  items: { name: string; doc_type_id: string | null }[]
+  trade: string | null // the standard list's trade used (null: the generic set / General)
+}
+// what "Build a draft pack" would add: per package, its trade's standard documents (or the generic set); for
+// General, the default packs. Never anything already there in any state, so removed items stay removed, and a
+// package (or General) whose items were all removed is left alone. Re-run after the SoW changes to add what's missing.
+export function draftPlan(d: OmData, groups: OmGroup[]): DraftPlan[] {
+  const trades = [...new Set(d.docTypes.map((t) => t.trade))]
+  const out: DraftPlan[] = []
+  for (const g of groups) {
+    if (g.kind !== 'package' && g.kind !== 'job') continue
+    const here = d.lines.filter((l) => groupKeyOf(l, d.orders) === g.key)
+    if (here.length && here.every(isRemoved)) continue
+    const have = new Set(here.map((l) => lineName(l, d.docTypes).trim().toLowerCase()))
+    const trade = g.kind === 'package' ? suggestTrade(g, trades, d.orders) : null
+    const std = trade ? standardFor(trade, d.docTypes) : []
+    const wanted =
+      g.kind === 'job' ? DEFAULT_GENERAL.map((name) => ({ name, doc_type_id: null })) : std.length ? std : GENERIC_PACKAGE_DOCS.map((name) => ({ name, doc_type_id: null }))
+    const items = wanted.filter((i) => !have.has(i.name.trim().toLowerCase()))
+    if (items.length) out.push({ g, items, trade: std.length ? trade : null })
+  }
+  return out
+}
+export async function applyDraft(job: Pick<Job, 'id' | 'pc_date'>, plan: DraftPlan[], existing: OmLine[]) {
+  let sort = Math.max(0, ...existing.map((l) => l.sort)) + 1
+  const due = defaultDue(job)
+  const rows = plan.flatMap((p) =>
+    p.items.map((i) => ({ job_id: job.id, ...groupFields(p.g), doc_type_id: i.doc_type_id, custom_name: i.name, status: 'not_requested', due_date: due, sort: sort++ })),
+  )
+  if (rows.length) {
+    const r = await supabase.from('om_requirements').insert(rows)
+    if (r.error) throw new Error(/package_id/.test(r.error.message) ? 'The draft pack needs script 050 run in Supabase first.' : r.error.message)
+  }
+  return rows.length
+}
 
 // ---------- loading ----------
 const emptyOmJob = (jobId: string): OmJob => ({ job_id: jobId, description: null, risks: [], handover: {} })
 
 export async function loadOm(job: Pick<Job, 'id'>): Promise<OmData> {
   const jobId = job.id
-  const [lines, docTypes, orders, packages, companies, contacts, directory, omJob, settings, team, itemNames] = await Promise.all([
+  const [lines, docTypes, orders, packages, procItems, companies, contacts, directory, omJob, settings, team, itemNames] = await Promise.all([
     cached(`om:${jobId}`, () => must<OmLine[]>(supabase.from('om_requirements').select('*').eq('job_id', jobId).order('sort').order('id'))),
     cached('om-doc-types', () => must<OmDocType[]>(supabase.from('om_doc_types').select('*').is('job_id', null).order('trade').order('name'))).catch(() => [] as OmDocType[]),
-    loadOrders(jobId).catch(() => [] as Order[]), // orders follow Job › Commercial: someone without it sees no packages
-    cached(`packages:${jobId}`, () => must<{ id: string; name: string }[]>(supabase.from('packages').select('id,name').eq('job_id', jobId))).catch(() => []),
+    loadOrders(jobId).catch(() => [] as Order[]), // orders follow Job › Commercial
+    cached(`om-packages:${jobId}`, () => must<OmPackage[]>(supabase.from('packages').select('id,name,kind,is_remainder,budget,sort').eq('job_id', jobId).order('sort'))).catch(
+      () => [] as OmPackage[],
+    ),
+    cached(`om-procurement:${jobId}`, () =>
+      must<ProcLink[]>(supabase.from('procurement_items').select('id,description,display_name,package_id,order_id,company_id').eq('job_id', jobId).eq('section', 'contract')),
+    ).catch(() => [] as ProcLink[]), // follows Job › Procurement
     loadCompanies().catch(() => [] as Company[]),
     cached('contacts', () => must<Contact[]>(supabase.from('contacts').select('*').order('name'))).catch(() => [] as Contact[]),
     cached(`job-directory:${jobId}`, () => must<DirectoryEntry[]>(supabase.from('job_directory').select('*').eq('job_id', jobId))).catch(() => [] as DirectoryEntry[]),
@@ -277,6 +417,7 @@ export async function loadOm(job: Pick<Job, 'id'>): Promise<OmData> {
     docTypes,
     orders,
     packages,
+    procItems,
     companies,
     contacts,
     directory,
@@ -299,37 +440,60 @@ const ok = async (p: PromiseLike<{ error: { message: string } | null }>) => {
   const r = await p
   if (r.error) throw new Error(r.error.message)
 }
+// the remove rule (script 050) in plain words
+const removeError = (m: string) => (/admins and operations/i.test(m) ? 'Only admins and Operations can remove O&M items (or bring them back).' : m)
 function row(l: Partial<OmLine>) {
   const { id: _id, ...rest } = l as OmLine
   void _id
+  if (rest.package_id === undefined) delete rest.package_id // before 050: no such column
   return rest
 }
 export async function saveLine(l: OmLine) {
   if (l.id.startsWith('new')) {
     const r = await supabase.from('om_requirements').insert(row(l)).select('id').single()
-    if (r.error) throw new Error(r.error.message)
+    if (r.error) throw new Error(removeError(r.error.message))
     l.id = r.data.id
-  } else await ok(supabase.from('om_requirements').update(row(l)).eq('id', l.id))
+  } else {
+    const r = await supabase.from('om_requirements').update(row(l)).eq('id', l.id)
+    if (r.error) throw new Error(/package_id/.test(r.error.message) ? 'Linking items to packages needs script 050 run in Supabase first.' : removeError(r.error.message))
+  }
   return l.id
 }
+// removed = not required on this job: kept but hidden, and the draft pack won't add it again
+export async function setRemoved(ids: string[], removed: boolean) {
+  if (!ids.length) return
+  const r = await supabase
+    .from('om_requirements')
+    .update({ status: removed ? 'not_required' : 'not_requested' })
+    .in('id', ids)
+  if (r.error) throw new Error(removeError(r.error.message))
+}
+// gone for good (from the removed list)
 export async function deleteLines(ids: string[]) {
-  if (ids.length) await ok(supabase.from('om_requirements').delete().in('id', ids))
+  if (!ids.length) return
+  const r = await supabase.from('om_requirements').delete().in('id', ids).select('id')
+  if (r.error) throw new Error(removeError(r.error.message))
+  if ((r.data ?? []).length < ids.length) throw new Error('Only admins and Operations can delete O&M items.')
 }
 
-// new lines for a group (names already in the group are skipped); returns how many were added
-export async function addLines(job: Pick<Job, 'id' | 'pc_date'>, g: OmGroup, items: { name: string; doc_type_id?: string | null }[], existing: OmLine[]) {
-  const here = existing.filter((l) => groupKeyOf(l) === g.key)
+// new lines for a group; names already in the group (in any state) are skipped. Returns how many were added
+export async function addLines(job: Pick<Job, 'id' | 'pc_date'>, g: OmGroup, items: { name: string; doc_type_id?: string | null }[], existing: OmLine[], orders: Order[] = []) {
+  const here = existing.filter((l) => groupKeyOf(l, orders) === g.key)
+  const removed = here.filter(isRemoved).map((l) => (l.custom_name ?? '').trim().toLowerCase())
   const have = new Set(here.map((l) => (l.custom_name ?? '').trim().toLowerCase()))
   const fresh = items.filter((i) => i.name.trim() && !have.has(i.name.trim().toLowerCase()))
-  if (!fresh.length) return 0
+  if (!fresh.length) {
+    if (items.length === 1 && removed.includes(items[0].name.trim().toLowerCase()))
+      throw new Error(`“${items[0].name}” was removed from ${g.title}: show removed items to bring it back (admins and Operations).`)
+    return 0
+  }
   const start = Math.max(0, ...existing.map((l) => l.sort)) + 1
   const due = defaultDue(job)
   await ok(
     supabase.from('om_requirements').insert(
       fresh.map((i, n) => ({
         job_id: job.id,
-        order_id: g.orderId,
-        company_id: g.kind === 'client' ? g.companyId : null,
+        ...groupFields(g),
         doc_type_id: i.doc_type_id ?? null,
         custom_name: i.name.trim(),
         status: 'not_requested',
@@ -340,6 +504,7 @@ export async function addLines(job: Pick<Job, 'id' | 'pc_date'>, g: OmGroup, ite
   )
   return fresh.length
 }
+
 export function standardFor(trade: string, types: OmDocType[]) {
   return types.filter((t) => t.trade === trade).map((t) => ({ name: t.name, doc_type_id: t.id }))
 }
@@ -354,8 +519,11 @@ export async function deleteDirectoryEntry(id: string) {
   await ok(supabase.from('job_directory').delete().eq('id', id))
 }
 // a client direct contractor and its O&M lines
-export async function removeClientDirect(jobId: string, g: OmGroup) {
-  if (g.companyId) await ok(supabase.from('om_requirements').delete().eq('job_id', jobId).eq('company_id', g.companyId).is('order_id', null))
+export async function removeClientDirect(jobId: string, g: OmGroup, lines: OmLine[]) {
+  await setRemoved(
+    lines.filter((l) => !isRemoved(l)).map((l) => l.id),
+    true,
+  )
   if (g.directoryId) await deleteDirectoryEntry(g.directoryId)
   else if (g.companyId) await ok(supabase.from('job_directory').delete().eq('job_id', jobId).eq('company_id', g.companyId).eq('client_direct', true))
 }
@@ -454,7 +622,7 @@ export function buildDirectory(job: Job, d: OmData): DirRow[] {
     if (g.kind === 'job' || !g.company) continue
     const c = firstContact(g.company.id)
     out.push({
-      role: g.kind === 'order' ? g.subtitle.replace(/^\d+ · /, '') || 'Subcontractor' : g.subtitle,
+      role: g.kind === 'client' ? g.subtitle : g.title,
       company: g.company.name,
       contact: c?.name ?? '',
       phone: c?.phone || g.company.phone || '',
@@ -473,34 +641,51 @@ export function chaseTo(g: OmGroup, contacts: Contact[]) {
   const c = contacts.find((x) => x.company_id === g.company!.id && x.email)
   return { email: c?.email || g.company.email || null, name: c?.name ?? null }
 }
-// a draft email (nothing is sent from the app)
+// a draft email listing the missing items (nothing is sent from the app)
 export function chaseMailto(job: Pick<Job, 'job_no' | 'code' | 'name' | 'pc_date'>, g: OmGroup, lines: OmLine[], contacts: Contact[], types: OmDocType[] = []) {
   const to = chaseTo(g, contacts)
-  const owed = lines.filter(isOutstanding)
-  const today = todayIso()
+  const owed = lines.filter(isMissing)
+  const due = owed
+    .map((l) => l.due_date)
+    .filter((d): d is string => !!d)
+    .sort()[0]
   const body = [
     `Dear ${to?.name?.split(' ')[0] || 'Sir / Madam'},`,
     '',
-    `${job.job_no} ${job.code} ${job.name}: O&M documents`,
+    `${job.job_no} ${job.code} ${job.name}: O&M information for ${g.kind === 'client' ? 'your works' : g.title}`,
     '',
-    `Please send the following O&M documents for ${g.subtitle.replace(/^\d+ · /, '') || 'your package'}${job.pc_date ? ` (practical completion ${ukDate(job.pc_date)})` : ''}:`,
+    `We still need the following for the O&M manual${due ? `, by ${ukDate(due)}` : ''}${job.pc_date ? ` (practical completion ${ukDate(job.pc_date)})` : ''}:`,
     '',
-    ...owed.map(
-      (l) =>
-        `- ${lineName(l, types)}${l.due_date ? `: due ${ukDate(l.due_date)}${l.due_date < today ? ' (overdue)' : ''}` : ''}${l.status === 'rejected_resubmit' ? ` – resubmit${l.reviewer_comment ? `: ${l.reviewer_comment}` : ''}` : ''}`,
-    ),
+    ...owed.map((l) => `- ${lineName(l, types)}`),
     '',
-    'PDFs please, one file per document, named as above.',
+    'PDFs please, one file per item, named as above.',
     '',
     'Many thanks,',
   ].join('\n')
-  return `mailto:${to?.email ?? ''}?subject=${encodeURIComponent(`${job.job_no} ${job.code} ${job.name}: O&M documents outstanding`)}&body=${encodeURIComponent(body)}`
+  return `mailto:${to?.email ?? ''}?subject=${encodeURIComponent(`${job.job_no} ${job.code} ${job.name}: O&M information outstanding`)}&body=${encodeURIComponent(body)}`
 }
 
 // ---------- payment notices: "O&Ms outstanding" for one order (nothing is blocked) ----------
 export async function loadOutstandingOm(jobId: string, orderId: string) {
-  const lines = await must<OmLine[]>(
-    supabase.from('om_requirements').select('*').eq('job_id', jobId).eq('order_id', orderId).in('status', ['not_requested', 'requested', 'rejected_resubmit']).order('sort'),
+  // the order's packages: its own link, and the procurement schedule rows it's the order for (by link or SoW name)
+  const [order, proc, pkgs] = await Promise.all([
+    must<{ package_id: string | null } | null>(supabase.from('orders').select('package_id').eq('id', orderId).maybeSingle()).catch(() => null),
+    must<{ package_id: string | null; description: string }[]>(
+      supabase.from('procurement_items').select('package_id,description').eq('job_id', jobId).eq('order_id', orderId),
+    ).catch(() => [] as { package_id: string | null; description: string }[]),
+    must<{ id: string; name: string }[]>(supabase.from('packages').select('id,name').eq('job_id', jobId)).catch(() => [] as { id: string; name: string }[]),
+  ])
+  const ids = new Set<string>()
+  if (order?.package_id) ids.add(order.package_id)
+  for (const p of proc) {
+    const id = p.package_id ?? pkgs.find((x) => x.name === p.description)?.id
+    if (id) ids.add(id)
+  }
+  const outstanding = ['not_requested', 'requested', 'rejected_resubmit']
+  const q = supabase.from('om_requirements').select('*').eq('job_id', jobId).in('status', outstanding)
+  const lines = await must<OmLine[]>((ids.size ? q.or(`order_id.eq.${orderId},package_id.in.(${[...ids].join(',')})`) : q.eq('order_id', orderId)).order('sort')).catch(() =>
+    // before 050 (no package_id): the order's own lines
+    must<OmLine[]>(supabase.from('om_requirements').select('*').eq('job_id', jobId).eq('order_id', orderId).in('status', outstanding).order('sort')),
   )
   const missing = [...new Set(lines.filter((l) => !l.custom_name && l.doc_type_id).map((l) => l.doc_type_id!))]
   const types = missing.length ? await must<OmDocType[]>(supabase.from('om_doc_types').select('*').in('id', missing)) : []
@@ -538,12 +723,12 @@ export function linkFileName(url: string | null) {
 export const fileKind = (f: File): FileMatch['kind'] =>
   /\.pdf$/i.test(f.name) || f.type === 'application/pdf' ? 'pdf' : /\.(jpe?g|png)$/i.test(f.name) || /^image\/(jpeg|png)$/.test(f.type) ? 'image' : 'other'
 
-export function matchFiles(files: File[], lines: OmLine[], groups: OmGroup[], types: OmDocType[] = []): FileMatch[] {
+export function matchFiles(files: File[], lines: OmLine[], groups: OmGroup[], types: OmDocType[] = [], orders: Order[] = []): FileMatch[] {
   const cands = lines
     .filter((l) => l.status !== 'not_required')
     .map((l) => {
-      const g = groups.find((x) => x.key === groupKeyOf(l))
-      return { l, link: linkFileName(l.file_url), doc: words(lineName(l, types)), co: words(g?.company?.name ?? '') }
+      const g = groups.find((x) => x.key === groupKeyOf(l, orders))
+      return { l, link: linkFileName(l.file_url), doc: words(lineName(l, types)), co: words(`${g?.company?.name ?? ''} ${g?.kind === 'package' ? g.title : ''}`) }
     })
   return files.map((file) => {
     const kind = fileKind(file)

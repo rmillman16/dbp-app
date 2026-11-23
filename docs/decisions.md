@@ -119,11 +119,18 @@
     - Bookmarks for each section and document.
     - You pick the PDFs from the synced SharePoint O&Ms folder. The app matches them to tracker lines, you confirm, and then it merges them. Files are only read in the browser, never uploaded.
   - **Link check (23 Nov, 048 + Edge Function `check-link`):** each SharePoint link (e.g. as-builts, which only ever live in SharePoint) is opened from the server with no sign-in, as the client would. Results: **green ✓ anyone can open**, 🔒 sign-in needed (share it as "Anyone with the link"), or ✗ doesn't open. It's checked once per link, again when the link changes, and ↻ rechecks.
-  - Project items list now includes **Maintenance instructions**. Anything typed can be added to the list from the dropdown ("+ Add … to the list", 049); it's then offered on every job. Admins can remove entries.
+  - Project items list now includes **Maintenance instructions**. Anything typed can be added to the list from the dropdown ("+ Add … to the list", 049); it's then offered on every job. Admins and Operations can remove entries (050).
   - **Job Team card** on the Overview (who's on the job, and their role).
   - **Reminders:** O&Ms due / overdue go on the bell and the job TODO for everyone on the team (the admins if there's no team), one per company per due date. Not emailed yet; this can be added with a due-date filter like off-hire.
   - **O&Ms outstanding** shows on payment notices and the order page. Nothing is blocked.
   - Access: Job › O&M in Settings › Access (Project manager, Commercial, Site management). Commercial can also see what's outstanding.
+  - **Simplified (23 Nov, 050), after Richard reviewed it:**
+    - A line is **just the item and its contents** (the SharePoint link, with the link check), a comment, and its package. **Received = it has a link**; the status, dates and steps are gone from the screen (the database keeps the status in step, and a due date of 4 weeks before PC in the background so reminders still fire).
+    - Filters: **All / ✓ Received (green) / Missing (grey)**, with counts.
+    - Two sections: **Package information**, one group per package of the SoW / procurement schedule (with its subcontractor from the order or procurement schedule when known; a package picker on each line moves it), plus client direct contractors; and **General / packs** (Building Control, Reg 38, H&S file, BREEAM, client requirements…).
+    - **Build a draft pack**: each package gets its trade's standard documents (or O&M manual, warranty, test certificates, as-built drawings), and General gets Building Control completion certificate, Reg 38 fire safety pack, H&S file, fire strategy, as-built GAs and maintenance instructions. It never adds anything already there or removed, so it can be re-run after the SoW changes.
+    - **Removing** (a line, a package, or all of General) marks items not required: hidden ("Show removed" to see them), and kept so the draft pack doesn't bring them back. Restore or delete for good from there. **Only admins and Operations can remove items** (Richard, 23 Nov), enforced by the database; everyone else can add items and links.
+    - The chase email lists the missing items. Reminders are now one per package per due date.
 - **Suggestion lists in the app's own style (23 Nov):** typed fields with suggestions (O&M document and project items, directory roles, team roles) use the app's own dropdown rather than the browser's (`SuggestInput`).
 - **Job Overview reworked (23 Nov).**
   - **All pages are full width** (the 1280 px cap is gone).

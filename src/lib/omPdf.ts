@@ -126,7 +126,7 @@ export async function buildOmPdf(job: Job, data: OmData, include: Include, match
   const byLine = new Map<string, Loaded[]>()
   for (const l of loaded) if (l.m.lineId) byLine.set(l.m.lineId, [...(byLine.get(l.m.lineId) ?? []), l])
   const docGroups = groups
-    .map((g) => ({ g, lines: data.lines.filter((l) => groupKeyOf(l) === g.key && byLine.has(l.id)).sort((a, b) => a.sort - b.sort) }))
+    .map((g) => ({ g, lines: data.lines.filter((l) => groupKeyOf(l, data.orders) === g.key && byLine.has(l.id)).sort((a, b) => a.sort - b.sort) }))
     .filter((x) => x.lines.length)
   const others = loaded.filter((l) => !l.m.lineId || !data.lines.some((x) => x.id === l.m.lineId))
   const sections = {
@@ -158,7 +158,7 @@ export async function buildOmPdf(job: Job, data: OmData, include: Include, match
     documents: sections.documents ? entry(sec.documents, 0) : null,
     groups: docGroups.map((x) => ({
       ...x,
-      e: entry(`${x.g.title}${x.g.subtitle && x.g.kind !== 'job' ? ` (${x.g.subtitle.replace(/^\d+ · /, '').replace(/ · client direct$/, ', client direct')})` : ''}`, 1),
+      e: entry(x.g.label, 1),
       docs: x.lines.map((l) => ({ l, e: entry(lineName(l, data.docTypes), 2) })),
     })),
     others: others.length ? { e: entry('Other documents', 1), docs: others.map((o) => ({ o, e: entry(o.m.file.name.replace(/\.[a-z0-9]{2,4}$/i, ''), 2) })) } : null,
@@ -393,7 +393,7 @@ export async function buildOmPdf(job: Job, data: OmData, include: Include, match
     for (const pg of plan.groups) {
       divider(
         pg.e,
-        pg.g.kind === 'job' ? 'Project' : 'Package',
+        pg.g.kind === 'job' ? 'General' : pg.g.kind === 'client' ? 'Client direct' : 'Package',
         pg.docs.map((d) => `•  ${d.e.title}`),
       )
       for (const d of pg.docs) {

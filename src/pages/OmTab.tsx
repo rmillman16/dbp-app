@@ -1,12 +1,11 @@
 import { Fragment, useEffect, useMemo, useState, type InputHTMLAttributes } from 'react'
 import { Link } from 'react-router-dom'
-import { todayIso, ukDate } from '../lib/format'
+import { ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
+import { useAccess } from '../lib/access'
 import {
   DIRECTORY_ROLES,
   HANDOVER_TABLES,
-  OM_STATUSES,
-  OM_STATUS_LABELS,
   PROJECT_ITEMS,
   checkLink,
   addItemName,
@@ -15,6 +14,7 @@ import {
   RISK_COLS,
   addDirectoryEntry,
   addLines,
+  applyDraft,
   blankRow,
   buildDirectory,
   buildGroups,
@@ -23,24 +23,28 @@ import {
   defaultDue,
   deleteDirectoryEntry,
   deleteLines,
+  draftPlan,
+  groupFields,
   groupKeyOf,
-  isOutstanding,
-  isOverdue,
+  isMissing,
+  isReceived,
+  isRemoved,
   lineName,
   loadOm,
   matchFiles,
   removeClientDirect,
   saveLine,
   saveOmJob,
+  setRemoved,
   standardFor,
   suggestTrade,
+  withLink,
   type Col,
   type FileMatch,
   type OmData,
   type OmGroup,
   type OmJob,
   type OmLine,
-  type OmStatus,
   type Row,
 } from '../lib/om'
 import type { Include } from '../lib/omPdf'
@@ -51,10 +55,12 @@ import { useJob } from './JobLayout'
 import '../om.css'
 import SuggestInput from '../components/SuggestInput'
 
-// what's shown: statuses switched off are hidden; overdue only; remembered per job on this device
-type Filters = { hide: OmStatus[]; overdue: boolean }
-const NO_FILTERS: Filters = { hide: [], overdue: false }
-const filterKey = (jobId: string) => `dbp-om-filters:${jobId}`
+// what's shown (23 Nov, Richard): all, received (has a link) or missing; removed items only when asked for.
+// Remembered per job on this device.
+type View = 'all' | 'received' | 'missing'
+type Filters = { view: View; removed: boolean }
+const NO_FILTERS: Filters = { view: 'all', removed: false }
+const filterKey = (jobId: string) => `dbp-om-view:${jobId}`
 const loadFilters = (jobId: string): Filters => {
   try {
     return { ...NO_FILTERS, ...JSON.parse(localStorage.getItem(filterKey(jobId)) ?? '{}') }
@@ -62,7 +68,6 @@ const loadFilters = (jobId: string): Filters => {
     return NO_FILTERS
   }
 }
-const today = todayIso()
 
 // an input that saves when you leave it (or press Enter), not on every key
 function LazyInput({ value, onCommit, ...rest }: { value: string; onCommit: (v: string) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
@@ -79,11 +84,16 @@ function LazyInput({ value, onCommit, ...rest }: { value: string; onCommit: (v: 
   )
 }
 
-// Job › O&M (script 047): the documents each package owes for the client's O&M manual, the file sections
+type Run = (what: () => Promise<unknown>, done?: string) => Promise<void>
+
+// Job › O&M (scripts 047–050): the items each package owes for the client's O&M manual, the file sections
 // (description of works, directory, residual risks, handover document) and the combined client PDF.
-// Documents stay in SharePoint: each line holds a link; the PDF is built on this device from the synced folder.
+// A line is an item and its contents: the SharePoint link. Received = it has a link (23 Nov, Richard).
+// Removing (marking not required) is for admins and Operations only; the database enforces it (script 050).
 export default function OmTab() {
   const { job } = useJob()
+  const { isAdmin, roles, me } = useAccess()
+  const canRemove = isAdmin || roles.includes('operations') || !!me?.is_operations
   const [data, setData] = useState<OmData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -108,14 +118,14 @@ export default function OmTab() {
 
   const groups = useMemo(() => (data ? buildGroups(data) : []), [data])
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: 0, overdue: 0, outstanding: 0, done: 0 }
+    const c = { all: 0, received: 0, missing: 0, removed: 0 }
     for (const l of data?.lines ?? []) {
-      c[l.status] = (c[l.status] ?? 0) + 1
-      if (l.status === 'not_required') continue
-      c.all++
-      if (isOutstanding(l)) c.outstanding++
-      if (l.status === 'received' || l.status === 'accepted') c.done++
-      if (isOverdue(l, today)) c.overdue++
+      if (isRemoved(l)) c.removed++
+      else {
+        c.all++
+        if (isReceived(l)) c.received++
+        else c.missing++
+      }
     }
     return c
   }, [data])
@@ -123,8 +133,9 @@ export default function OmTab() {
   if (error && !data) return <p className="error">{error}</p>
   if (!data) return <p className="muted">Loading…</p>
 
-  const run = async (what: () => Promise<unknown>, done?: string) => {
+  const run: Run = async (what, done) => {
     setError(null)
+    setMsg(null)
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setSaving((n) => n + 1)
     try {
@@ -153,28 +164,50 @@ export default function OmTab() {
       setSaving((n) => n - 1)
     }
   }
-  const setStatus = (l: OmLine, status: OmStatus) =>
-    change(l, {
-      status,
-      // the date that goes with the step, if it's not filled in yet
-      ...(status === 'requested' && !l.requested_date ? { requested_date: today } : {}),
-      ...((status === 'received' || status === 'accepted') && !l.received_date ? { received_date: today } : {}),
-    })
+  const buildDraft = () => {
+    const plan = draftPlan(data, groups)
+    const n = plan.reduce((s, p) => s + p.items.length, 0)
+    if (!n) return setMsg('Nothing to add: every package and General already has its items (or they were removed).')
+    const summary = plan.map(
+      (p) => `${p.g.kind === 'job' ? 'General' : p.g.title}: ${p.items.length}${p.g.kind === 'package' ? (p.trade ? ` (${p.trade} list)` : ' (generic set)') : ''}`,
+    )
+    if (
+      !confirm(
+        `Add ${n} item${n === 1 ? '' : 's'} to the O&M list?\n\n${summary.slice(0, 25).join('\n')}${summary.length > 25 ? '\n…' : ''}\n\nNothing already there (or removed) is added again.`,
+      )
+    )
+      return
+    run(() => applyDraft(job, plan, data.lines), `Draft pack: ${n} item${n === 1 ? '' : 's'} added (${summary.join('; ')}).`)
+  }
 
   const ql = q.trim().toLowerCase()
   const shown = (l: OmLine) =>
-    !fl.hide.includes(l.status) && (!fl.overdue || isOverdue(l, today)) && (!ql || `${lineName(l, data.docTypes)} ${l.reviewer_comment ?? ''}`.toLowerCase().includes(ql))
-  const filtering = fl.hide.length > 0 || fl.overdue || !!ql
+    (isRemoved(l) ? fl.removed : fl.view === 'all' || (fl.view === 'received' ? isReceived(l) : isMissing(l))) &&
+    (!ql || `${lineName(l, data.docTypes)} ${l.reviewer_comment ?? ''}`.toLowerCase().includes(ql))
+  const filtering = fl.view !== 'all' || !!ql
   const trades = [...new Set(data.docTypes.map((t) => t.trade))].sort((a, b) => a.localeCompare(b, 'en-GB'))
-  const statusChip = (st: OmStatus) => (
-    <button
-      key={st}
-      className={`sample-chip oms-${st} ${fl.hide.includes(st) ? 'off' : ''} ${counts[st] ? '' : 'empty'}`}
-      onClick={() => setFl((p) => ({ ...p, hide: p.hide.includes(st) ? p.hide.filter((x) => x !== st) : [...p.hide, st] }))}
-      aria-pressed={!fl.hide.includes(st)}
-      title={fl.hide.includes(st) ? `Hidden: click to show ${OM_STATUS_LABELS[st].toLowerCase()}` : `Shown: click to hide ${OM_STATUS_LABELS[st].toLowerCase()}`}
-    >
-      {OM_STATUS_LABELS[st]} <span className="seg-count">{counts[st] ?? 0}</span>
+  const section = (list: OmGroup[]) =>
+    list.map((g) => {
+      const all = data.lines.filter((l) => groupKeyOf(l, data.orders) === g.key)
+      const vis = all.filter(shown)
+      // a package with everything removed is hidden (unless removed items are shown); filtering hides empty groups
+      if ((filtering || (all.length && all.every(isRemoved))) && !vis.length && !(fl.removed && all.length)) return null
+      return <GroupRows key={g.key} job={job} g={g} all={all} list={vis} data={data} groups={groups} trades={trades} canRemove={canRemove} onChange={change} run={run} />
+    })
+  const head = (
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>Contents (SharePoint link)</th>
+        <th>Comment</th>
+        <th>Package</th>
+        <th aria-label="Remove" />
+      </tr>
+    </thead>
+  )
+  const segment = (v: View, label: string, n: number, cls: string) => (
+    <button className={`${fl.view === v ? 'on' : ''} ${cls}`} onClick={() => setFl((p) => ({ ...p, view: v }))} aria-pressed={fl.view === v}>
+      {label} <span className="seg-count">{n}</span>
     </button>
   )
 
@@ -185,17 +218,23 @@ export default function OmTab() {
       <section className="card">
         <div className="pane-head">
           <div>
-            <h2>O&M documents</h2>
+            <h2>O&M information</h2>
             <p className="muted small" style={{ margin: 0 }}>
               {counts.all
-                ? `${counts.all} document${counts.all === 1 ? '' : 's'} · ${counts.done} in · ${counts.outstanding} outstanding${counts.overdue ? ` · ${counts.overdue} overdue` : ''}`
-                : 'One group per package (the job’s orders), plus client direct contractors and project items.'}
+                ? `${counts.all} item${counts.all === 1 ? '' : 's'} · ${counts.received} received · ${counts.missing} missing`
+                : 'Start with a draft pack from the SoW, or add items to each package.'}
               {' · '}
-              {job.pc_date ? `New documents due ${ukDate(defaultDue(job))} (4 weeks before PC)` : 'No PC date on the job, so new documents have no due date'}
+              {job.pc_date ? `Missing items are due ${ukDate(defaultDue(job))} (4 weeks before PC)` : 'No PC date on the job, so no due date for reminders'}
               {saving > 0 && ' · Saving…'}
             </p>
           </div>
           <div className="form-actions om-actions">
+            <button
+              onClick={buildDraft}
+              title="Adds the usual items for each SoW package (by its trade) and for General. Never adds anything already there or removed. Run it again after the SoW changes."
+            >
+              Build a draft pack
+            </button>
             <button onClick={() => setAddingClient(!addingClient)} aria-expanded={addingClient}>
               + Client direct contractor
             </button>
@@ -214,71 +253,53 @@ export default function OmTab() {
               run(async () => {
                 await addDirectoryEntry({ job_id: job.id, company_id: companyId, contact_id: null, role: role || 'Client direct contractor', client_direct: true })
                 setAddingClient(false)
-              }, 'Client direct contractor added: add its documents below.')
+              }, 'Client direct contractor added: add its items below.')
             }
           />
         )}
 
-        {data.lines.length > 0 && (
-          <div className="sample-filters om-filters">
-            <div className="sample-chips" role="group" aria-label="Show statuses">
-              {OM_STATUSES.map(statusChip)}
-            </div>
-            <div className="sample-chips">
-              <button
-                className={`sample-chip only only-late ${fl.overdue ? 'on' : ''}`}
-                onClick={() => setFl((p) => ({ ...p, overdue: !p.overdue }))}
-                aria-pressed={fl.overdue}
-                disabled={!counts.overdue && !fl.overdue}
-              >
-                ⚠ Overdue only <span className="seg-count">{counts.overdue}</span>
-              </button>
-            </div>
-            <input type="search" className="filter" placeholder="Find a document or comment…" value={q} onChange={(e) => setQ(e.target.value)} />
-            {filtering && (
-              <span className="small muted">
-                <button className="link-button small" onClick={() => (setFl(NO_FILTERS), setQ(''))}>
-                  Clear filters
-                </button>
-              </span>
-            )}
+        <div className="toolbar om-filters">
+          <div className="segmented" role="group" aria-label="Show">
+            {segment('all', 'All', counts.all, '')}
+            {segment('received', '✓ Received', counts.received, 'om-seg-received')}
+            {segment('missing', 'Missing', counts.missing, 'om-seg-missing')}
           </div>
-        )}
+          <input type="search" className="filter" placeholder="Find an item or comment…" value={q} onChange={(e) => setQ(e.target.value)} />
+          {counts.removed > 0 && (
+            <label className="small om-show-removed">
+              <input type="checkbox" checked={fl.removed} onChange={(e) => setFl((p) => ({ ...p, removed: e.target.checked }))} /> Show removed ({counts.removed})
+            </label>
+          )}
+        </div>
 
-        {!data.orders.length && (
-          <p className="muted small">
-            No orders on this job yet {data.lines.length || data.directory.some((d) => d.client_direct) ? '' : '(or Job › Commercial isn’t ticked for you)'}: each appointed
-            subcontractor (Payment notices › orders) becomes a package here. Client direct contractors and project items can be added now.
-          </p>
+        <h3 className="om-section-head">Package information</h3>
+        <p className="muted small om-section-note">
+          One group per package of the SoW / procurement schedule, with its subcontractor when known; plus client direct contractors. Paste each item’s SharePoint link: with a link
+          it’s received.
+        </p>
+        {groups.length === 1 && (
+          <p className="muted small">No packages yet: they come from the job’s SoW (Overview › SoW) and the procurement schedule. Client direct contractors can be added now.</p>
         )}
-
         <div className="proc-scroll">
           <table className="table stack proc-table proc-inline om-table">
-            <thead>
-              <tr>
-                <th>Document</th>
-                <th>Status</th>
-                <th>Requested</th>
-                <th>Due</th>
-                <th>Received</th>
-                <th>SharePoint link</th>
-                <th>Reviewer comment</th>
-                <th aria-label="Remove" />
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) => {
-                const all = data.lines.filter((l) => groupKeyOf(l) === g.key)
-                const list = all.filter(shown)
-                if (filtering && !list.length) return null
-                return <GroupRows key={g.key} job={job} g={g} all={all} list={list} data={data} trades={trades} onChange={change} onStatus={setStatus} run={run} />
-              })}
-            </tbody>
+            {head}
+            <tbody>{section(groups.filter((g) => g.kind !== 'job'))}</tbody>
+          </table>
+        </div>
+
+        <h3 className="om-section-head">General / packs</h3>
+        <p className="muted small om-section-note">
+          Items for the whole job, not tied to a package: Building Control, Reg 38 fire safety pack, H&S file, BREEAM, client requirements…
+        </p>
+        <div className="proc-scroll">
+          <table className="table stack proc-table proc-inline om-table">
+            {head}
+            <tbody>{section(groups.filter((g) => g.kind === 'job'))}</tbody>
           </table>
         </div>
         <p className="muted small om-foot">
-          Documents stay in SharePoint: paste each one’s link. Outstanding documents with a due date go on the bell of everyone in the job’s team (
-          <Link to="..">Overview › Team</Link>), one reminder per package per due date.
+          Missing items go on the bell of everyone in the job’s team (<Link to="..">Overview › Team</Link>), one reminder per package.
+          {canRemove ? ' Removed items are kept as not required: the draft pack won’t add them again.' : ' Only admins and Operations can remove items.'}
         </p>
       </section>
 
@@ -289,16 +310,17 @@ export default function OmTab() {
   )
 }
 
-// ---------- one package: its heading row, its documents and an add row ----------
+// ---------- one package: its heading row, its items and an add row ----------
 function GroupRows({
   job,
   g,
   all,
   list,
   data,
+  groups,
   trades,
+  canRemove,
   onChange,
-  onStatus,
   run,
 }: {
   job: Job
@@ -306,48 +328,70 @@ function GroupRows({
   all: OmLine[]
   list: OmLine[]
   data: OmData
+  groups: OmGroup[]
   trades: string[]
+  canRemove: boolean
   onChange: (l: OmLine, p: Partial<OmLine>) => void
-  onStatus: (l: OmLine, s: OmStatus) => void
-  run: (what: () => Promise<unknown>, done?: string) => Promise<void>
+  run: Run
 }) {
   const [name, setName] = useState('')
-  const counted = all.filter((l) => l.status !== 'not_required')
-  const inCount = counted.filter((l) => l.status === 'received' || l.status === 'accepted').length
-  const owed = all.filter(isOutstanding)
-  const late = owed.filter((l) => isOverdue(l, today)).length
+  const live = all.filter((l) => !isRemoved(l))
+  const got = live.filter(isReceived).length
+  const missing = live.filter(isMissing)
   const to = chaseTo(g, data.contacts)
   const suggested = g.kind === 'job' ? null : suggestTrade(g, trades, data.orders)
   const add = (items: { name: string; doc_type_id?: string | null }[]) =>
     run(async () => {
-      const n = await addLines(job, g, items, data.lines)
-      if (!n) throw new Error(items.length === 1 ? `${g.title} already has “${items[0].name}”.` : `${g.title} already has those documents.`)
+      const n = await addLines(job, g, items, data.lines, data.orders)
+      if (!n) throw new Error(items.length === 1 ? `${g.title} already has “${items[0].name}”.` : `${g.title} already has those items.`)
     }, `Added to ${g.title}.`)
+  const removeGroup = () => {
+    const what = g.kind === 'job' ? 'the whole General / packs section' : g.kind === 'client' ? `${g.title} as a client direct contractor` : `the ${g.title} package`
+    if (
+      !confirm(
+        `Remove ${what}${live.length ? ` (${live.length} item${live.length === 1 ? '' : 's'})` : ''}? Its items are kept as not required, and the draft pack won’t add them again.`,
+      )
+    )
+      return
+    run(
+      () =>
+        g.kind === 'client'
+          ? removeClientDirect(job.id, g, all)
+          : setRemoved(
+              live.map((l) => l.id),
+              true,
+            ),
+      `${g.kind === 'job' ? 'General / packs' : g.title} removed.`,
+    )
+  }
+  const moveTo = (l: OmLine, key: string) => {
+    const target = groups.find((x) => x.key === key)
+    if (target) onChange(l, groupFields(target))
+  }
   return (
     <Fragment>
       <tr className="group-head om-group">
-        <td colSpan={8}>
+        <td colSpan={5}>
           <div className="om-group-line">
             <span className="om-group-title">
-              <b>{g.title}</b> {g.subtitle && <span className="muted">· {g.subtitle}</span>}{' '}
-              {counted.length > 0 && (
-                <span className={`tag ${inCount === counted.length ? 'om-all-in' : ''}`}>
-                  {inCount} of {counted.length} in
+              <b>{g.kind === 'job' ? 'General / packs' : g.title}</b> {g.kind !== 'job' && <span className="muted">· {g.subtitle}</span>}{' '}
+              {live.length > 0 && (
+                <span className={`tag ${got === live.length ? 'om-all-in' : ''}`}>
+                  {got} of {live.length} received
                 </span>
-              )}{' '}
-              {late > 0 && <span className="late small">⚠ {late} overdue</span>}
+              )}
             </span>
             <span className="om-group-actions">
-              {trades.length > 0 && (
+              {trades.length > 0 && g.kind !== 'job' && (
                 <select
                   value=""
-                  aria-label={`Add standard documents to ${g.title}`}
+                  aria-label={`Add standard items to ${g.title}`}
                   onChange={(e) => {
                     const t = e.target.value
                     if (t) add(standardFor(t, data.docTypes))
                   }}
                 >
-                  <option value="">Add standard documents…</option>
+                  <option value="">Add standard items…</option>
                   {suggested && <option value={suggested}>{suggested} (suggested)</option>}
                   {trades
                     .filter((t) => t !== suggested)
@@ -358,39 +402,26 @@ function GroupRows({
                     ))}
                 </select>
               )}
-              {owed.length > 0 && g.kind !== 'job' && (
+              {missing.length > 0 && g.company && (
                 <a
                   className="button small-button"
                   href={chaseMailto(job, g, all, data.contacts, data.docTypes)}
                   title={
                     to?.email
-                      ? `A draft email to ${to.email} listing the ${owed.length} outstanding`
+                      ? `A draft email to ${to.email} listing the ${missing.length} missing`
                       : 'No email for this company on the contractor list: add one, or type the address'
                   }
-                  onClick={() => {
-                    const fresh = all.filter((l) => l.status === 'not_requested')
-                    if (!fresh.length) return
-                    // after the draft opens: mark the ones never asked for as requested today
-                    window.setTimeout(() => {
-                      if (confirm(`Mark the ${fresh.length} not yet requested as Requested today?`))
-                        run(async () => {
-                          for (const l of fresh) await saveLine({ ...l, status: 'requested', requested_date: l.requested_date ?? today })
-                        })
-                    }, 400)
-                  }}
                 >
                   ✉ Draft chase email{to?.email ? '' : ' (no email)'}
                 </a>
               )}
-              {g.kind === 'client' && (
+              {canRemove && (live.length > 0 || g.kind === 'client') && (
                 <button
                   className="small-button"
-                  onClick={() => {
-                    if (confirm(`Remove ${g.title} as a client direct contractor${all.length ? `, with its ${all.length} O&M document line${all.length === 1 ? '' : 's'}` : ''}?`))
-                      run(() => removeClientDirect(job.id, g), `${g.title} removed.`)
-                  }}
+                  onClick={removeGroup}
+                  title={g.kind === 'job' ? 'Remove all the General items (not required on this job)' : 'Not required on this job'}
                 >
-                  Remove
+                  {g.kind === 'job' ? 'Remove all' : 'Remove'}
                 </button>
               )}
             </span>
@@ -398,60 +429,33 @@ function GroupRows({
         </td>
       </tr>
       {list.map((l) => {
-        const lateLine = isOverdue(l, today)
+        const gone = isRemoved(l)
         return (
-          <tr key={l.id} className={`${lateLine ? 'proc-late' : ''} ${l.status === 'not_required' ? 'om-not-required' : ''}`}>
+          <tr key={l.id} className={gone ? 'om-not-required' : ''}>
             <td className="stack-title om-doc">
-              <LazyInput value={lineName(l, data.docTypes)} onCommit={(v) => v.trim() && onChange(l, { custom_name: v.trim() })} aria-label="Document" className="om-name" />
-              {lateLine && (
-                <span className="late small om-late" title={`Due ${ukDate(l.due_date)}, not yet received`}>
-                  ⚠ overdue
-                </span>
+              <LazyInput
+                value={lineName(l, data.docTypes)}
+                onCommit={(v) => v.trim() && onChange(l, { custom_name: v.trim() })}
+                aria-label="Item"
+                className="om-name"
+                disabled={gone}
+              />
+              {gone ? (
+                <span className="tag om-state removed">Removed</span>
+              ) : isReceived(l) ? (
+                <span className="tag om-state received">✓ Received</span>
+              ) : (
+                <span className="tag om-state missing">Missing</span>
               )}
             </td>
-            <td data-label="Status">
-              <select className={`proc-status oms-${l.status}`} value={l.status} onChange={(e) => onStatus(l, e.target.value as OmStatus)} aria-label="Status">
-                {OM_STATUSES.map((k) => (
-                  <option key={k} value={k}>
-                    {OM_STATUS_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </td>
-            <td data-label="Requested">
-              <input
-                type="date"
-                className="proc-date"
-                value={l.requested_date ?? ''}
-                onChange={(e) => onChange(l, { requested_date: e.target.value || null })}
-                aria-label="Requested"
-              />
-            </td>
-            <td data-label="Due">
-              <input
-                type="date"
-                className={`proc-date ${lateLine ? 'om-date-late' : ''}`}
-                value={l.due_date ?? ''}
-                onChange={(e) => onChange(l, { due_date: e.target.value || null })}
-                aria-label="Due"
-              />
-            </td>
-            <td data-label="Received">
-              <input
-                type="date"
-                className="proc-date"
-                value={l.received_date ?? ''}
-                onChange={(e) => onChange(l, { received_date: e.target.value || null })}
-                aria-label="Received"
-              />
-            </td>
-            <td data-label="SharePoint" className="om-link">
+            <td data-label="Contents" className="om-link">
               <LazyInput
                 type="url"
                 value={l.file_url ?? ''}
                 placeholder="Paste the SharePoint link"
-                onCommit={(v) => onChange(l, { file_url: v.trim() || null })}
+                onCommit={(v) => onChange(l, withLink(l, v.trim() || null))}
                 aria-label="SharePoint link"
+                disabled={gone}
               />
               {l.file_url && (
                 <span className="om-link-row">
@@ -463,32 +467,60 @@ function GroupRows({
               )}
             </td>
             <td data-label="Comment">
-              <LazyInput value={l.reviewer_comment ?? ''} placeholder="–" onCommit={(v) => onChange(l, { reviewer_comment: v.trim() || null })} aria-label="Reviewer comment" />
+              <LazyInput value={l.reviewer_comment ?? ''} placeholder="–" onCommit={(v) => onChange(l, { reviewer_comment: v.trim() || null })} aria-label="Comment" />
+            </td>
+            <td data-label="Package" className="om-pkg">
+              <select value={groupKeyOf(l, data.orders)} onChange={(e) => moveTo(l, e.target.value)} aria-label="Package" disabled={gone}>
+                {groups.map((x) => (
+                  <option key={x.key} value={x.key}>
+                    {x.kind === 'job' ? 'General / packs' : x.title}
+                  </option>
+                ))}
+              </select>
             </td>
             <td className="om-del">
-              <button
-                className="link-button"
-                title="Remove this document line"
-                aria-label="Remove"
-                onClick={() => confirm(`Remove “${lineName(l, data.docTypes)}”?`) && run(() => deleteLines([l.id]))}
-              >
-                ✕
-              </button>
+              {canRemove &&
+                (gone ? (
+                  <span className="om-removed-actions">
+                    <button className="link-button small" onClick={() => run(() => setRemoved([l.id], false), `“${lineName(l, data.docTypes)}” is back.`)}>
+                      Restore
+                    </button>
+                    <button
+                      className="link-button small"
+                      title="Delete for good"
+                      onClick={() =>
+                        confirm(`Delete “${lineName(l, data.docTypes)}” for good? (Removed items stay out of the draft pack; deleted ones could come back.)`) &&
+                        run(() => deleteLines([l.id]))
+                      }
+                    >
+                      Delete
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    className="link-button"
+                    title="Remove: not required on this job"
+                    aria-label="Remove"
+                    onClick={() =>
+                      confirm(`Remove “${lineName(l, data.docTypes)}”? It’s kept as not required, and the draft pack won’t add it again.`) && run(() => setRemoved([l.id], true))
+                    }
+                  >
+                    ✕
+                  </button>
+                ))}
             </td>
           </tr>
         )
       })}
       {!all.length && (
         <tr className="om-empty">
-          <td colSpan={8} className="muted small">
-            {g.kind === 'job'
-              ? 'Items for the whole project: e.g. Reg 38 fire safety pack, BREEAM evidence, the client’s own requirements.'
-              : 'No documents yet: add the standard ones for its trade, or type one below.'}
+          <td colSpan={5} className="muted small">
+            {g.kind === 'job' ? 'E.g. Building Control completion certificate, Reg 38 fire safety pack, BREEAM evidence, the client’s own requirements.' : 'No items yet.'}
           </td>
         </tr>
       )}
       <tr className="om-add">
-        <td colSpan={8}>
+        <td colSpan={5}>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -499,12 +531,12 @@ function GroupRows({
             <SuggestInput
               value={name}
               onChange={setName}
-              options={[...PROJECT_ITEMS, ...data.itemNames, ...data.docTypes.map((t) => t.name)]}
+              options={g.kind === 'job' ? [...PROJECT_ITEMS, ...data.itemNames] : [...data.docTypes.map((t) => t.name), ...PROJECT_ITEMS, ...data.itemNames]}
               onAdd={(v) => {
                 data.itemNames.push(v)
                 addItemName(v).catch((e: Error) => alert(e.message))
               }}
-              placeholder={g.kind === 'job' ? 'Add a project item…' : `Add a document for ${g.title}…`}
+              placeholder={g.kind === 'job' ? 'Add a General item…' : `Add an item to ${g.title}…`}
             />
             <button type="submit" className="small-button" disabled={!name.trim()}>
               Add
@@ -879,7 +911,7 @@ function PdfPanel({ job, data, groups, onClose }: { job: Job; data: OmData; grou
                   // added to any chosen already (same name: replaced)
                   setMatches((prev) => {
                     const keep = prev.filter((m) => !files.some((f) => f.name === m.file.name))
-                    return [...keep, ...matchFiles(files, data.lines, groups, data.docTypes)]
+                    return [...keep, ...matchFiles(files, data.lines, groups, data.docTypes, data.orders)]
                   })
                 }}
               />
@@ -918,7 +950,7 @@ function PdfPanel({ job, data, groups, onClose }: { job: Job; data: OmData; grou
                                 <option value="">Other documents</option>
                                 <option value={SKIP}>Leave it out</option>
                                 {groups.map((g) => {
-                                  const ls = lines.filter((l) => groupKeyOf(l) === g.key)
+                                  const ls = lines.filter((l) => groupKeyOf(l, data.orders) === g.key)
                                   return ls.length ? (
                                     <optgroup key={g.key} label={g.title}>
                                       {ls.map((l) => (
@@ -949,7 +981,8 @@ function PdfPanel({ job, data, groups, onClose }: { job: Job; data: OmData; grou
                 <ul>
                   {missing.map((l) => (
                     <li key={l.id}>
-                      {groups.find((g) => g.key === groupKeyOf(l))?.title}: {lineName(l, data.docTypes)} <span className="muted">({OM_STATUS_LABELS[l.status]})</span>
+                      {groups.find((g) => g.key === groupKeyOf(l, data.orders))?.title}: {lineName(l, data.docTypes)}{' '}
+                      <span className="muted">({isReceived(l) ? 'received, no file chosen' : 'missing'})</span>
                     </li>
                   ))}
                 </ul>
