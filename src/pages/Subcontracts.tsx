@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, ukDate, todayIso } from '../lib/format'
@@ -304,6 +304,7 @@ function NewOrder({
     trade: '',
     company_id: '',
     contact_id: '',
+    folder_no: String(Math.max(0, ...orders.map((o) => o.folder_no ?? 0)) + 1),
     order_no: nextOrderNo(job, orders),
     po_ref: '',
     order_value: '',
@@ -318,6 +319,21 @@ function NewOrder({
   const [busy, setBusy] = useState(false)
   const subs = companies.filter((c) => c.type === 'subcontractor' || c.type === 'supplier')
   const company = companies.find((c) => c.id === f.company_id)
+
+  // the next folder and order numbers come from the latest orders in the database (someone else may have added one)
+  async function latest() {
+    const r = await supabase.from('orders').select('folder_no, order_no').eq('job_id', job.id)
+    const rows = (r.data ?? []) as Pick<Order, 'folder_no' | 'order_no'>[]
+    return { folder: String(Math.max(0, ...rows.map((o) => o.folder_no ?? 0)) + 1), orderNo: nextOrderNo(job, rows) }
+  }
+  const suggested = useRef({ folder: f.folder_no, orderNo: f.order_no })
+  useEffect(() => {
+    latest().then((n) => {
+      setF((cur) => ({ ...cur, folder_no: cur.folder_no === suggested.current.folder ? n.folder : cur.folder_no, order_no: cur.order_no === suggested.current.orderNo ? n.orderNo : cur.order_no }))
+      suggested.current = { folder: n.folder, orderNo: n.orderNo }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!f.company_id) return setContacts([])
@@ -336,6 +352,10 @@ function NewOrder({
     if (!f.package_name) return setError('Choose the package (or add one with "+ Add a package").')
     if (!f.company_id) return setError('Choose the subcontractor or supplier, or add a new one.')
     setBusy(true)
+    // once more at the moment of saving, so two people adding at once don't get the same numbers
+    const fresh = await latest()
+    const folder = f.folder_no === suggested.current.folder ? fresh.folder : f.folder_no
+    const orderNo = f.order_no === suggested.current.orderNo ? fresh.orderNo : f.order_no
     const ins = await supabase
       .from('orders')
       .insert({
@@ -344,8 +364,8 @@ function NewOrder({
         contact_id: f.contact_id || null,
         package_name: f.package_name,
         trade: f.trade.trim() || company?.trade || null,
-        folder_no: Math.max(0, ...orders.map((o) => o.folder_no ?? 0)) + 1,
-        order_no: f.order_no.trim() || null,
+        folder_no: folder ? Number(folder) : null,
+        order_no: orderNo.trim() || null,
         po_ref: f.po_ref.trim() || null,
         order_value: f.order_value ? Number(f.order_value) : null,
         order_date: f.order_date || null,
@@ -446,7 +466,8 @@ function NewOrder({
             </select>
           </label>
         )}
-        {input('order_no', 'Order no.', 'text', 'e.g. 2611_FISL_001')}
+        {input('order_no', 'Order no.', 'text', 'Next after the latest, e.g. 2611_FISL_001')}
+        {input('folder_no', 'Folder no.', 'number', 'Next after the latest: 3. Orders / NN - Trade - Subcontractor')}
         <label>
           Order value £ (excl. VAT)
           <MoneyInput value={f.order_value ? Number(f.order_value) : null} onChange={(v) => setF((cur) => ({ ...cur, order_value: v == null ? '' : String(v) }))} />
