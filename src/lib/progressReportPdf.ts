@@ -120,55 +120,59 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
     const x = M + (o.indent ?? 0)
     for (const ln of wrap(s, CW - (o.indent ?? 0), size, f)) {
       ensure(size + 4)
-      y -= size + 3
+      y -= size + 4
       page.drawText(ln, { x, y, size, font: f, color: hex(o.color ?? INK) })
     }
-    y -= o.gap ?? 4
+    y -= o.gap ?? 8
   }
   const bullets = (items: string[]) => {
     for (const it of items.map((x) => x.trim()).filter(Boolean)) {
       const lines = wrap(it, CW - 16, 10, regular)
-      ensure(lines.length * 13 + 2)
-      y -= 13
+      ensure(lines.length * 14 + 3)
+      y -= 14
       page.drawText('•'.replace('•', clean('•') || '-'), { x: M + 4, y, size: 10, font: regular, color: hex(NAVY) })
       lines.forEach((ln, i) => {
-        if (i) y -= 13
+        if (i) y -= 14
         page.drawText(ln, { x: M + 16, y, size: 10, font: regular, color: hex(INK) })
       })
-      y -= 2
+      y -= 3
     }
-    y -= 4
+    y -= 8
   }
   const h1 = (n: string, title: string) => {
-    ensure(70)
-    y -= 12
+    ensure(90)
+    y -= 26
     const label = n ? `${n}  ${title}` : title
-    page.drawRectangle({ x: M, y: y - 6, width: CW, height: 22, color: hex(NAVY) })
-    page.drawText(clean(label), { x: M + 8, y: y, size: 12.5, font: bold, color: rgb(1, 1, 1) })
+    // du Boulay navy band with a blue edge and a thin blue rule under it
+    page.drawRectangle({ x: M, y: y - 8, width: CW, height: 26, color: hex(NAVY) })
+    page.drawRectangle({ x: M, y: y - 8, width: 6, height: 26, color: hex(BLUE) })
+    page.drawLine({ start: { x: M, y: y - 10 }, end: { x: M + CW, y: y - 10 }, thickness: 1.2, color: hex(BLUE) })
+    page.drawText(clean(label), { x: M + 18, y: y + 1, size: 13, font: bold, color: rgb(1, 1, 1) })
     marks.push({ label, page, level: 0 })
-    y -= 22
+    y -= 26
   }
   const h2 = (n: string, title: string) => {
-    ensure(46)
-    y -= 8
-    const label = n ? `${n}  ${title}` : title
-    page.drawText(clean(label), { x: M, y: y - 8, size: 11, font: bold, color: hex(BLUE) })
-    marks.push({ label, page, level: 1 })
+    ensure(60)
     y -= 18
+    const label = n ? `${n}  ${title}` : title
+    page.drawText(clean(label), { x: M, y: y - 8, size: 11.5, font: bold, color: hex(NAVY) })
+    page.drawLine({ start: { x: M, y: y - 13 }, end: { x: M + 48, y: y - 13 }, thickness: 2, color: hex(BLUE) })
+    marks.push({ label, page, level: 1 })
+    y -= 24
   }
   const kv = (rows: [string, string][]) => {
     for (const [k, v] of rows.filter(([, v]) => v && v.trim())) {
       const lines = wrap(v, CW - 150, 10, regular)
-      ensure(lines.length * 13 + 2)
-      y -= 13
+      ensure(lines.length * 14 + 3)
+      y -= 14
       page.drawText(clean(k), { x: M, y, size: 10, font: bold, color: hex(MUTED) })
       lines.forEach((ln, i) => {
-        if (i) y -= 13
+        if (i) y -= 14
         page.drawText(ln, { x: M + 150, y, size: 10, font: regular, color: hex(INK) })
       })
-      y -= 2
+      y -= 4
     }
-    y -= 4
+    y -= 8
   }
   const table = (head: string[], rows: string[][], widths: number[]) => {
     if (!rows.length) return
@@ -202,7 +206,7 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
       y -= h
       page.drawLine({ start: { x: M, y: y + 1 }, end: { x: M + CW, y: y + 1 }, thickness: 0.4, color: hex(LINE) })
     }
-    y -= 8
+    y -= 14
   }
   const embed = async (bytes: Uint8Array, name: string): Promise<PDFImage | null> => {
     try {
