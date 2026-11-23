@@ -240,7 +240,11 @@ export async function loadRfis(o: OwnerRef) {
   const rfis = await ok<Rfi[]>(supabase.from('rfis').select('*').eq(ownerCol(o), o.id).order('number', { ascending: false }))
   const ids = rfis.map((r) => r.id)
   const people = ids.length ? await ok<RfiPerson[]>(supabase.from('rfi_people').select('*').in('rfi_id', ids)) : []
-  return { rfis, people }
+  // how many files each RFI has, so the list can show a paperclip
+  const rows = ids.length ? await ok<{ rfi_id: string }[]>(supabase.from('rfi_files').select('rfi_id').in('rfi_id', ids)) : []
+  const files: Record<string, number> = {}
+  for (const f of rows) files[f.rfi_id] = (files[f.rfi_id] ?? 0) + 1
+  return { rfis, people, files }
 }
 export async function loadRfi(id: string) {
   const [rfi, people, responses, files] = await Promise.all([

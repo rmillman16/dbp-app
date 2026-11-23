@@ -23,7 +23,7 @@ export default function RfiTab() {
   const owner = useRfiOwner()
   const navigate = useNavigate()
   const ctx = useRfiContext(owner)
-  const [data, setData] = useState<{ rfis: Rfi[]; people: RfiPerson[] } | null>(null)
+  const [data, setData] = useState<{ rfis: Rfi[]; people: RfiPerson[]; files: Record<string, number> } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const tender = owner.kind === 'enquiry' // tender RFIs: drafted, then issued to the client together as one Excel schedule
@@ -38,7 +38,7 @@ export default function RfiTab() {
   const { me: meNow } = useAccess()
   const today = todayIso()
 
-  const load = () => loadRfis(owner).then(setData, (e: Error) => (setError(e.message), setData({ rfis: [], people: [] })))
+  const load = () => loadRfis(owner).then(setData, (e: Error) => (setError(e.message), setData({ rfis: [], people: [], files: {} })))
   useEffect(() => {
     load()
   }, [owner.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -272,7 +272,14 @@ export default function RfiTab() {
                 <td className="stack-title">
                   <strong>RFI {r.number}</strong>
                 </td>
-                <td data-label="Title">{r.title}</td>
+                <td data-label="Title">
+                  {r.title}
+                  {!!data?.files[r.id] && (
+                    <span className="attach-badge" title={`${data.files[r.id]} file${data.files[r.id] === 1 ? '' : 's'} attached`}>
+                      📎 {data.files[r.id]}
+                    </span>
+                  )}
+                </td>
                 <td data-label="Trade">{r.trade ?? ''}</td>
                 {!tender && <td data-label="Assigned to">{assignees || <span className="muted">–</span>}</td>}
                 {!tender && <td data-label="Manager">{manager}</td>}

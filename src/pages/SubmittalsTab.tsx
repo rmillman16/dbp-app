@@ -45,7 +45,7 @@ export default function SubmittalsTab() {
   const navigate = useNavigate()
   const ctx = useRfiContext(owner)
   const { me } = useAccess()
-  const [data, setData] = useState<{ items: Submittal[]; people: SubmittalPerson[] } | null>(null)
+  const [data, setData] = useState<{ items: Submittal[]; people: SubmittalPerson[]; files: Record<string, number> } | null>(null)
   const [templates, setTemplates] = useState<SubmittalTemplate[]>([])
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -56,7 +56,7 @@ export default function SubmittalsTab() {
   const [busy, setBusy] = useState(false)
   const today = todayIso()
 
-  const load = () => loadSubmittals(job.id).then(setData, (e: Error) => (setError(e.message), setData({ items: [], people: [] })))
+  const load = () => loadSubmittals(job.id).then(setData, (e: Error) => (setError(e.message), setData({ items: [], people: [], files: {} })))
   const loadTpl = () => loadSubmittalTemplates(job.id).then(setTemplates)
   useEffect(() => {
     load()
@@ -198,7 +198,16 @@ export default function SubmittalsTab() {
                 <td className="stack-title">
                   <strong>S{s.number}</strong>
                 </td>
-                <td data-label="Title">{s.title}</td>
+                <td data-label="Title">
+                  {s.title}
+                  {data?.files[s.id] ? (
+                    <span className="attach-badge" title={`${data.files[s.id]} file${data.files[s.id] === 1 ? '' : 's'} attached`}>
+                      📎 {data.files[s.id]}
+                    </span>
+                  ) : (
+                    s.status === 'draft' && <span className="attach-badge none" title="Nothing attached yet: it can't be sent out without a document">no attachment</span>
+                  )}
+                </td>
                 <td data-label="Type">{typeLabel(s.type)}</td>
                 <td data-label="Trade">{s.trade ?? ''}</td>
                 <td data-label="Submitted by">{submittedBy || <span className="muted">–</span>}</td>

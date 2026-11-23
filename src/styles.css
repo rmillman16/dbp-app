@@ -1101,3 +1101,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .markup-canvas { max-width: 100%; height: auto; background: #fff; touch-action: none; cursor: crosshair; box-shadow: 0 2px 12px rgba(0,0,0,.5); }
 .markup-msg { color: #fff; }
 .markup-hint { margin: 0; padding: 6px 12px; font-size: .8rem; color: #ddd; background: #1e1e1e; }
+
+/* paperclip on lists: a file is attached */
+.attach-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 10px; background: #e8eefb; color: var(--navy); font-size: .78rem; font-weight: 600; white-space: nowrap; }
+.attach-badge.none { background: #fff2cc; color: #8a5a00; font-weight: 500; }

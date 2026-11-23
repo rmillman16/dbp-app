@@ -1,4 +1,4 @@
-// Supabase Edge Function "external": the ONLY way outside people (subcontractors, consultants, the client) reach RFIs and
+﻿// Supabase Edge Function "external": the ONLY way outside people (subcontractors, consultants, the client) reach RFIs and
 // submittals (script 061). They have no login and no database access: this function checks who they are and returns
 // just their own item. Deploy with "Verify JWT" OFF (they have no Supabase sign-in); it does its own checks.
 //
@@ -197,7 +197,7 @@ const plain = (h: string | null, n = 170) => {
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
-  return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
+  return t.length > n ? t.slice(0, n - 1).trimEnd() + "â€¦" : t;
 };
 
 async function names(db: DB, ids: (string | null)[]) {
@@ -334,12 +334,22 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
     rfiIds.length ? db.from("rfis").select("id, job_id, number, title, question, trade, status, due_date, jobs(name, job_no, code)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
     subIds.length ? db.from("submittals").select("id, job_id, number, title, description, trade, status, due_date, jobs(name, job_no, code)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
   ]);
+  // how many files each has, for the paperclip (internal notes' files are not counted: outside people can't see them)
+  const [rff, sbf, notes] = await Promise.all([
+    rfiIds.length ? db.from("rfi_files").select("rfi_id, response_id").in("rfi_id", rfiIds) : Promise.resolve({ data: [] }),
+    subIds.length ? db.from("submittal_files").select("submittal_id").in("submittal_id", subIds) : Promise.resolve({ data: [] }),
+    rfiIds.length ? db.from("rfi_responses").select("id").in("rfi_id", rfiIds).eq("kind", "note") : Promise.resolve({ data: [] }),
+  ]);
+  const noteIds = new Set((notes.data ?? []).map((n: { id: string }) => n.id));
+  const count: Record<string, number> = {};
+  for (const f of rff.data ?? []) if (!f.response_id || !noteIds.has(f.response_id)) count[f.rfi_id] = (count[f.rfi_id] ?? 0) + 1;
+  for (const f of sbf.data ?? []) count[f.submittal_id] = (count[f.submittal_id] ?? 0) + 1;
   const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
   const items = [
     // deno-lint-ignore no-explicit-any
-    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, ref: refOf("rfi", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
+    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, ref: refOf("rfi", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, files: count[r.id] ?? 0, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
     // deno-lint-ignore no-explicit-any
-    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, ref: refOf("submittal", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
+    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, ref: refOf("submittal", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, files: count[r.id] ?? 0, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
   ];
   return items;
 }

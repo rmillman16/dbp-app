@@ -259,6 +259,7 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
                         </td>
                         <td className="ext-subject">
                           <strong>{i.title}</strong>
+                          {!!i.files && <span className="attach-badge" title={`${i.files} file${i.files === 1 ? '' : 's'} attached`}>📎 {i.files}</span>}
                           {i.snippet && <span className="ext-snippet">{i.snippet}</span>}
                           {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
                         </td>

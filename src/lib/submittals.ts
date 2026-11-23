@@ -117,7 +117,11 @@ export async function loadSubmittals(jobId: string) {
   const items = await ok<Submittal[]>(supabase.from('submittals').select('*').eq('job_id', jobId).order('number', { ascending: false }))
   const ids = items.map((s) => s.id)
   const people = ids.length ? await ok<SubmittalPerson[]>(supabase.from('submittal_people').select('*').in('submittal_id', ids)) : []
-  return { items, people }
+  // how many files each submittal has, so the list can show a paperclip
+  const rows = ids.length ? await ok<{ submittal_id: string }[]>(supabase.from('submittal_files').select('submittal_id').in('submittal_id', ids)) : []
+  const files: Record<string, number> = {}
+  for (const f of rows) files[f.submittal_id] = (files[f.submittal_id] ?? 0) + 1
+  return { items, people, files }
 }
 export async function loadSubmittal(id: string) {
   const [s, people, revisions, files] = await Promise.all([

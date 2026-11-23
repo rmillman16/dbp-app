@@ -57,6 +57,7 @@ export interface ExtListItem {
   project: string
   act: boolean
   snippet?: string
+  files?: number
   trade?: string | null
   state?: 'with_you' | 'with_dbp' | 'fyi' | 'done'
 }
