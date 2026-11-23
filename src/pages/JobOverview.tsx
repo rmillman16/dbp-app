@@ -65,15 +65,15 @@ export default function JobOverview() {
         )}
       </section>
 
-      {/* space kept for the next two modules, side by side under TODO (23 Nov) */}
+      {/* space kept for the next two modules, side by side under TODO: RFIs left, Submittals right (23 Nov) */}
       <div className="span-all overview-pair">
-        <section className="card coming-card">
-          <h2>Submittals</h2>
-          <p className="muted small">Coming soon: what's been submitted to the client / design team, who it's with and when a response is due.</p>
-        </section>
         <section className="card coming-card">
           <h2>RFIs</h2>
           <p className="muted small">Coming soon: requests for information, who they're with, response due dates and reminders.</p>
+        </section>
+        <section className="card coming-card">
+          <h2>Submittals</h2>
+          <p className="muted small">Coming soon: what's been submitted to the client / design team, who it's with and when a response is due.</p>
         </section>
       </div>
 

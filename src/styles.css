@@ -834,3 +834,8 @@ select.req-status.req-off_hired { background: #eee; }
 .module-card h3 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 .module-card strong { color: var(--navy); font-size: 17px; }
 @media (max-width: 800px) { .overview-pair { grid-template-columns: 1fr; } .overview-grid { grid-template-columns: 1fr; } }
+
+/* full-width tables (23 Nov): numbers keep clear of the next column; one column can take the spare width */
+.table th.num, .table td.num { padding-right: 20px; }
+.table th.num + th, .table td.num + td { padding-left: 16px; }
+.table .col-grow { width: 40%; }
