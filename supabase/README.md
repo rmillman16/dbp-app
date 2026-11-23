@@ -51,8 +51,8 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `045_minutes.sql` | Meeting minutes: meetings, attendees and points; an action with a staff owner goes on their bell (moved / closed as it changes; Done on the bell ticks it); My tasks; Job › Minutes in Settings › Access; archived jobs read-only | ✅ Run |
 | `046_minutes_per_project.sql` | Minutes live in each job or estimate (run after 045): meetings for Estimating enquiries (follow Estimating access), moved to the job when won; estimate actions on the bell; My tasks and ticking done for estimates | ✅ Run |
 | `047_om.sql` | O&M: tracker lines (sort, kept when a standard doc is removed), file sections per job (om_job), Job › O&M access, reminders to the job team per company and due date (bell + job TODO) | ✅ Run |
-| `048_om_link_check.sql` | O&M: keeps whether each SharePoint link can be opened by anyone (green tick), checked by the check-link function | ⬜ Not yet |
-| `049_om_item_names.sql` | O&M: add your own project items to the dropdown list (offered on every job) | ⬜ Not yet |
+| `048_om_link_check.sql` | O&M: keeps whether each SharePoint link can be opened by anyone (green tick), checked by the check-link function | ✅ Run |
+| `049_om_item_names.sql` | O&M: add your own project items to the dropdown list (offered on every job) | ✅ Run |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
