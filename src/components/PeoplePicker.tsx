@@ -124,7 +124,7 @@ export default function PeoplePicker({
             </label>
             {p.companyId === '__new' && (
               <div className="span-2 new-company-box">
-                <strong className="small">New company (added to Contractors too)</strong>
+                <strong className="small">New company (added to Supply Chain too)</strong>
                 <div className="form-grid">
                   <label>
                     Company name *

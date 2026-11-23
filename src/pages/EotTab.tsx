@@ -323,7 +323,7 @@ function ClauseBox({ job, contacts, clientName, onSaved }: { job: Job; contacts:
           Letters go Fao
           <select value={v.client_contact_id ?? ''} onChange={(x) => set('client_contact_id', x.target.value)} disabled={!contacts.length}>
             <option value="">
-              {contacts.length ? '– choose –' : clientName ? `No contacts for ${clientName} (add them in Contractors)` : 'No client chosen (Edit job details)'}
+              {contacts.length ? '– choose –' : clientName ? `No contacts for ${clientName} (add them in Supply Chain)` : 'No client chosen (Edit job details)'}
             </option>
             {contacts.map((c) => (
               <option key={c.id} value={c.id}>

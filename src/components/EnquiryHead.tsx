@@ -5,7 +5,7 @@ import { fireConfetti } from '../lib/confetti'
 import { ENQUIRY_STATUS_LABELS, type Enquiry } from '../lib/types'
 
 // The top of every page inside an enquiry, laid out like a job's: the enquiry on one line, then its sections across the top
-// so you can switch between them. (Overview, Programme, Minutes, RFIs, Tender enquiries.)
+// so you can switch between them. (Overview, Programme, Minutes, RFIs, Tender enquiries, Tender return.)
 export default function EnquiryHead({ e }: { e: Enquiry }) {
   const navigate = useNavigate()
   const base = `/estimating/e/${e.id}`
@@ -15,6 +15,7 @@ export default function EnquiryHead({ e }: { e: Enquiry }) {
     ['Minutes', `${base}/minutes`, false],
     ['RFIs', `${base}/rfis`, false],
     ['Tender enquiries', `${base}/tender`, false],
+    ['Tender return', `${base}/return`, false],
   ]
   return (
     <>

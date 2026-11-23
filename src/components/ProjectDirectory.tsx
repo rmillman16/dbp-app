@@ -128,7 +128,7 @@ export default function ProjectDirectory({ job, enquiryId }: { job?: Job; enquir
               <strong>{c?.name ?? 'A company'}</strong>
               <small>{[c?.type, c?.trade].filter(Boolean).join(' · ')}</small>
               <Link to={`/contractors?company=${companyId}`} className="link-button small">
-                Contractors →
+                Supply Chain →
               </Link>
             </div>
             <ul className="dir-people">

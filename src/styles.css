@@ -1172,3 +1172,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tg-files { display: flex; flex-wrap: wrap; gap: 8px; }
 .tg-nav { position: sticky; bottom: 0; background: var(--bg, #fff); padding: 12px 0; border-top: 1px solid var(--line, #e3e3ec); margin-top: 18px; justify-content: space-between; z-index: 5; }
 @media (max-width: 900px) { .tg-cols { grid-template-columns: 1fr; } .tg-steps li + li::before { width: 14px; } .tg-steps button { font-size: 0; } .tg-steps button span { font-size: .8rem; } }
+
+/* enquiry overview (24 Nov): tender details across the top, then equal tiles like a job's overview */
+.enq-details { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 18px; }
+.module-cards .module-card { min-height: 92px; }

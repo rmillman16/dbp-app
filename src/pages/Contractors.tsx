@@ -146,7 +146,7 @@ export default function Contractors() {
   return (
     <>
       <div className="pane-head">
-        <h1>Contractors</h1>
+        <h1>Supply Chain</h1>
         <button className="primary" onClick={() => setAdding(!adding)}>
           + Add company
         </button>

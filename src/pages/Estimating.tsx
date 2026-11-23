@@ -8,10 +8,10 @@ import { createQuotation, enquiryRef, fullRef, loadQuotations } from '../lib/quo
 import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryStatus, type Quotation } from '../lib/types'
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
-import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
+import { loadProgramme } from '../lib/programme'
 import { TenderTracker } from './TenderEnquiry'
 import EnquiryHead from '../components/EnquiryHead'
-import { AWAITING, loadTracker } from '../lib/tender'
+import { loadTracker } from '../lib/tender'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
 // works, new enquiries, tenders), each with its own quotations; when won, it's set up as
@@ -315,15 +315,211 @@ export function EnquiryForm() {
   )
 }
 
-// ---------- one enquiry ----------
+/// ---------- one enquiry ----------
+// Laid out like a job's overview: the tender details, then one row of equal tiles, each a heading with the figure that matters and
+// a link to its tab. Programme, Minutes, RFIs, Tender enquiries and Tender return.
 export function EnquiryPage() {
+  const { enquiryId } = useParams()
+  const [e, setE] = useState<Enquiry | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
+  }, [enquiryId])
+
+  if (error && !e) return <p className="error">{error}</p>
+  if (!e) return <p className="muted">Loading…</p>
+
+  return (
+    <>
+      <EnquiryHead e={e} />
+      <div className="overview-grid">
+        <section className="card span-all">
+          <div className="pane-head">
+            <h2>Tender details</h2>
+          </div>
+          <dl className="details enq-details">
+            <dt>Site address</dt>
+            <dd>{e.site_address || '–'}</dd>
+            <dt>Client</dt>
+            <dd>{e.client_name || '–'}</dd>
+            <dt>Contact</dt>
+            <dd>
+              {e.client_contact || '–'}
+              {e.client_email && (
+                <>
+                  {' · '}
+                  <a href={`mailto:${e.client_email}`}>{e.client_email}</a>
+                </>
+              )}
+              {e.client_phone && (
+                <>
+                  {' · '}
+                  <a href={`tel:${e.client_phone}`}>{e.client_phone}</a>
+                </>
+              )}
+            </dd>
+            <dt>Received / due</dt>
+            <dd>
+              {ukDate(e.received_date) || '–'} / {ukDate(e.due_date) || '–'}
+            </dd>
+            <dt>Estimator</dt>
+            <dd>{e.estimator || '–'}</dd>
+            {(e.main_contract || e.sub_contract) && (
+              <>
+                <dt>Contract</dt>
+                <dd>{[e.main_contract, e.sub_contract].filter(Boolean).join(' / ')}</dd>
+              </>
+            )}
+            {e.notes && (
+              <>
+                <dt>Notes</dt>
+                <dd>{e.notes}</dd>
+              </>
+            )}
+          </dl>
+        </section>
+        <EnquiryTiles e={e} />
+      </div>
+    </>
+  )
+}
+
+// the five tiles. Each is one heading, one figure and one line under it, and the whole tile opens its tab.
+function EnquiryTiles({ e }: { e: Enquiry }) {
+  const base = `/estimating/e/${e.id}`
+  const won = !!e.job_id
+  const jobBase = `/jobs/${e.job_id}`
+  type T = {
+    prog: { start: string | null; finish: string | null } | null
+    meetings: { count: number; last: string | null; name: string | null } | null
+    rfis: { total: number; unanswered: number; overdue: number } | null
+    tender: { sent: number; returned: number; packages: number } | null
+    quotes: { count: number; latest: string | null } | null
+  }
+  const [t, setT] = useState<T | null>(null)
+  useEffect(() => {
+    const today = todayIso()
+    const rows = async <R,>(q: PromiseLike<{ data: R[] | null }>) => {
+      try {
+        return (await q).data ?? []
+      } catch {
+        return []
+      }
+    }
+    Promise.all([
+      won ? Promise.resolve(null) : loadProgramme({ enquiryId: e.id }).catch(() => null),
+      rows<{ meeting_date: string | null; subtitle: string | null; project: string | null }>(
+        supabase.from('meetings').select('meeting_date, subtitle, project').eq(won ? 'job_id' : 'enquiry_id', won ? e.job_id! : e.id).order('meeting_date', { ascending: false }),
+      ),
+      rows<{ status: string; due_date: string | null }>(supabase.from('rfis').select('status, due_date').eq(won ? 'job_id' : 'enquiry_id', won ? e.job_id! : e.id)),
+      won ? Promise.resolve(null) : loadTracker().catch(() => null),
+      won ? Promise.resolve([] as Quotation[]) : loadQuotations({ enquiryId: e.id }).catch(() => []),
+    ]).then(([p, mt, rf, tr, qs]) => {
+      const prog = p && p.programme ? { start: p.programme.start_date ?? null, finish: p.programme.finish_date ?? null } : null
+      const pk = tr ? tr.packages.filter((x) => x.enquiry_id === e.id) : []
+      const inv = tr ? tr.invites.filter((i) => pk.some((x) => x.id === i.package_id)) : []
+      const list = qs as unknown as { q: Quotation; total: number }[]
+      setT({
+        prog,
+        meetings: { count: mt.length, last: mt[0]?.meeting_date ?? null, name: mt[0]?.subtitle || mt[0]?.project || null },
+        rfis: { total: rf.length, unanswered: rf.filter((r) => r.status === 'open').length, overdue: rf.filter((r) => r.status === 'open' && r.due_date && r.due_date < today).length },
+        tender: { packages: pk.length, sent: inv.filter((i) => i.status !== 'drafted').length, returned: inv.filter((i) => i.quote_amount != null || ['quoted', 'appointed', 'unsuccessful'].includes(i.status)).length },
+        quotes: { count: list.length, latest: list[0]?.q.status ?? null },
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [e.id, e.job_id])
+  if (!t) return <p className="muted span-all">Loading…</p>
+  const weeks = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / (7 * 86400000)))
+  const pr = t.prog
+  return (
+    <div className="span-all module-cards">
+      <Link to={won ? `${jobBase}/programme` : `${base}/programme`} className="card module-card">
+        <h3>Tender programme</h3>
+        {won ? (
+          <span className="muted small">Now the job's programme</span>
+        ) : !pr || (!pr.start && !pr.finish) ? (
+          <span className="muted small">No programme yet</span>
+        ) : (
+          <>
+            <strong>
+              {ukDate(pr.start) || '?'} to {ukDate(pr.finish) || '?'}
+            </strong>
+            <span className="muted small">{pr.start && pr.finish ? `${weeks(pr.start, pr.finish)} weeks` : 'duration not set'}</span>
+          </>
+        )}
+      </Link>
+      <Link to={won ? `${jobBase}/minutes` : `${base}/minutes`} className="card module-card">
+        <h3>Minutes</h3>
+        {t.meetings && t.meetings.count > 0 ? (
+          <>
+            <strong>{t.meetings.name || 'Latest meeting'}</strong>
+            <span className="muted small">{t.meetings.last ? ukDate(t.meetings.last) : 'no date'}</span>
+          </>
+        ) : (
+          <span className="muted small">No meetings yet</span>
+        )}
+      </Link>
+      <Link to={won ? `${jobBase}/rfis` : `${base}/rfis`} className="card module-card">
+        <h3>RFIs</h3>
+        {t.rfis && t.rfis.total > 0 ? (
+          <>
+            <strong>
+              {t.rfis.total} RFI{t.rfis.total === 1 ? '' : 's'}
+            </strong>
+            <span className={t.rfis.overdue > 0 ? 'late small' : 'muted small'}>
+              {t.rfis.unanswered} unanswered{t.rfis.overdue > 0 ? ` · ⚠ ${t.rfis.overdue} overdue` : ''}
+            </span>
+          </>
+        ) : (
+          <span className="muted small">None yet</span>
+        )}
+      </Link>
+      <Link to={`${base}/tender`} className="card module-card">
+        <h3>Tender enquiries</h3>
+        {won ? (
+          <span className="muted small">Closed: the enquiry was won</span>
+        ) : t.tender && t.tender.packages > 0 ? (
+          <>
+            <strong>
+              {t.tender.sent} sent · {t.tender.returned} returned
+            </strong>
+            <span className="muted small">
+              {t.tender.packages} package{t.tender.packages === 1 ? '' : 's'}
+            </span>
+          </>
+        ) : (
+          <span className="muted small">Nothing sent out yet</span>
+        )}
+      </Link>
+      <Link to={won ? `${jobBase}/quotations` : `${base}/return`} className="card module-card">
+        <h3>Tender return</h3>
+        {won ? (
+          <span className="muted small">Now in the job's Quotations tab</span>
+        ) : t.quotes && t.quotes.count > 0 ? (
+          <>
+            <strong>
+              {t.quotes.count} quotation{t.quotes.count === 1 ? '' : 's'}
+            </strong>
+            <span className="muted small">latest: {t.quotes.latest ? QUOTE_STATUS_LABELS[t.quotes.latest as keyof typeof QUOTE_STATUS_LABELS] : '–'}</span>
+          </>
+        ) : (
+          <span className="muted small">No quotations yet</span>
+        )}
+      </Link>
+    </div>
+  )
+}
+
+// Estimating › enquiry › Tender return: the quotations we send back to the client for this tender
+export function EnquiryReturn() {
   const { enquiryId } = useParams()
   const navigate = useNavigate()
   const [e, setE] = useState<Enquiry | null>(null)
   const [quotes, setQuotes] = useState<{ q: Quotation; total: number }[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
   useEffect(() => {
     loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
     loadQuotations({ enquiryId: enquiryId! }).then(setQuotes, () => setQuotes([]))
@@ -341,229 +537,41 @@ export function EnquiryPage() {
       setBusy(false)
     }
   }
-
   if (error && !e) return <p className="error">{error}</p>
   if (!e) return <p className="muted">Loading…</p>
-
   return (
     <>
       <EnquiryHead e={e} />
-
-      <div className="enq-layout">
-        <div className="enq-modules">
-          <section className="card">
-            <div className="pane-head">
-              <h2>Tender Details</h2>
-              <Link to={`/estimating/e/${e.id}/edit`} className="button">
-                Edit
-              </Link>
-            </div>
-            <dl className="details">
-              <dt>Site address</dt>
-              <dd>{e.site_address || '–'}</dd>
-              <dt>Client</dt>
-              <dd>{e.client_name || '–'}</dd>
-              <dt>Contact</dt>
-              <dd>
-                {e.client_contact || '–'}
-                {e.client_email && (
-                  <>
-                    {' · '}
-                    <a href={`mailto:${e.client_email}`}>{e.client_email}</a>
-                  </>
-                )}
-                {e.client_phone && (
-                  <>
-                    {' · '}
-                    <a href={`tel:${e.client_phone}`}>{e.client_phone}</a>
-                  </>
-                )}
-              </dd>
-              <dt>Received / due</dt>
-              <dd>
-                {ukDate(e.received_date) || '–'} / {ukDate(e.due_date) || '–'}
-              </dd>
-              <dt>Estimator</dt>
-              <dd>{e.estimator || '–'}</dd>
-              {(e.main_contract || e.sub_contract) && (
-                <>
-                  <dt>Contract</dt>
-                  <dd>{[e.main_contract, e.sub_contract].filter(Boolean).join(' / ')}</dd>
-                </>
-              )}
-              {e.notes && (
-                <>
-                  <dt>Notes</dt>
-                  <dd>{e.notes}</dd>
-                </>
-              )}
-            </dl>
-          </section>
-
-          <EnquiryProgrammeCard e={e} />
-
-          {/* tender meetings (23 Nov, script 046): the same Minutes screen as a job's; they move to the job when it's won */}
-          <section className="card">
-            <div className="pane-head">
-              <h2>Minutes</h2>
-              {e.job_id ? (
-                <Link to={`/jobs/${e.job_id}/minutes`} className="button">
-                  Open the job's minutes →
-                </Link>
-              ) : (
-                <Link to={`/estimating/e/${e.id}/minutes`} className="button primary">
-                  Open minutes
-                </Link>
-              )}
-            </div>
-            <p className="muted small">
-              {e.job_id
-                ? "This enquiry was won; its meetings are now in the job's Minutes tab."
-                : "Tender meetings, with actions on the owners' bells. They move to the job when the enquiry is won."}
-            </p>
-          </section>
-
-          {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
-          <EnquiryRfiCard e={e} />
-
-          {/* tender enquiries to contractors (script 067) */}
-          {!e.job_id && <EnquiryTenderCard e={e} />}
-        </div>
-
-        <section className="card enq-quotes">
-          <div className="pane-head">
-            <h2>Upstream Quotations</h2>
-            {!e.job_id && (
-              <button className="primary" onClick={newQuote} disabled={busy}>
-                + New quotation
-              </button>
-            )}
-          </div>
-          {error && <p className="error">{error}</p>}
-          {e.job_id && <p className="muted small">This enquiry was won; its quotations are now in the job's Quotations tab.</p>}
-          {quotes?.length === 0 && !e.job_id && <p className="muted">No quotations yet.</p>}
-          {quotes && quotes.length > 0 && (
-            <ul className="quote-list">
-              {quotes.map(({ q, total }) => (
-                <li key={q.id}>
-                  <Link to={`/estimating/q/${q.id}`}>{fullRef(e, q)}</Link>
-                  <span className="muted small">
-                    <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span> {money(total)} + VAT · {ukDate(q.issued_date)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+      <section className="card">
+        <div className="pane-head">
+          <h2>Tender return</h2>
+          {!e.job_id && (
+            <button className="primary" onClick={newQuote} disabled={busy}>
+              + New quotation
+            </button>
           )}
-        </section>
-      </div>
-    </>
-  )
-}
-
-// tender enquiries to contractors at a glance (script 067)
-function EnquiryTenderCard({ e }: { e: Enquiry }) {
-  const [d, setD] = useState<Awaited<ReturnType<typeof loadTracker>> | null | 'none'>(null)
-  useEffect(() => {
-    loadTracker().then(setD, () => setD('none'))
-  }, [e.id])
-  const pk = d && d !== 'none' ? d.packages.filter((p) => p.enquiry_id === e.id) : []
-  const inv = d && d !== 'none' ? d.invites.filter((i) => pk.some((p) => p.id === i.package_id)) : []
-  return (
-    <section className="card">
-      <div className="pane-head">
-        <h2>Tender enquiries</h2>
-        <Link to={`/estimating/e/${e.id}/tender`} className="button primary">
-          Open tender enquiries
-        </Link>
-      </div>
-      {d === null ? (
-        <p className="muted small">Loading…</p>
-      ) : d === 'none' ? (
-        <p className="muted small">Send packages out to subcontractors and suppliers for pricing, and follow their replies. Needs script 067.</p>
-      ) : pk.length === 0 ? (
-        <p className="muted small">Nothing sent out yet. Send a package to subcontractors and suppliers for pricing, then follow their replies here.</p>
-      ) : (
-        <p>
-          <strong>{pk.length}</strong> package{pk.length === 1 ? '' : 's'} · <strong>{inv.length}</strong> invited · <strong>{inv.filter((i) => AWAITING.includes(i.status) || i.status === 'drafted').length}</strong> waiting ·{' '}
-          <strong>{inv.filter((i) => i.quote_amount != null).length}</strong> quote{inv.filter((i) => i.quote_amount != null).length === 1 ? '' : 's'} in
-        </p>
-      )}
-    </section>
-  )
-}
-// tender RFIs at a glance (23 Nov, script 059)
-function EnquiryRfiCard({ e }: { e: Enquiry }) {
-  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
-  useEffect(() => {
-    if (e.job_id) return
-    supabase
-      .from('rfis')
-      .select('status, due_date')
-      .eq('enquiry_id', e.id)
-      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
-  }, [e.id, e.job_id])
-  const today = todayIso()
-  const open = (rows ?? []).filter((r) => r.status === 'open')
-  const late = open.filter((r) => r.due_date && r.due_date < today).length
-  const answered = (rows ?? []).filter((r) => r.status === 'answered').length
-  return (
-    <section className="card">
-      <div className="pane-head">
-        <h2>RFIs</h2>
-        {e.job_id ? (
-          <Link to={`/jobs/${e.job_id}/rfis`} className="button">
-            Open the job's RFIs →
-          </Link>
-        ) : (
-          <Link to={`/estimating/e/${e.id}/rfis`} className="button primary">
-            Open RFIs
-          </Link>
+        </div>
+        {error && <p className="error">{error}</p>}
+        {e.job_id && (
+          <p className="muted small">
+            This enquiry was won; its quotations are now in the job's Quotations tab. <Link to={`/jobs/${e.job_id}/quotations`}>Open them →</Link>
+          </p>
         )}
-      </div>
-      {e.job_id ? (
-        <p className="muted small">This enquiry was won; its RFIs are now in the job's RFIs tab.</p>
-      ) : rows === null ? (
-        <p className="muted small">Tender queries to the client and design team. RFIs on estimates need script 059 run in Supabase first.</p>
-      ) : rows.length === 0 ? (
-        <p className="muted small">No tender RFIs yet. Draft your queries, then send them to the client as one Excel schedule. They move to the job when the enquiry is won.</p>
-      ) : (
-        <p>
-          <strong>{(rows ?? []).filter((r) => r.status === 'draft').length}</strong> draft · <strong>{open.length}</strong> out to the client{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
-        </p>
-      )}
-    </section>
-  )
-}
-
-// Estimating › enquiry › Programme (Richard, 22 Nov: "estimates and tenders often need a programme
-// too"). The same programme editor as a job's; when the enquiry is won it becomes the job's programme.
-function EnquiryProgrammeCard({ e }: { e: Enquiry }) {
-  const [p, setP] = useState<{ programme: SavedProgramme | null; tasks: ProgrammeTask[] } | null | 'none'>(null)
-  useEffect(() => {
-    if (e.job_id) return
-    loadProgramme({ enquiryId: e.id }).then(setP, () => setP('none'))
-  }, [e.id, e.job_id])
-  if (e.job_id) return null
-  const prog = p && p !== 'none' ? p.programme : null
-  return (
-    <section className="card">
-      <div className="pane-head">
-        <h2>Tender programme</h2>
-        <Link to={`/estimating/e/${e.id}/programme`} className="button primary">
-          {prog ? 'Open tender programme' : 'Start a tender programme'}
-        </Link>
-      </div>
-      {p === null ? (
-        <p className="muted small">Loading…</p>
-      ) : prog ? (
-        <p className="small">
-          {prog.project_name}: {p !== 'none' && p.tasks.length} tasks, {ukDate(prog.start_date)} to {ukDate(prog.finish_date)}. It becomes the job's programme when the enquiry is
-          won.
-        </p>
-      ) : (
-        <p className="muted small">The tender programme: start from a previous job's programme, import one, or start blank. It moves to the job when the enquiry is won.</p>
-      )}
-    </section>
+        {quotes?.length === 0 && !e.job_id && <p className="muted">No quotations yet. The quotations you send back to the client for this tender are listed here.</p>}
+        {quotes && quotes.length > 0 && (
+          <ul className="quote-list">
+            {quotes.map(({ q, total }) => (
+              <li key={q.id}>
+                <Link to={`/estimating/q/${q.id}`}>{fullRef(e, q)}</Link>
+                <span className="muted small">
+                  <span className={`q-status ${q.status}`}>{QUOTE_STATUS_LABELS[q.status]}</span> {money(total)} + VAT · {ukDate(q.issued_date)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
   )
 }
 

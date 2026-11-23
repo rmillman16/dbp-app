@@ -322,7 +322,7 @@ export default function JobForm() {
           )}
           {clientErr && <span className="error small">{clientErr}</span>}
           <span className="hint">
-            Letters are addressed to them. A new client is added to <Link to="/contractors">Contractors</Link> (type Client), where you can add their address and contacts.
+            Letters are addressed to them. A new client is added to <Link to="/contractors">Supply Chain</Link> (type Client), where you can add their address and contacts.
           </span>
         </label>
         <label>

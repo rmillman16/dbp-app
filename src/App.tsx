@@ -37,7 +37,7 @@ import SubmittalPage from './pages/SubmittalPage'
 import EnquiryRfis from './pages/EnquiryRfis'
 import TenderEnquiry from './pages/TenderEnquiry'
 import ExternalRoutes from './pages/ExternalPages'
-import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme, EnquiryTender } from './pages/Estimating'
+import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme, EnquiryReturn, EnquiryTender } from './pages/Estimating'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
 import MyDetails from './pages/MyDetails'
@@ -212,6 +212,14 @@ export default function App() {
             element={
               <A section="estimating">
                 <EnquiryTender />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/return"
+            element={
+              <A section="estimating">
+                <EnquiryReturn />
               </A>
             }
           />

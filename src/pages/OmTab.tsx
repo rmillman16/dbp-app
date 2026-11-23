@@ -747,7 +747,7 @@ function DirectoryEditor({ job, data, run }: { job: Job; data: OmData; run: (wha
     <>
       <p className="muted small intro">
         Built from the job’s client, the people added here (consultants, client team), DBP’s team and every package’s company. Phone numbers and emails come from the contractor
-        list (Contractors), so correct them there.
+        list (Supply Chain), so correct them there.
       </p>
       <div className="proc-scroll">
         <table className="table stack om-dir">

@@ -24,7 +24,7 @@ const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: bo
   { to: '/site', label: 'Site', icon: 'M4 6h10M4 12h16M4 18h7M17 4v4M20 10v4M14 16v4', section: 'site' },
   {
     to: '/contractors',
-    label: 'Contractors',
+    label: 'Supply Chain',
     icon: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 20c0-3 3-5 6-5s6 2 6 5m0-5c1-.6 2-1 3-1 3 0 5 2 5 5',
     section: 'contractors',
   },

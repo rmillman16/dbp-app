@@ -53,7 +53,7 @@ export const SECTIONS: [Section, string, string][] = [
   ['job_minutes', 'Job › Minutes', 'Meeting minutes on each job (an estimate’s minutes follow Estimating). Everyone sees their own actions in Tasks'],
   ['estimating', 'Estimating', ''],
   ['contracts', 'Contracts', 'EOT clauses and wording'],
-  ['contractors', 'Contractors', ''],
+  ['contractors', 'Supply Chain', ''],
   ['site', 'Site › Requisitions', 'Raise material / hire requisitions and see your own'],
   ['buyer_material', 'Site › Material Req - ADMIN', 'Every material requisition, all jobs'],
   ['buyer_hire', 'Site › Hire Req - ADMIN', 'Every hire requisition, all jobs; off-hire reminders'],

@@ -187,7 +187,7 @@ export default function TenderEnquiry() {
         { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: f.scope || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
         invites,
       )
-      if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Contractors.`)
+      if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Supply Chain.`)
       navigate(`/estimating/e/${enquiryId}`)
     } catch (e) {
       setError(saveError(e))
@@ -426,7 +426,7 @@ export default function TenderEnquiry() {
               Pick none
             </button>
           </div>
-          {shown.length === 0 && <p className="muted">No subcontractors or suppliers match. Untick the trade filter to see them all, or add them under Contractors (as a subcontractor or supplier).</p>}
+          {shown.length === 0 && <p className="muted">No subcontractors or suppliers match. Untick the trade filter to see them all, or add them under Supply Chain (as a subcontractor or supplier).</p>}
           <table className="table">
             <thead>
               <tr>

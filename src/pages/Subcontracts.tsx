@@ -135,7 +135,7 @@ export default function SubcontractsTab() {
   )
 }
 
-// Add a subcontractor or supplier without leaving the job: saved to Contractors, with their main contact.
+// Add a subcontractor or supplier without leaving the job: saved to Supply Chain, with their main contact.
 function QuickAddCompany({ onAdded, onCancel }: { onAdded: (c: Company) => void; onCancel: () => void }) {
   const [c, setC] = useState({ name: '', type: 'subcontractor', trade: '', address: '', postcode: '', email: '', phone: '', contact: '', contactRole: '', contactPhone: '', contactEmail: '' })
   const [error, setError] = useState<string | null>(null)
@@ -182,7 +182,7 @@ function QuickAddCompany({ onAdded, onCancel }: { onAdded: (c: Company) => void;
 
   return (
     <div className="quick-add">
-      <h3 className="sub-head">New subcontractor or supplier (added to Contractors)</h3>
+      <h3 className="sub-head">New subcontractor or supplier (added to Supply Chain)</h3>
       <div className="form-grid">
         {input('name', 'Company name (as it should print)', 'text', true)}
         <label>
@@ -766,7 +766,7 @@ export function OrderPage() {
         <p className="pqq-warning">
           {company!.name} isn't PQQ-approved ({STATE_LABELS[pqqState(company!)].toLowerCase()}). The email will include the PQQ pack
           {pqqPack.length ? ` (${pqqPack.length} document${pqqPack.length === 1 ? '' : 's'})` : ', once it is added in Settings › Standard documents'}.{' '}
-          <Link to={`/contractors?company=${company!.id}`}>PQQ in Contractors</Link>
+          <Link to={`/contractors?company=${company!.id}`}>PQQ in Supply Chain</Link>
         </p>
       )}
       <OmOutstanding jobId={job.id} orderId={order.id} />
@@ -844,7 +844,7 @@ export function OrderPage() {
           <p className="muted small">
             Prints as: {company.name}
             {company.address ? `, ${company.address.replace(/\n/g, ', ')}` : ''}
-            {company.postcode ? ` ${company.postcode}` : ''} · <Link to={`/contractors?company=${company.id}`}>edit in Contractors</Link> · {orderLabel(order, company)}
+            {company.postcode ? ` ${company.postcode}` : ''} · <Link to={`/contractors?company=${company.id}`}>edit in Supply Chain</Link> · {orderLabel(order, company)}
           </p>
         )}
       </section>
