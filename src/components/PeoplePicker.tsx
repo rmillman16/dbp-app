@@ -34,11 +34,12 @@ export default function PeoplePicker({
   async function add() {
     setError(null)
     if (!p.name.trim()) return setError('Their name is needed.')
-    if (!p.companyId && !p.newCompany.trim()) return setError('Choose their company, or add a new one.')
+    if (!p.companyId) return setError('Choose their company, or pick “+ New company…”.')
+    if (p.companyId === '__new' && !p.newCompany.trim()) return setError('Give the new company’s name.')
     if (!p.role.trim()) return setError('Give their role on this job, e.g. Joinery subcontractor.')
     setBusy(true)
     try {
-      const key = await onNew!(p)
+      const key = await onNew!(p.companyId === '__new' ? { ...p, companyId: '' } : p)
       onChange([...value, key])
       setAdding(false)
       setP({ companyId: '', newCompany: '', newCompanyType: 'subcontractor', name: '', email: '', phone: '', role: '' })
@@ -107,8 +108,9 @@ export default function PeoplePicker({
             </label>
             <label>
               Company *
-              <select value={p.companyId} onChange={(e) => set({ companyId: e.target.value, newCompany: '' })}>
-                <option value="">{p.newCompany ? '(new company below)' : 'Choose…'}</option>
+              <select value={p.companyId} onChange={(e) => set({ companyId: e.target.value, newCompany: e.target.value === '__new' ? p.newCompany : '' })}>
+                <option value="">Choose…</option>
+                <option value="__new">+ New company…</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -116,20 +118,40 @@ export default function PeoplePicker({
                 ))}
               </select>
             </label>
-            <label>
-              …or a new company
-              <span className="inline-add">
-                <input value={p.newCompany} placeholder="Company name" onChange={(e) => set({ newCompany: e.target.value, companyId: '' })} />
-                <select value={p.newCompanyType} onChange={(e) => set({ newCompanyType: e.target.value })} aria-label="Type of company">
-                  <option value="subcontractor">Subcontractor</option>
-                  <option value="supplier">Supplier</option>
-                  <option value="consultant">Consultant</option>
-                  <option value="designer">Designer</option>
-                  <option value="client">Client</option>
-                  <option value="other">Other</option>
-                </select>
-              </span>
-            </label>
+            {p.companyId === '__new' && (
+              <div className="span-2 new-company-box">
+                <strong className="small">New company (added to Contractors too)</strong>
+                <div className="form-grid">
+                  <label>
+                    Company name *
+                    <input autoFocus value={p.newCompany} onChange={(e) => set({ newCompany: e.target.value })} placeholder="Full name, e.g. Lumen Fit Out Ltd" />
+                  </label>
+                  <label>
+                    Type
+                    <select value={p.newCompanyType} onChange={(e) => set({ newCompanyType: e.target.value })}>
+                      <option value="subcontractor">Subcontractor</option>
+                      <option value="supplier">Supplier</option>
+                      <option value="consultant">Consultant</option>
+                      <option value="designer">Designer</option>
+                      <option value="client">Client</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label>
+                    Trade
+                    <input value={p.newCompanyTrade ?? ''} onChange={(e) => set({ newCompanyTrade: e.target.value })} placeholder="e.g. Joinery" />
+                  </label>
+                  <label>
+                    Company email
+                    <input type="email" value={p.newCompanyEmail ?? ''} onChange={(e) => set({ newCompanyEmail: e.target.value })} />
+                  </label>
+                  <label>
+                    Company phone
+                    <input type="tel" value={p.newCompanyPhone ?? ''} onChange={(e) => set({ newCompanyPhone: e.target.value })} />
+                  </label>
+                </div>
+              </div>
+            )}
             <label>
               Role on this job *
               <SuggestInput value={p.role} onChange={(v) => set({ role: v })} options={roles} limit={80} onAdd={(v) => addRole(v).catch((e: Error) => setError(e.message))} placeholder="e.g. Joinery subcontractor" />

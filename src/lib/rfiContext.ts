@@ -10,6 +10,9 @@ export interface NewPerson {
   companyId: string
   newCompany: string
   newCompanyType: string
+  newCompanyTrade?: string
+  newCompanyEmail?: string
+  newCompanyPhone?: string
   name: string
   email: string
   phone: string
@@ -67,7 +70,7 @@ export function useRfiContext(owner: OwnerRef) {
   const addPerson = async (p: NewPerson): Promise<string> => {
     let companyId = p.companyId
     if (!companyId) {
-      const c = await supabase.from('companies').insert({ name: p.newCompany.trim(), type: p.newCompanyType }).select('id').single()
+      const c = await supabase.from('companies').insert({ name: p.newCompany.trim(), type: p.newCompanyType, trade: p.newCompanyTrade?.trim() || null, email: p.newCompanyEmail?.trim() || null, phone: p.newCompanyPhone?.trim() || null }).select('id').single()
       if (c.error) throw new Error(c.error.message)
       companyId = c.data.id as string
     }
