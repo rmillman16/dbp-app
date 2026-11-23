@@ -974,3 +974,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .rfi-thread li { border-top: 1px solid var(--line); padding: 10px 0; } .rfi-thread-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .rfi-kind { background: #eef2ff; border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; color: var(--navy); }
 .rfi-thread li.rfi-follow_up .rfi-kind { background: #fff2cc; color: #8a5a00; } .rfi-thread li.rfi-note { background: #fafafa; }
 .rfi-reply { border-top: 2px solid var(--line); padding-top: 10px; } .reply-kind { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.rfi-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .rfi-actions .rfi-notify { margin: 0 0 0 8px; }

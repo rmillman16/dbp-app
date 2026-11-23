@@ -434,18 +434,17 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
           ))}
         </div>
       </div>
-      <label className="rfi-notify">
-        <input type="checkbox" checked={f.notify} onChange={(e) => set('notify', e.target.checked)} /> Email notifications
-        <span className="hint">DBP people are emailed straight away. Outside assignees are emailed once outside access is switched on; until then it waits for them.</span>
-      </label>
       {error && <p className="error">{error}</p>}
-      <div className="form-actions">
+      <div className="form-actions rfi-actions">
         <button className="primary" disabled={busy}>
           {busy ? 'Creating…' : f.notify ? 'Create and send emails' : 'Create RFI'}
         </button>
         <button type="button" onClick={onCancel}>
           Cancel
         </button>
+        <label className="rfi-notify" title="DBP people are emailed straight away. Outside assignees are emailed once outside access is switched on; until then it waits for them.">
+          <input type="checkbox" checked={f.notify} onChange={(e) => set('notify', e.target.checked)} /> Email notifications
+        </label>
       </div>
     </form>
   )
