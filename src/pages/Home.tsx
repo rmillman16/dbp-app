@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { addDaysIso, todayIso } from '../lib/format'
-import { useNotifications } from '../lib/notifications'
+import { addDaysIso, todayIso, ukDate } from '../lib/format'
+import { nudgeEmails, useNotifications } from '../lib/notifications'
+import { loadMyDay, setTaskDone, stepCount, type Task } from '../lib/tasks'
 import NotificationList from '../components/NotificationList'
 import { useAccess } from '../lib/access'
 import { ADMIN_LIST_NAME } from '../lib/requisitions'
 
-// Home = "My day" (23 Nov): quick actions for what this person does most, then one TODO list of everything
-// waiting on them (bell reminders and minutes tasks), overdue first. The jobs list lives under Jobs.
+// Home = "My day" (23 Nov): quick actions for what this person does most, then My Day (tasks I've added to My Day
+// today, and those due today, script 053), then one TODO list of everything waiting on them (bell reminders and
+// minutes tasks), overdue first. The jobs list lives under Jobs.
 export default function Home() {
   const { me } = useAccess()
   const first = (me?.full_name && me.full_name !== me.email ? me.full_name : '').split(' ')[0]
@@ -20,8 +22,57 @@ export default function Home() {
         {first ? `, ${first}` : ''}
       </h1>
       <QuickActions />
+      <MyDay />
       <MyTodo />
     </>
+  )
+}
+
+// ---------- My Day (23 Nov, script 053), as in Microsoft To Do: my tasks added to My Day today, and those due today ----------
+// It clears itself each day: a task counts only on the day it was added.
+function MyDay() {
+  const { me } = useAccess()
+  const { reload } = useNotifications()
+  const [tasks, setTasks] = useState<Task[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    if (!me?.id) return
+    loadMyDay(me.id).then(setTasks, (e: Error) => (setError(e.message), setTasks([])))
+  }, [me?.id])
+  async function done(t: Task) {
+    try {
+      await setTaskDone(t.id, true)
+      setTasks((l) => (l ?? []).filter((x) => x.id !== t.id))
+      reload()
+      nudgeEmails()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const sorted = (tasks ?? []).slice().sort((a, b) => Number(!!b.important) - Number(!!a.important))
+  return (
+    <section className="card my-day">
+      <div className="pane-head">
+        <h2>☀ My Day</h2>
+        <Link to="/tasks" className="link-button small">
+          Tasks →
+        </Link>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {tasks && sorted.length === 0 && <p className="muted">Nothing on My Day. Open a task on the Tasks page and choose Add to My Day; tasks due today show here too.</p>}
+      <ul className="my-day-list">
+        {sorted.map((t) => (
+          <li key={t.id}>
+            <button type="button" className="my-day-tick" onClick={() => done(t)} aria-label={`Mark done: ${t.title}`} title="Mark done" />
+            <Link to={`/tasks?task=${t.id}`}>
+              {t.important && <span className="my-day-star">★ </span>}
+              {t.title}
+            </Link>
+            <small>{[t.due_date === todayIso() ? 'Due today' : t.due_date ? `Due ${ukDate(t.due_date)}` : null, stepCount(t)].filter(Boolean).join(' · ')}</small>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 

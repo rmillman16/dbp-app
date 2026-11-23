@@ -56,6 +56,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `050_om_packages.sql` | O&M: items by SoW package (package_id), received = has a link (status follows the link), removing items / list entries for admins and Operations only, reminders per package | ⬜ Not yet |
 | `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ⬜ Not yet |
 | `052_tasks.sql` | Tasks: set a task for yourself or any DBP team member (optionally on a job, with a due date); it goes on their bell and the job's TODO; done tells whoever set it | ⬜ Not yet |
+| `053_task_details.sql` | Task details, as in Microsoft To Do (run after 052): important (star), steps, My Day, remind me on a date (bell and email that day), repeat (the next one is set up when it's done, from the page or the bell), files on a task (storage "tasks"); bell links open the task | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).
@@ -64,7 +65,7 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 |---|---|---|---|
 | `read-pricing-pdf` | Reads a PDF with Claude: priced lines for quotations (`kind: pricing`), or a subcontractor's application with %, £ claimed and their totals for payment notices (`kind: application`). If not deployed / no key / no credit, the app asks for Excel instead | Secret `ANTHROPIC_API_KEY`; optional `ANTHROPIC_MODEL` | ⬜ Not yet (with IT) |
 | `manage-users` | Admins (IT included) add users, reset passwords and switch logins off / on from Settings › Users. Checks the caller is an admin. Uses the server key Supabase gives Edge Functions automatically: nothing to set | None | ✅ Deployed |
-| `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests, minutes actions) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
+| `send-emails` | Emails people their new notifications (questions, answers, updates, new requisitions, off-hire reminders, access requests, minutes actions, tasks and task reminders) from DBP's Microsoft 365 mailbox. Sends nothing until the secrets are set | `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MAIL_SENDER`, `APP_URL`, `CRON_SECRET` (from IT) | ⬜ Not yet |
 | `check-link` | Opens an O&M SharePoint link with no sign-in (as the client would) to see if anyone can open it: green tick / sign-in needed / broken. Only SharePoint / OneDrive links; signed-in users only | None | ✅ Deployed |
 
 ## Rules

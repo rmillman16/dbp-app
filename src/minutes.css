@@ -1765,3 +1765,80 @@
 .mint.my-tasks .task-del { display: flex; align-items: center; justify-content: center; align-self: stretch; border-left: 1px solid var(--border); }
 .mint.my-tasks .task-del button.link-button { text-decoration: none; font-size: 16px; color: #948da8; }
 .mint.my-tasks .task-del button.link-button:hover { color: #c0392b; }
+
+/* Tasks: the star on a row, the row that's open (23 Nov, 053) */
+.mint.my-tasks .task-buttons button.task-star { border: none; background: none; padding: 2px 4px; font-size: 20px; line-height: 1; color: #948da8; }
+.mint.my-tasks .task-buttons button.task-star.on { color: #1f1246; }
+.mint.my-tasks .dash-task.task-open { border-color: #1f1246; box-shadow: 0 0 0 1px #1f1246; }
+
+/* the task detail panel, set up like Microsoft To Do (23 Nov, 053): on the right; full screen on a phone */
+.mint .task-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 400px; max-width: 100vw; z-index: 900; background: #f5f5f8; border-left: 1px solid #e2e2e8; box-shadow: -8px 0 24px rgba(31, 18, 70, 0.12); display: flex; flex-direction: column; color: #1d1d24; }
+.mint .task-panel .tp-top { display: flex; justify-content: flex-end; padding: 8px 10px 0; }
+.mint .task-panel .tp-scroll { flex: 1; overflow-y: auto; padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.mint .task-panel .tp-card { background: #fff; border: 1px solid #e2e2e8; border-radius: 8px; padding: 4px 0; }
+.mint .task-panel button.tp-close { border: none; background: none; padding: 4px 8px; font-size: 18px; color: #6b6b78; }
+.mint .task-panel button.tp-close:hover { color: #1f1246; }
+.mint .task-panel .tp-title-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; }
+.mint .task-panel textarea.tp-title { flex: 1; border: none; padding: 2px 4px; font-size: 18px; font-weight: 600; color: #1f1246; resize: none; background: transparent; }
+.mint .task-panel textarea.tp-title.done { text-decoration: line-through; color: #6b6b78; }
+.mint .task-panel button.tp-tick { flex: none; width: 22px; height: 22px; padding: 0; margin-top: 4px; border-radius: 50%; border: 2px solid #1f1246; background: #fff; color: #fff; font-size: 13px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.mint .task-panel button.tp-tick:hover { background: #ece9f5; }
+.mint .task-panel button.tp-tick.on { background: #1f1246; }
+.mint .task-panel button.tp-tick.small { width: 18px; height: 18px; margin-top: 0; font-size: 11px; }
+.mint .task-panel button.tp-star { flex: none; border: none; background: none; padding: 0 2px; font-size: 22px; line-height: 1.2; color: #948da8; }
+.mint .task-panel button.tp-star.on { color: #1f1246; }
+.mint .task-panel .tp-step { display: flex; align-items: center; gap: 10px; padding: 4px 12px 4px 16px; border-top: 1px solid #f0eff4; }
+.mint .task-panel .tp-step input { flex: 1; min-width: 0; border: none; padding: 6px 4px; background: transparent; }
+.mint .task-panel .tp-step.done input { text-decoration: line-through; color: #6b6b78; }
+.mint .task-panel .tp-step-tools { display: inline-flex; gap: 2px; opacity: 0; }
+.mint .task-panel .tp-step:hover .tp-step-tools,
+.mint .task-panel .tp-step:focus-within .tp-step-tools { opacity: 1; }
+.mint .task-panel .tp-add-step .tp-plus { width: 18px; text-align: center; color: #007abe; font-size: 18px; }
+.mint .task-panel .tp-add-step input::placeholder { color: #007abe; }
+.mint .task-panel button.tp-x { border: none; background: none; padding: 2px 6px; color: #948da8; font-size: 14px; }
+.mint .task-panel button.tp-x:hover { color: #c0392b; }
+.mint .task-panel .tp-line { display: flex; align-items: center; }
+.mint .task-panel .tp-line + .tp-line,
+.mint .task-panel .tp-menu + .tp-line { border-top: 1px solid #f0eff4; }
+.mint .task-panel .tp-line-main { flex: 1; display: flex; gap: 12px; align-items: center; text-align: left; border: none; background: none; padding: 11px 14px; border-radius: 0; color: #4a4a57; }
+.mint .task-panel button.tp-line-main:hover { background: #f7f6fb; }
+.mint .task-panel .tp-line.on .tp-line-main { color: #1f1246; font-weight: 600; }
+.mint .task-panel .tp-line.warn .tp-line-main { color: #c62828; }
+.mint .task-panel .tp-line-main small { display: block; font-weight: 400; font-size: 12px; color: #6b6b78; }
+.mint .task-panel .tp-line .tp-x { margin-right: 8px; }
+.mint .task-panel .tp-icon { width: 20px; text-align: center; flex: none; }
+.mint .task-panel .tp-menu { display: flex; flex-direction: column; margin: 0 10px 8px 44px; border: 1px solid #e2e2e8; border-radius: 6px; overflow: hidden; background: #fff; }
+.mint .task-panel .tp-menu button { display: flex; justify-content: space-between; border: none; border-radius: 0; background: #fff; padding: 8px 12px; text-align: left; }
+.mint .task-panel .tp-menu button + button,
+.mint .task-panel .tp-menu .tp-pick { border-top: 1px solid #f0eff4; }
+.mint .task-panel .tp-menu button:hover { background: #f7f6fb; }
+.mint .task-panel .tp-menu button.on { background: #1f1246; color: #fff; }
+.mint .task-panel .tp-menu button span { color: #6b6b78; font-size: 13px; }
+.mint .task-panel .tp-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; }
+.mint .task-panel .tp-pick input { padding: 4px 6px; }
+.mint .task-panel .tp-field { display: flex; gap: 12px; align-items: center; padding: 8px 14px; }
+.mint .task-panel .tp-field + .tp-field { border-top: 1px solid #f0eff4; }
+.mint .task-panel .tp-field-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mint .task-panel .tp-field-label { font-size: 12px; color: #6b6b78; }
+.mint .task-panel .tp-field select { width: 100%; padding: 6px 8px; }
+.mint .task-panel .tp-file { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-bottom: 1px solid #f0eff4; }
+.mint .task-panel button.tp-file-name { flex: 1; min-width: 0; border: none; background: none; padding: 0; text-align: left; color: #007abe; text-decoration: underline; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mint .task-panel .tp-file small { color: #6b6b78; font-size: 12px; }
+.mint .task-panel .tp-file-buttons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 14px; }
+.mint .task-panel .tp-filebtn { cursor: pointer; }
+.mint .task-panel .tp-filebtn input { display: none; }
+.mint .task-panel .tp-filebtn span { display: inline-block; padding: 6px 12px; border: 1px solid #c9c9d3; border-radius: 6px; background: #fff; font-size: 14px; }
+.mint .task-panel .tp-filebtn span:hover { border-color: #1f1246; }
+.mint .task-panel .tp-file-buttons small { color: #6b6b78; }
+.mint .task-panel textarea.tp-notes { display: block; width: 100%; box-sizing: border-box; border: none; resize: vertical; min-height: 90px; padding: 10px 14px; background: transparent; }
+.mint .task-panel .tp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px solid #e2e2e8; font-size: 13px; color: #6b6b78; background: #f5f5f8; }
+.mint .task-panel button.tp-delete { border: none; background: none; padding: 4px 8px; font-size: 16px; }
+.mint .task-panel button.tp-delete:hover { background: #fdecec; }
+/* the list stays in view beside the panel on a wide screen */
+@media (min-width: 1100px) {
+  .mint.my-tasks.panel-open .note { margin-right: 400px; }
+}
+@media (max-width: 860px) {
+  .mint .task-panel { width: 100vw; border-left: none; }
+  .mint .task-panel .tp-step-tools { opacity: 1; }
+}

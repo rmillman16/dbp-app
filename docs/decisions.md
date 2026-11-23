@@ -140,9 +140,22 @@
   - **@someone** in the task line sets the task for them.
   - A task goes on the person's bell, and on the job's TODO if it's on a job. It's emailed once emails are set up. Done on the bell ticks it, and whoever set it is told when it's done.
   - People see tasks given to them and tasks they set; admins see all. Read-only on archived jobs.
+  - **Task details, set up like Microsoft To Do (23 Nov, 053).** Clicking a task opens a panel on the right (full screen on a phone; Esc or ✕ closes it). Minutes actions still open their meeting. Everything saves as you go:
+    - **Tick and title** (edit in place) and **☆ Important**. Starred tasks sort first in the list (urgent minutes actions too), and the star shows on the row, where it can be clicked.
+    - **Steps:** a checklist inside the task (tick, rename, ↑ ↓ to reorder, ✕ to remove). The row shows "2 of 5".
+    - **Add to My Day:** only on tasks for me, since My Day is your own. It shows on Home under **My Day**, with my tasks due today, and clears itself the next day (the date it was added is kept; it only counts that day). Giving the task to someone else takes it off My Day.
+    - **Remind me** on a day (Today, Tomorrow, Next week, or pick a date). The reminder goes on the bell of the person the task is for **on that day, not before**, and is emailed that day. Changing the day moves it; clearing it, done or deleting the task closes it; opening the task again puts it back. **Date only, no time:** the bell and every other reminder in the app work by day, and the emails go from a scheduled job, so a time couldn't be kept to reliably.
+    - **Due date:** Today, Tomorrow, Next week (the coming Monday), or pick a date. Removing the due date stops it repeating.
+    - **Repeat:** Daily, Weekdays, Weekly, Monthly, Yearly. Setting it on a task with no due date makes it due today. When a repeating task is ticked done (on the page, on Home or Done on the bell), the database sets up the next one: due one step on from the old due date (never in the past), steps copied unticked, notes, person, job, star and repeat copied, and the reminder moved by the same number of days. It's set up once per task, even if it's opened again and re-ticked.
+    - **Assigned to** (any staff login) and **Job**; who set it is in the footer.
+    - **Files:** 📎 Add file and 📷 Take photo (phone camera). Kept privately (storage "tasks") and opened by a link that lasts an hour; whoever can see the task can see its files. You can remove the files you added (admins any).
+    - **Note:** the notes, as a multi-line box.
+    - **Footer:** "Created on DD/MM/YYYY by …" and 🗑 Delete (whoever set it, or an admin; the list's ✕ follows the same rule).
+    - Bell links for tasks open the task itself (`/tasks?task=…`).
 - **Home = "My day" (23 Nov).** It replaces the old Home, which duplicated the bell and the Jobs list.
   - A greeting.
   - **Quick actions:** only what the person can open, e.g. + Material / + Hire requisition, the Req - ADMIN lists for buyers, + Enquiry, + Job, New meeting (choose the job; your Team jobs listed first), Tasks and Dashboard.
+  - **My Day (23 Nov, 053):** my tasks added to My Day today and those due today, starred first, each with a tick to mark it done; clicking one opens it on the Tasks page.
   - **My TODO:** everything on their bell, including minutes tasks, in Overdue, This week and Later sections, each with Done and Snooze.
   - Richard chose just these two for now. The other ideas (this week strip, my jobs cards, noticeboard, tenders due, activity, management tiles) are on hold.
 - **Job Overview reworked (23 Nov).**

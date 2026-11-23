@@ -6,8 +6,9 @@
 // after anything that creates a notification, so emails go within a minute.
 //
 // Sends each notification that: is addressed to one person, is one of the kinds below, hasn't been emailed,
-// is still open, is from the last 2 days (no backlog), and, for an off-hire reminder, is due today or
-// earlier (it's dated 3 days before the hire ends). The person must have emails on (My details).
+// is still open, and is from the last 2 days (no backlog). Dated reminders (off-hire, dated 3 days before the
+// hire ends; a task's "Remind me", 053) go on their day instead: due today or in the last 2 days, however
+// long ago they were made. The person must have emails on (My details).
 //
 // Secrets (Supabase › Edge Functions › Secrets), from IT:
 //   MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET  the Microsoft app registration (Mail.Send, limited to the mailbox)
@@ -24,7 +25,9 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder"];
+// sent on their own day, not when they're made
+const DATED = ["off_hire_due", "task_reminder"];
 
 function serverKey() {
   const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
@@ -85,18 +88,33 @@ Deno.serve(async (req) => {
 
     const since = new Date(Date.now() - 2 * 86400000).toISOString();
     const today = new Date().toISOString().slice(0, 10);
-    const { data: due, error } = await db
-      .from("notifications")
-      .select("id, profile_id, kind, title, detail, due_date, link, job_id, source_id")
-      .is("emailed_at", null)
-      .not("profile_id", "is", null)
-      .eq("status", "open")
-      .in("kind", KINDS)
-      .gte("created_at", since)
-      .order("created_at")
-      .limit(50);
+    const cols = "id, profile_id, kind, title, detail, due_date, link, job_id, source_id";
+    const [news, dated] = await Promise.all([
+      db
+        .from("notifications")
+        .select(cols)
+        .is("emailed_at", null)
+        .not("profile_id", "is", null)
+        .eq("status", "open")
+        .in("kind", KINDS.filter((k) => !DATED.includes(k)))
+        .gte("created_at", since)
+        .order("created_at")
+        .limit(50),
+      db
+        .from("notifications")
+        .select(cols)
+        .is("emailed_at", null)
+        .not("profile_id", "is", null)
+        .eq("status", "open")
+        .in("kind", DATED)
+        .lte("due_date", today)
+        .gte("due_date", since.slice(0, 10))
+        .order("due_date")
+        .limit(50),
+    ]);
+    const error = news.error ?? dated.error;
     if (error) return reply({ ok: false, detail: error.message });
-    const ready = (due ?? []).filter((n) => n.kind !== "off_hire_due" || (n.due_date && n.due_date <= today));
+    const ready = [...(news.data ?? []), ...(dated.data ?? [])];
     if (ready.length === 0) return reply({ ok: true, sent: 0 });
 
     const ids = [...new Set(ready.map((n) => n.profile_id as string))];

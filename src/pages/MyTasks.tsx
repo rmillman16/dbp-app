@@ -1,8 +1,10 @@
 // Tasks (renamed from My tasks, 23 Nov): one list of every task for me or set by me (script 052) and my open action
 // items from meeting minutes (script 045), filtered by who (All / For me / Set by me) and by job; a box to set a new task
 // for myself or any DBP team member (@someone in the line), optionally on a job, with a due date.
+// Clicking a task opens its details (TaskPanel, script 053, set up like Microsoft To Do); a minutes action opens its
+// meeting. Starred (important) tasks sort first.
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import '../minutes.css'
 import { supabase } from '../lib/supabase'
 import { cached, must } from '../lib/offline'
@@ -10,8 +12,9 @@ import { todayIso, ukDate } from '../lib/format'
 import { useAccess } from '../lib/access'
 import { nudgeEmails, useNotifications } from '../lib/notifications'
 import * as M from '../lib/minutes'
-import { addTask, deleteTask, loadTasks, setTaskDone, type Task } from '../lib/tasks'
+import { REPEAT_LABELS, addTask, deleteTask, loadTask, loadTasks, onMyDay, setTaskDone, stepCount, updateTask, type Task } from '../lib/tasks'
 import { Mentions, useToast } from '../components/MinutesBits'
+import TaskPanel from '../components/TaskPanel'
 import type { Profile } from '../lib/types'
 
 type Person = Pick<Profile, 'id' | 'full_name' | 'email'>
@@ -36,6 +39,7 @@ interface Row {
   setByMe: boolean
   forName: string
   fromName: string | null
+  important: boolean
   task?: Task
   action?: M.OpenAction
 }
@@ -54,6 +58,19 @@ export default function MyTasks() {
   const [showDone, setShowDone] = useState(false)
   const [teamJobs, setTeamJobs] = useState<string[]>([]) // the jobs I'm on the Team of
   const { showToast, toastElement } = useToast()
+  // the task open in the detail panel (053); ?task=… from a bell link opens it
+  const [params, setParams] = useSearchParams()
+  const openId = params.get('task')
+  const setOpenId = (id: string | null) =>
+    setParams(
+      (p) => {
+        const n = new URLSearchParams(p)
+        if (id) n.set('task', id)
+        else n.delete('task')
+        return n
+      },
+      { replace: true },
+    )
 
   useEffect(() => {
     M.loadMyActions().then(setActions, () => setActions([]))
@@ -96,6 +113,7 @@ export default function MyTasks() {
       setByMe: t.created_by === uid,
       forName: t.assigned_to === uid ? 'Me' : personName(personById.get(t.assigned_to)),
       fromName: t.created_by && t.created_by !== uid ? personName(personById.get(t.created_by)) : null,
+      important: !!t.important,
       task: t,
     }))
     for (const a of actions ?? [])
@@ -112,10 +130,25 @@ export default function MyTasks() {
         setByMe: false,
         forName: 'Me',
         fromName: null,
+        important: !!a.urgent,
         action: a,
       })
-    return out.sort((x, y) => Number(x.done) - Number(y.done) || (x.due ?? '9999').localeCompare(y.due ?? '9999'))
+    // open first, then important (the star; urgent minutes actions), then by due date
+    return out.sort((x, y) => Number(x.done) - Number(y.done) || Number(y.important) - Number(x.important) || (x.due ?? '9999').localeCompare(y.due ?? '9999'))
   }, [tasks, actions, uid, personById])
+  const openTask = (tasks ?? []).find((t) => t.id === openId) ?? null
+  const isAdmin = !!me?.is_admin
+
+  // a task opened from a bell link that isn't in the list (e.g. done a while ago): fetch it
+  useEffect(() => {
+    if (!openId || tasks === null || tasks.some((t) => t.id === openId)) return
+    loadTask(openId).then(
+      (t) => (t ? setTasks((l) => [...(l ?? []).filter((x) => x.id !== t.id), t]) : (setOpenId(null), showToast('That task has been deleted, or isn’t yours to see.', true))),
+      (e: Error) => showToast(e.message, true),
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId, tasks === null])
+  const replaceTask = (t: Task) => setTasks((l) => (l ?? []).map((x) => (x.id === t.id ? t : x)))
 
   const byWho = (r: Row, w: Who) => w === 'all' || (w === 'mine' ? r.forMe : r.setByMe)
   const byJob = (r: Row) => !jobFilter || (jobFilter === 'none' ? !r.jobId : r.jobId === jobFilter)
@@ -143,8 +176,25 @@ export default function MyTasks() {
       setTasks((l) => (l ?? []).map((x) => (x.id === t.id ? { ...x, done, done_at: done ? new Date().toISOString() : null } : x)))
       reload()
       nudgeEmails()
+      // a repeating task: the database has set up the next one
+      if (done && t.repeat) {
+        const fresh = await loadTasks()
+        setTasks(fresh)
+        const nextId = fresh.find((x) => x.id === t.id)?.repeated_to
+        const next = fresh.find((x) => x.id === nextId)
+        return showToast(next?.due_date ? `Done. The next one is due ${ukDate(next.due_date)}.` : 'Done. The next one is set up.')
+      }
       showToast(done ? 'Marked done.' : 'Opened again.')
     } catch (e) {
+      showToast((e as Error).message, true)
+    }
+  }
+  async function toggleStar(t: Task) {
+    replaceTask({ ...t, important: !t.important })
+    try {
+      replaceTask(await updateTask(t.id, { important: !t.important }))
+    } catch (e) {
+      replaceTask(t)
       showToast((e as Error).message, true)
     }
   }
@@ -153,6 +203,7 @@ export default function MyTasks() {
     try {
       await deleteTask(t.id)
       setTasks((l) => (l ?? []).filter((x) => x.id !== t.id))
+      if (openId === t.id) setOpenId(null)
       reload()
     } catch (e) {
       showToast((e as Error).message, true)
@@ -160,7 +211,7 @@ export default function MyTasks() {
   }
 
   return (
-    <div className="mint my-tasks">
+    <div className={'mint my-tasks' + (openTask ? ' panel-open' : '')}>
       <main className="note">
         <div className="note-inner">
           <h1 className="dash-title">Tasks</h1>
@@ -214,20 +265,30 @@ export default function MyTasks() {
           {tasks && actions && shown.length === 0 && <div className="dash-empty">Nothing here. Tasks for you or set by you, and actions from meeting minutes, show here.</div>}
           <div className="dash-list">
             {shown.map((r) => {
-              const openMeeting = r.action ? () => navigate(M.meetingPath({ id: r.action!.meetingId, jobId: r.action!.jobId, enquiryId: r.action!.enquiryId })) : null
+              // a minutes action opens its meeting; a task opens its details (053)
+              const open = r.action
+                ? () => navigate(M.meetingPath({ id: r.action!.meetingId, jobId: r.action!.jobId, enquiryId: r.action!.enquiryId }))
+                : () => setOpenId(r.task!.id)
+              const t = r.task
+              const steps = t ? stepCount(t) : null
               return (
                 <div
                   key={r.key}
-                  className={'dash-task' + (r.done ? ' task-done' : '')}
-                  role={openMeeting ? 'link' : undefined}
-                  tabIndex={openMeeting ? 0 : undefined}
-                  onClick={(e) => openMeeting && !(e.target as HTMLElement).closest('button') && openMeeting()}
+                  className={'dash-task' + (r.done ? ' task-done' : '') + (t && t.id === openId ? ' task-open' : '')}
+                  role={r.action ? 'link' : 'button'}
+                  tabIndex={0}
+                  onClick={(e) => !(e.target as HTMLElement).closest('button') && open()}
+                  onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && open()}
                 >
                   <div className="task-main">
                     <div className="dash-task-text">{r.action ? <Mentions text={r.text} attendees={r.action.attendees} /> : r.text}</div>
                     {r.notes && <div className="task-notes">{r.notes}</div>}
                     <div className="dash-task-meta">
                       {r.done ? <span className="chip">✓ Done {r.doneAt ? ukDate(r.doneAt.slice(0, 10)) : ''}</span> : dueChip(r.due)}
+                      {t && onMyDay(t) && !r.done && <span className="chip">☀ My Day</span>}
+                      {steps && <span className="chip">{steps}</span>}
+                      {t?.remind_on && !r.done && <span className="chip">🔔 {ukDate(t.remind_on)}</span>}
+                      {t?.repeat && <span className="chip">🔁 {REPEAT_LABELS[t.repeat]}</span>}
                       <span className="chip">{r.forMe ? 'For me' : `For ${r.forName}`}</span>
                       {r.fromName && <span className="chip">From {r.fromName}</span>}
                       {r.action && (
@@ -242,6 +303,18 @@ export default function MyTasks() {
                     </div>
                   </div>
                   <span className="task-buttons app-controls">
+                    {t && (
+                      <button
+                        type="button"
+                        className={'task-star' + (t.important ? ' on' : '')}
+                        onClick={() => toggleStar(t)}
+                        aria-pressed={!!t.important}
+                        aria-label={t.important ? 'Important: take the star off' : 'Mark as important'}
+                        title={t.important ? 'Important' : 'Mark as important'}
+                      >
+                        {t.important ? '★' : '☆'}
+                      </button>
+                    )}
                     {r.action && !r.action.jobArchived && (
                       <button type="button" className="primary" onClick={() => completeAction(r.action!)}>
                         Complete
@@ -259,7 +332,7 @@ export default function MyTasks() {
                     )}
                   </span>
                   <span className="task-del app-controls">
-                    {r.task && r.setByMe && (
+                    {r.task && (r.setByMe || isAdmin) && (
                       <button type="button" className="link-button" onClick={() => remove(r.task!)} aria-label="Delete task" title="Delete task">
                         ✕
                       </button>
@@ -271,6 +344,19 @@ export default function MyTasks() {
           </div>
         </div>
       </main>
+      {openTask && (
+        <TaskPanel
+          task={openTask}
+          people={people}
+          jobs={jobs}
+          me={me ?? null}
+          onSaved={replaceTask}
+          onTick={tick}
+          onDelete={remove}
+          onClose={() => setOpenId(null)}
+          toast={showToast}
+        />
+      )}
       {toastElement}
     </div>
   )
@@ -305,13 +391,13 @@ function NewTask({
     ? people
         .filter((p) => {
           const n = personName(p).toLowerCase()
-          return !at.q || n.split(/s+/).some((w) => w.startsWith(at.q.toLowerCase())) || n.startsWith(at.q.toLowerCase())
+          return !at.q || n.split(/\s+/).some((w) => w.startsWith(at.q.toLowerCase())) || n.startsWith(at.q.toLowerCase())
         })
         .slice(0, 6)
     : []
   function typed(v: string, caret: number) {
     setTitle(v)
-    const m = /(^|s)@([w'-]*)$/.exec(v.slice(0, caret))
+    const m = /(^|\s)@([\w'-]*)$/.exec(v.slice(0, caret))
     setAt(m ? { q: m[2], from: caret - m[2].length - 1 } : null)
     setAtHi(0)
   }
@@ -319,7 +405,7 @@ function NewTask({
     if (!at) return
     const before = title.slice(0, at.from)
     const after = title.slice(at.from + 1 + at.q.length)
-    setTitle(`${before}@${personName(p)} ${after.replace(/^s+/, '')}`)
+    setTitle(`${before}@${personName(p)} ${after.replace(/^\s+/, '')}`)
     if (p.id !== me) setWho(p.id)
     setAt(null)
   }
