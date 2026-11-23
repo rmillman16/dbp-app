@@ -1,3 +1,4 @@
+import { MoneyText } from '../components/MoneyInput'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -278,7 +279,7 @@ export default function JobForm() {
         </label>
         <label>
           Contract sum (£, excl. VAT)
-          <input type="number" step="0.01" min="0" value={form.contract_sum} onChange={(e) => set('contract_sum', e.target.value)} />
+          <MoneyText value={form.contract_sum} onChange={(v) => set('contract_sum', v)} />
           {contractSum != null && <span className="hint">{money(contractSum)}</span>}
         </label>
         <label>
@@ -352,7 +353,7 @@ export default function JobForm() {
         </label>
         <label>
           Weekly prelims £ (EOT prolongation)
-          <input type="number" step="0.01" min="0" value={form.weekly_prelims} onChange={(e) => set('weekly_prelims', e.target.value)} />
+          <MoneyText value={form.weekly_prelims} onChange={(v) => set('weekly_prelims', v)} />
         </label>
         <label>
           Notice of delay due (days after an event)

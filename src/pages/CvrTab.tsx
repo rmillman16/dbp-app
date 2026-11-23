@@ -1,3 +1,4 @@
+import MoneyInput from '../components/MoneyInput'
 import { Fragment, useEffect, useState } from 'react'
 import { GROUP_LABELS, GROUP_ORDER, byGroupThenName, groupOf, type Group } from '../lib/cvrCalc'
 import { useNavigate } from 'react-router-dom'
@@ -13,7 +14,6 @@ import { parseOldCvr, removeOldCvr, saveOldCvr } from '../lib/cvrUpload'
 import { useJob } from './JobLayout'
 
 const KIND_LABELS: Record<CvrPackage['kind'], string> = { cost: 'Cost', omit: 'Shown and omitted', ep: 'EP / contingency' }
-const num = (v: string) => (v.trim() === '' ? null : Number(v))
 const monthEnd = () => {
   const d = new Date()
   return new Date(Date.UTC(d.getFullYear(), d.getMonth() + 1, 0)).toISOString().slice(0, 10)
@@ -311,7 +311,7 @@ function Packages({
                       <span className="muted">omitted</span>
                     ) : (
                       <span className="target-cell">
-                        <input type="number" step="0.01" value={p.target ?? ''} onChange={(e) => set(p.id, 'target', num(e.target.value))} />
+                        <MoneyInput value={p.target} onChange={(v) => set(p.id, 'target', v)} />
                         {p.target != null && <input value={p.target_note ?? ''} placeholder="why?" onChange={(e) => set(p.id, 'target_note', e.target.value || null)} />}
                       </span>
                     )}

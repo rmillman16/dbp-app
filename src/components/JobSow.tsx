@@ -3,6 +3,7 @@
 // Cashflow (the office SoW's cost columns, by package). Swapping it on any tab updates them all.
 // A client SoW (no cost columns) updates Valuations only; a CVR breakdown tab (KOSH layout, no
 // priced lines) updates the CVR and Cashflow only.
+import { MoneyText } from './MoneyInput'
 import { useEffect, useState } from 'react'
 import { money, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -271,7 +272,7 @@ function SowImport({ onDone, onCancel, hasApps }: { onDone: (what: string) => vo
           {withApp && (
             <label>
               Paid before Application {parsed.app_no} (£)
-              <input type="number" step="0.01" value={prevPaid} onChange={(e) => setPrevPaid(e.target.value)} />
+              <MoneyText value={prevPaid} onChange={setPrevPaid} />
               <span className="hint">The front sheet's "Less previous paid". VO percentages aren't in this sheet: enter them on the application.</span>
             </label>
           )}

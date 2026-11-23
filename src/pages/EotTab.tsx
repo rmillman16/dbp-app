@@ -1,3 +1,4 @@
+import MoneyInput from '../components/MoneyInput'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -594,7 +595,7 @@ function ClaimEditor({
         </label>
         <label>
           Weekly prelims £
-          <input type="number" step="any" value={c.weekly_prelims ?? ''} onChange={(x) => setC({ ...c, weekly_prelims: num(x.target.value) })} />
+          <MoneyInput value={c.weekly_prelims} onChange={(v) => setC({ ...c, weekly_prelims: v })} />
         </label>
         <label className="span-3">
           Notes

@@ -10,7 +10,21 @@ export const parseMoney = (s: string): number | null => {
   return Number(t)
 }
 
-export default function MoneyInput({ value, onChange, placeholder, disabled }: { value: number | null | undefined; onChange: (v: number | null) => void; placeholder?: string; disabled?: boolean }) {
+export default function MoneyInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  className,
+  ariaLabel,
+}: {
+  value: number | null | undefined
+  onChange: (v: number | null) => void
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  ariaLabel?: string
+}) {
   const [text, setText] = useState(show(value))
   const [focused, setFocused] = useState(false)
   // follow the value when it changes from outside (not while typing)
@@ -21,7 +35,8 @@ export default function MoneyInput({ value, onChange, placeholder, disabled }: {
     <input
       type="text"
       inputMode="decimal"
-      className="money-input"
+      className={'money-input' + (className ? ' ' + className : '')}
+      aria-label={ariaLabel}
       value={text}
       placeholder={placeholder ?? '£0.00'}
       disabled={disabled}
@@ -43,4 +58,10 @@ export default function MoneyInput({ value, onChange, placeholder, disabled }: {
       }}
     />
   )
+}
+
+// the same for forms that keep their amounts as text ("1000" in, "1000" out: the box shows £1,000.00)
+export function MoneyText({ value, onChange, placeholder, disabled, className, ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean; className?: string; ariaLabel?: string }) {
+  const n = parseMoney(value)
+  return <MoneyInput value={n} onChange={(v) => onChange(v == null ? '' : String(v))} placeholder={placeholder} disabled={disabled} className={className} ariaLabel={ariaLabel} />
 }

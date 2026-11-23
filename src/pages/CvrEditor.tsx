@@ -1,3 +1,4 @@
+import { MoneyText } from '../components/MoneyInput'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -551,7 +552,7 @@ function ForecastInput({ value, note, auto, onSave }: { value: number | null; no
   const dirty = (num(v) ?? null) !== value || (n || null) !== (note || null)
   return (
     <span className="forecast-cell">
-      <input type="number" step="0.01" value={v} placeholder={auto.toFixed(2)} onChange={(e) => setV(e.target.value)} />
+      <MoneyText value={v} placeholder={money(auto)} onChange={setV} />
       {v.trim() !== '' && <input value={n} placeholder="why?" onChange={(e) => setN(e.target.value)} />}
       {dirty && (
         <button

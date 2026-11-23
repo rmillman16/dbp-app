@@ -1,3 +1,4 @@
+import MoneyInput from '../components/MoneyInput'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { money } from '../lib/format'
@@ -420,7 +421,11 @@ function Num({ label, value, onChange }: { label: string; value: number | null |
   return (
     <label>
       {label}
-      <input type="number" step="any" inputMode="decimal" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} />
+      {label.includes('£') ? (
+        <MoneyInput value={value} onChange={onChange} />
+      ) : (
+        <input type="number" step="any" inputMode="decimal" value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))} />
+      )}
     </label>
   )
 }

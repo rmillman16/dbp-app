@@ -1,3 +1,4 @@
+import { MoneyText } from '../components/MoneyInput'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -399,7 +400,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
                   <input className="unit" value={l.unit} onChange={(e) => setLine(l.key, 'unit', e.target.value)} />
                 </td>
                 <td className="c-rate" data-label="Rate £">
-                  <input type="number" step="0.01" inputMode="decimal" className="rate" value={l.rate} onChange={(e) => setLine(l.key, 'rate', e.target.value)} />
+                  <MoneyText className="rate" value={l.rate} onChange={(v) => setLine(l.key, 'rate', v)} />
                 </td>
                 <td className="num c-total" data-label="Total">
                   {money(lineTotal({ qty: numOrNull(l.qty), rate: numOrNull(l.rate) }))}

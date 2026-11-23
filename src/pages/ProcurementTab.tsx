@@ -1,3 +1,4 @@
+import MoneyInput, { MoneyText } from '../components/MoneyInput'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { money, todayIso, ukDate } from '../lib/format'
@@ -429,7 +430,7 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
         )}
         <label>
           Order value £
-          <input type="number" inputMode="decimal" step="0.01" value={it.order_value ?? ''} onChange={(e) => set({ order_value: n(e.target.value) })} />
+          <MoneyInput value={it.order_value} onChange={(v) => set({ order_value: v })} />
         </label>
         <label>
           Order no.
@@ -692,7 +693,7 @@ function SplitEditor({
               </option>
             ))}
           </select>
-          <input className="split-gbp" type="number" inputMode="decimal" step="0.01" value={r.amount} onChange={(e) => set(k, { amount: e.target.value })} aria-label="£" />
+          <MoneyText className="split-gbp" value={r.amount} onChange={(v) => set(k, { amount: v })} ariaLabel="£" />
           <button className="small-button" onClick={() => setRows(rows.filter((_, i) => i !== k))} aria-label="Remove">
             ✕
           </button>

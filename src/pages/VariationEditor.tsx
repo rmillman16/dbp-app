@@ -1,3 +1,4 @@
+import { MoneyText } from '../components/MoneyInput'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
@@ -248,7 +249,7 @@ export default function VariationEditor() {
               <input className="unit" value={l.unit} onChange={(e) => setLine(l.key, 'unit', e.target.value)} />
             </td>
             <td className="c-rate" data-label="Rate £">
-              <input type="number" step="0.01" inputMode="decimal" className="rate" value={l.rate} onChange={(e) => setLine(l.key, 'rate', e.target.value)} />
+              <MoneyText className="rate" value={l.rate} onChange={(v) => setLine(l.key, 'rate', v)} />
             </td>
             <td className="num c-total" data-label="Total">
               {money((sec === 'omit' ? -1 : 1) * lineTotal({ qty: numOrNull(l.qty), rate: numOrNull(l.rate) }))}
@@ -326,7 +327,7 @@ export default function VariationEditor() {
           </label>
           <label>
             Budget (£)
-            <input type="number" step="0.01" value={head.budget_value} onChange={(e) => setH('budget_value', e.target.value)} />
+            <MoneyText value={head.budget_value} onChange={(v) => setH('budget_value', v)} />
             {built.priced && head.budget_value && <span className="hint">Firm price in: budget kept here, left off exports.</span>}
           </label>
           <label>

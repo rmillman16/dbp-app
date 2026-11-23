@@ -9,6 +9,7 @@ import { readApplicationPdf } from '../lib/readPdf'
 import type { Adjustment, Block, Company, Order, PaymentNotice, SubAppLine, SubApplication, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
+import MoneyInput from '../components/MoneyInput'
 
 const BLOCKS: [Block, string][] = [
   ['measured', 'Contract works (measured)'],
@@ -203,15 +204,15 @@ export default function PaymentNoticeEditor() {
           <div />
           <label>
             Their gross to date £
-            <input type="number" step="any" value={app.stated_gross ?? ''} onChange={(e) => setA('stated_gross', numOrNull(e.target.value))} />
+            <MoneyInput value={app.stated_gross} onChange={(v) => setA('stated_gross', v)} />
           </label>
           <label>
             Their "previous" £
-            <input type="number" step="any" value={app.stated_previous ?? ''} onChange={(e) => setA('stated_previous', numOrNull(e.target.value))} />
+            <MoneyInput value={app.stated_previous} onChange={(v) => setA('stated_previous', v)} />
           </label>
           <label>
             Their amount due £
-            <input type="number" step="any" value={app.stated_due ?? ''} onChange={(e) => setA('stated_due', numOrNull(e.target.value))} />
+            <MoneyInput value={app.stated_due} onChange={(v) => setA('stated_due', v)} />
           </label>
         </div>
 
@@ -303,7 +304,7 @@ export default function PaymentNoticeEditor() {
                             <input value={l.description ?? ''} onChange={(e) => setLine(i, { description: e.target.value })} />
                           </td>
                           <td className="c-qty" data-label="Value £">
-                            <input type="number" step="any" inputMode="decimal" value={l.value ?? ''} onChange={(e) => setLine(i, { value: numOrNull(e.target.value) })} />
+                            <MoneyInput value={l.value} onChange={(v) => setLine(i, { value: v })} />
                           </td>
                           <td className="c-unit" data-label="Their %">
                             <input
@@ -315,13 +316,10 @@ export default function PaymentNoticeEditor() {
                             />
                           </td>
                           <td className="c-rate" data-label="Their £">
-                            <input
-                              type="number"
-                              step="any"
-                              inputMode="decimal"
-                              value={l.their_amount ?? ''}
-                              placeholder={l.value != null && l.pct != null ? String(Math.round(l.value * l.pct * 100) / 100) : ''}
-                              onChange={(e) => setLine(i, { their_amount: numOrNull(e.target.value) })}
+                            <MoneyInput
+                              value={l.their_amount}
+                              placeholder={l.value != null && l.pct != null ? money(Math.round(l.value * l.pct * 100) / 100) : ''}
+                              onChange={(v) => setLine(i, { their_amount: v })}
                             />
                           </td>
                           <td className={'c-unit cert-col' + (isCertified(l) ? ' certified' : '')} data-label="DBP %">
@@ -336,15 +334,7 @@ export default function PaymentNoticeEditor() {
                             />
                           </td>
                           <td className={'c-rate cert-col' + (isCertified(l) ? ' certified' : '')} data-label="DBP £">
-                            <input
-                              type="number"
-                              step="any"
-                              inputMode="decimal"
-                              value={l.cert_amount ?? ''}
-                              placeholder={String(lineAmount(l))}
-                              title="DBP certified £: the % follows"
-                              onChange={(e) => setLine(i, certifyBy(l, 'amount', numOrNull(e.target.value)))}
-                            />
+                            <MoneyInput value={l.cert_amount} placeholder={money(lineAmount(l))} onChange={(v) => setLine(i, certifyBy(l, 'amount', v))} />
                           </td>
                           <td className="c-note" data-label="Note">
                             <input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value || null })} />
@@ -441,11 +431,11 @@ export default function PaymentNoticeEditor() {
           </label>
           <label>
             Loss and expense £
-            <input type="number" step="any" value={pn.loss_and_expense ?? ''} onChange={(e) => setP('loss_and_expense', numOrNull(e.target.value))} />
+            <MoneyInput value={pn.loss_and_expense} onChange={(v) => setP('loss_and_expense', v)} />
           </label>
           <label>
             Contra charges notified £
-            <input type="number" step="any" value={pn.contra_charges ?? ''} onChange={(e) => setP('contra_charges', numOrNull(e.target.value))} />
+            <MoneyInput value={pn.contra_charges} onChange={(v) => setP('contra_charges', v)} />
             <span className="hint">Enter as a positive figure; it's deducted</span>
           </label>
           <label>
@@ -488,7 +478,7 @@ export default function PaymentNoticeEditor() {
               ).map(([k, label]) => (
                 <label key={k}>
                   {label}
-                  <input type="number" step="any" value={pn[k] ?? ''} onChange={(e) => setP(k, numOrNull(e.target.value))} />
+                  <MoneyInput value={pn[k]} onChange={(v) => setP(k, v)} />
                 </label>
               ))}
             </div>
