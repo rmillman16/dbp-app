@@ -36,6 +36,7 @@ import {
 } from '../lib/submittals'
 import { exportSubmittalsPdf } from '../lib/exportSubmittals'
 import RichTextEditor from '../components/RichTextEditor'
+import ExternalAccess from '../components/ExternalAccess'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
 
@@ -377,6 +378,13 @@ export default function SubmittalPage() {
           </div>
         )}
       </section>
+
+      {!isDraft && s.status !== 'void' && (
+        <ExternalAccess
+          kind="submittal"
+          people={people.filter((p) => p.directory_id).map((p) => ({ id: p.id, name: ctx.nameOf(p), role: p.role, email: ctx.dir.find((x) => x.id === p.directory_id)?.email ?? null }))}
+        />
+      )}
 
       <section className="card">
         <h2>Revisions</h2>

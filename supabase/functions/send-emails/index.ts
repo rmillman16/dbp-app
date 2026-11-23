@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -144,6 +144,67 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
   return sent;
 }
 
+// Outside people's emails (script 061): each new RFI / submittal for review / chase queued in rfi_outbox / submittal_outbox is
+// emailed to the outside person with their own private link (made now; only its hash is kept). They answer on that page:
+// no login. Short and with no attachments, as every email here. Anything older than 3 days in the queue is dropped.
+// deno-lint-ignore no-explicit-any
+async function sendOutside(db: any, getToken: () => Promise<string>, sender: string, appUrl: string) {
+  let sent = 0;
+  const old = new Date(Date.now() - 3 * 86400000).toISOString();
+  for (const kind of ["rfi", "submittal"] as const) {
+    const box = kind === "rfi" ? "rfi_outbox" : "submittal_outbox";
+    const idCol = kind === "rfi" ? "rfi_id" : "submittal_id";
+    const people = kind === "rfi" ? "rfi_people" : "submittal_people";
+    const { data: rows, error } = await db.from(box).select(`id, person_id, kind, created_at, ${idCol}`).is("sent_at", null).order("created_at").limit(20);
+    if (error || !rows?.length) continue;
+    for (const o of rows) {
+      const done = () => db.from(box).update({ sent_at: new Date().toISOString() }).eq("id", o.id);
+      if (o.created_at < old) { await done(); continue; }
+      const { data: p } = await db.from(people).select("id, role, directory_id").eq("id", o.person_id).maybeSingle();
+      if (!p || !p.directory_id) { await done(); continue; }
+      const { data: d } = await db.from("job_directory").select("contact_id, company_id").eq("id", p.directory_id).maybeSingle();
+      const [c, co] = await Promise.all([
+        d?.contact_id ? db.from("contacts").select("name, email").eq("id", d.contact_id).maybeSingle() : Promise.resolve({ data: null }),
+        d?.company_id ? db.from("companies").select("name, email").eq("id", d.company_id).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
+      const to = (c.data?.email || co.data?.email || "").trim();
+      const name = c.data?.name ?? co.data?.name ?? "";
+      const itemRow = kind === "rfi"
+        ? await db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name)").eq("id", o[idCol]).maybeSingle()
+        : await db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name)").eq("id", o[idCol]).maybeSingle();
+      const it = itemRow.data;
+      const live = it && it.job_id && (kind === "rfi" ? ["open", "answered"].includes(it.status) : it.status === "out");
+      if (!to || !live) { await done(); continue; }
+      const tok = await db.rpc("external_make_link", { p_kind: kind, p_item: it.id, p_person: p.id, p_email: to, p_by: null, p_days: 90 });
+      if (tok.error || !tok.data) continue;
+      const link = `${appUrl}/r/${tok.data}`;
+      const project = it.jobs?.name ?? "";
+      const what = kind === "rfi" ? `RFI ${it.number}` : `Submittal ${it.number}`;
+      const chase = o.kind === "chase";
+      const ask = kind === "rfi"
+        ? (p.role === "assignee" ? "has asked you a question" : "has copied you in on a question")
+        : (p.role === "reviewer" ? "has sent something for your review" : "has copied you in on a submittal");
+      const due = it.due_date ? ` It is due by ${it.due_date.split("-").reverse().join("/")}.` : "";
+      const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:560px">
+  <p>${name ? "Dear " + esc(name.split(" ")[0]) + "," : "Hello,"}</p>
+  <p>${chase ? "A reminder: " : ""}du Boulay Projects ${ask} on <b>${esc(project)}</b>.</p>
+  <p style="font-size:17px;font-weight:600;margin:0 0 6px">${esc(what)}: ${esc(it.title)}</p>
+  <p style="margin:0 0 16px">${p.role === "cc" ? "It is for your information." : "Please open it to " + (kind === "rfi" ? "reply" : "respond") + ". You don't need an account."}${esc(due)}</p>
+  <p style="margin:0 0 24px"><a href="${esc(link)}" style="background:#2b2257;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Open ${esc(what)}</a></p>
+  <p style="font-size:12px;color:#777;margin:0">This link is for you: please don't forward it. If it stops working, ask du Boulay Projects for a new one.</p>
+</div>`;
+      const token = await getToken();
+      const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: { subject: `${chase ? "Reminder: " : ""}${project}: ${what} – ${it.title}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+      });
+      if (r.ok) { await done(); sent++; }
+    }
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -187,6 +248,14 @@ Deno.serve(async (req) => {
       reports = await weeklyRfiReport(db, token0, sender, appUrl);
     } catch (e) {
       console.warn("weekly RFI report:", e instanceof Error ? e.message : e);
+    }
+
+    // outside people's RFI / submittal emails, each with their own private link (script 061)
+    let outside = 0;
+    try {
+      outside = await sendOutside(db, token0, sender, appUrl);
+    } catch (e) {
+      console.warn("outside emails:", e instanceof Error ? e.message : e);
     }
 
     const since = new Date(Date.now() - 2 * 86400000).toISOString();
@@ -255,7 +324,7 @@ Deno.serve(async (req) => {
         failures.push(`${p.email}: ${r.status} ${t.slice(0, 200)}`);
       }
     }
-    return reply({ ok: failures.length === 0, sent, reports, failures });
+    return reply({ ok: failures.length === 0, sent, reports, outside, failures });
   } catch (e) {
     return reply({ ok: false, detail: e instanceof Error ? e.message : String(e) }, 500);
   }

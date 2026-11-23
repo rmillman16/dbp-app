@@ -30,6 +30,7 @@ import { keyOf, refOf, useRfiContext } from '../lib/rfiContext'
 import { cleanHtml } from '../lib/richText'
 import { exportRfisPdf } from '../lib/exportRfis'
 import RichTextEditor from '../components/RichTextEditor'
+import ExternalAccess from '../components/ExternalAccess'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
 
@@ -334,6 +335,14 @@ export default function RfiPage() {
           </div>
         )}
       </section>
+
+      {!isDraft && rfi.status !== 'void' && !tender && (
+        <ExternalAccess
+          kind="rfi"
+          people={people.filter((p) => p.directory_id).map((p) => ({ id: p.id, name: ctx.nameOf(p), role: p.role, email: ctx.dir.find((x) => x.id === p.directory_id)?.email ?? null }))}
+          disabled={finished}
+        />
+      )}
 
       <section className="card">
         <h2>Replies</h2>

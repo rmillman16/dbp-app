@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { configError, supabase } from './lib/supabase'
 import Layout from './components/Layout'
@@ -33,6 +33,7 @@ import RfiPage from './pages/RfiPage'
 import SubmittalsTab from './pages/SubmittalsTab'
 import SubmittalPage from './pages/SubmittalPage'
 import EnquiryRfis from './pages/EnquiryRfis'
+import ExternalRoutes from './pages/ExternalPages'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
@@ -66,6 +67,10 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
+
+  // outside people's pages (/r/<link> and /external): no sign-in, and none of the app around them (script 061)
+  const { pathname } = useLocation()
+  if (pathname.startsWith('/r/') || pathname === '/external' || pathname.startsWith('/external/')) return <ExternalRoutes />
 
   if (configError) {
     return (
