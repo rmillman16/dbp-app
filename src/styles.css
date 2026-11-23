@@ -1080,3 +1080,24 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-form .rfi-field .hint { margin: 0; }
 .ext-form .var-file { display: inline-flex; gap: 8px; align-items: center; }
 .ext-form .error { margin: 0 0 14px; }
+
+/* outside list: RFIs and submittals apart, split by project */
+.ext-sec { margin: 0 0 8px; } .ext-sec .muted { font-weight: 400; margin-left: 8px; }
+.ext-proj { margin: 16px 0 6px; font-size: 1rem; color: var(--navy); border-bottom: 2px solid var(--blue, #1d6fd8); display: inline-block; padding-bottom: 2px; }
+.ext-docs { margin-top: 14px; padding: 12px 14px; background: #f4f6fb; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
+.ext-docs .var-files { display: flex; flex-direction: column; gap: 6px; }
+.markup-open { margin-left: 8px; }
+
+/* mark-up editor (outside reviewers) */
+.markup-overlay { position: fixed; inset: 0; z-index: 1000; background: #2b2b2b; display: flex; flex-direction: column; }
+.markup-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 12px; background: #fff; border-bottom: 1px solid #ccc; }
+.markup-name { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.markup-tools, .markup-colours, .markup-pages, .markup-end { display: flex; gap: 6px; align-items: center; }
+.markup-end { margin-left: auto; }
+.markup-tools button.on { background: var(--navy); color: #fff; }
+.markup-swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid #bbb; }
+.markup-swatch.on { border-color: #000; box-shadow: 0 0 0 2px #fff, 0 0 0 4px #000; }
+.markup-stage { flex: 1; overflow: auto; padding: 12px; display: flex; justify-content: center; align-items: flex-start; }
+.markup-canvas { max-width: 100%; height: auto; background: #fff; touch-action: none; cursor: crosshair; box-shadow: 0 2px 12px rgba(0,0,0,.5); }
+.markup-msg { color: #fff; }
+.markup-hint { margin: 0; padding: 6px 12px; font-size: .8rem; color: #ddd; background: #1e1e1e; }

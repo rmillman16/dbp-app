@@ -1,10 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
 import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { cleanHtml } from '../lib/richText'
 import { ext, extOpenFile, extUpload, getSession, setSession, type ExtAuth, type ExtItem, type ExtListItem } from '../lib/external'
 
 // Outside people's pages (script 061): no login, no Microsoft account, and nothing of the rest of the app. Everything goes
 // through the "external" Edge Function. /r/<token> is one item by private link; /external is the email-code page.
+const MarkupEditor = lazy(() => import('../components/MarkupEditor')) // loaded only when someone opens a drawing to mark up
 const ukDate = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '')
 const STATUS: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', out: 'Out for review', approved: 'Approved', approved_noted: 'Approved as noted', revise: 'Revise and resubmit', rejected: 'Rejected' }
 // how an item stands for the person looking: an answered RFI that DBP has the ball on is "replied", not "answered"
@@ -209,56 +210,73 @@ function ExternalHome() {
 // one table: what is waiting for them first, then by date required; rows coloured by that date
 function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
   const navigate = useNavigate()
-  const rows = [...items].sort(
-    (a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.project.localeCompare(b.project) || (a.kind === b.kind ? b.number - a.number : a.kind < b.kind ? -1 : 1),
-  )
   const waiting = items.filter((i) => i.act).length
   const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
+  // RFIs and submittals apart, and each split by project (a client or contractor can be on several jobs)
+  const sortRows = (a: ExtListItem, b: ExtListItem) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || b.number - a.number
+  const sections = (['rfi', 'submittal'] as const)
+    .map((kind) => {
+      const mine = items.filter((i) => i.kind === kind)
+      const projects = [...new Set(mine.map((i) => i.project))]
+        .map((p) => ({ project: p, rows: mine.filter((i) => i.project === p).sort(sortRows) }))
+        // the project with most waiting for them first
+        .sort((a, b) => b.rows.filter((r) => r.act).length - a.rows.filter((r) => r.act).length || a.project.localeCompare(b.project))
+      return { kind, label: kind === 'rfi' ? 'RFIs' : 'Submittals', count: mine.length, waiting: mine.filter((i) => i.act).length, projects }
+    })
+    .filter((s) => s.count > 0)
   return (
-    <div className="card ext-table-card">
+    <>
       <p className="ext-summary">
         <strong>{waiting}</strong> waiting for you{late > 0 && <span className="ext-due overdue"> · {late} overdue</span>} · {items.length} in total
       </p>
-      <div className="ext-table-wrap">
-        <table className="ext-table">
-          <thead>
-            <tr>
-              <th>Ref</th>
-              <th>Project</th>
-              <th>Subject</th>
-              <th>Trade</th>
-              <th>Required by</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((i) => {
-              const tone = dueTone(i.due_date, i.act)
-              return (
-                <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
-                  <td className="ext-ref">
-                    <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
-                      {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : 'Sub'} ${i.number}`}
-                    </Link>
-                  </td>
-                  <td>{i.project}</td>
-                  <td className="ext-subject">
-                    <strong>{i.title}</strong>
-                    {i.snippet && <span className="ext-snippet">{i.snippet}</span>}
-                    {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
-                  </td>
-                  <td>{i.trade ?? ''}</td>
-                  <td className={`ext-due ${tone}`}>{i.due_date ? ukDate(i.due_date) + (tone === 'overdue' ? ' (overdue)' : '') : '–'}</td>
-                  <td>
-                    <span className={`q-status ext-${i.state ?? i.status}`}>{stateLabel(i.state, i.status)}</span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+      {sections.map((sec) => (
+        <div key={sec.kind} className="card ext-table-card">
+          <h2 className="ext-sec">
+            {sec.label} <span className="muted small">{sec.waiting > 0 ? `${sec.waiting} waiting for you · ` : ''}{sec.count} in total</span>
+          </h2>
+          {sec.projects.map((p) => (
+            <div key={p.project} className="ext-table-wrap">
+              <h3 className="ext-proj">{p.project}</h3>
+              <table className="ext-table">
+                <thead>
+                  <tr>
+                    <th>Ref</th>
+                    <th>Subject</th>
+                    <th>Trade</th>
+                    <th>Required by</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {p.rows.map((i) => {
+                    const tone = dueTone(i.due_date, i.act)
+                    return (
+                      <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
+                        <td className="ext-ref">
+                          <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
+                            {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : 'Sub'} ${i.number}`}
+                          </Link>
+                        </td>
+                        <td className="ext-subject">
+                          <strong>{i.title}</strong>
+                          {i.snippet && <span className="ext-snippet">{i.snippet}</span>}
+                          {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
+                        </td>
+                        <td>{i.trade ?? ''}</td>
+                        <td className={`ext-due ${tone}`}>{i.due_date ? ukDate(i.due_date) + (tone === 'overdue' ? ' (overdue)' : '') : '–'}</td>
+                        <td>
+                          <span className={`q-status ext-${i.state ?? i.status}`}>{stateLabel(i.state, i.status)}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      ))}
+    </>
   )
 }
 
@@ -271,8 +289,9 @@ function ItemView({ auth }: { auth: ExtAuth }) {
   const [outcome, setOutcome] = useState('approved')
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [marking, setMarking] = useState<{ name: string; blob: Blob } | null>(null)
   const navigate = useNavigate()
-  const load = () => ext<{ item: ExtItem }>({ action: 'view', ...auth }).then((r) => setItem(r.item), (e: Error) => setError(e.message))
+  const load =() => ext<{ item: ExtItem }>({ action: 'view', ...auth }).then((r) => setItem(r.item), (e: Error) => setError(e.message))
   useEffect(() => {
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -296,13 +315,32 @@ function ItemView({ auth }: { auth: ExtAuth }) {
     setBusy(false)
   }
   const open = (id: string) => extOpenFile(auth, id).catch((e: Error) => setError(e.message))
+  // open a drawing in the mark-up editor (only for what they can still answer)
+  async function markUp(f: { id: string; name: string }) {
+    setError(null)
+    try {
+      const r = await ext<{ url: string }>({ action: 'file_url', ...auth, file_id: f.id })
+      const res = await fetch(r.url)
+      if (!res.ok) throw new Error()
+      setMarking({ name: f.name, blob: await res.blob() })
+    } catch {
+      setError("Couldn't open that file for mark-up. Please try again.")
+    }
+  }
   const chips = (list: { id: string; name: string }[] | undefined) =>
     (list ?? []).length > 0 && (
       <div className="var-files">
         {list!.map((f) => (
-          <button key={f.id} type="button" className="link-button small" onClick={() => open(f.id)}>
-            📎 {f.name}
-          </button>
+          <span key={f.id} className="var-file">
+            <button type="button" className="link-button small" onClick={() => open(f.id)}>
+              📎 {f.name}
+            </button>
+            {item?.can_act && !done && /\.(pdf|png|jpe?g|gif|bmp)$/i.test(f.name) && (
+              <button type="button" className="small-button markup-open" onClick={() => markUp(f)} title="Draw lines, arrows, boxes and notes on this drawing">
+                ✏ Mark up
+              </button>
+            )}
+          </span>
         ))}
       </div>
     )
@@ -320,6 +358,19 @@ function ItemView({ auth }: { auth: ExtAuth }) {
 
   return (
     <>
+      {marking && (
+        <Suspense fallback={<p className="muted">Loading the mark-up tool…</p>}>
+          <MarkupEditor
+            source={marking.blob}
+            name={marking.name}
+            onClose={() => setMarking(null)}
+            onSave={(list) => {
+              setFiles((l) => [...l, ...list])
+              setMarking(null)
+            }}
+          />
+        </Suspense>
+      )}
       <div className="card">
         <p className="muted small">{item.project}</p>
         <h1>
@@ -335,6 +386,16 @@ function ItemView({ auth }: { auth: ExtAuth }) {
         {item.manager && <p className="muted small">From {item.manager}, du Boulay Projects</p>}
         {item.body && <div className="rte-view" dangerouslySetInnerHTML={{ __html: cleanHtml(item.body) }} />}
         {rfi && chips(item.files)}
+        {!rfi && (() => {
+          const cur = (item.revisions ?? []).find((r) => r.rev === item.current_rev)
+          const docs = (cur?.files ?? []).filter((f) => f.kind === 'submission')
+          return docs.length > 0 && (
+            <div className="ext-docs">
+              <span className="label">Documents to review (Rev {String.fromCharCode(64 + (item.current_rev ?? 1))})</span>
+              {chips(docs)}
+            </div>
+          )
+        })()}
       </div>
 
       {rfi && (item.responses ?? []).length > 0 && (
