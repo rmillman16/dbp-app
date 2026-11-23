@@ -99,12 +99,7 @@ export default function JobOverview() {
       <JobSowCard compact />
 
       <section className="card">
-        <div className="pane-head">
-          <h2>To do</h2>
-          <Link to={`/site/requisitions/new?job=${job.id}`} className="link-button small">
-            + Material requisition
-          </Link>
-        </div>
+        <h2>To do</h2>
         {todo.length > 0 && <NotificationList items={todo} />}
         {actions.length > 0 && <MinutesActions actions={actions} onDone={tickAction} />}
         {actionErr && <p className="error">{actionErr}</p>}
