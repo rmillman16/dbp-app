@@ -325,11 +325,6 @@ export function EnquiryPage() {
           <Link to={`/estimating/e/${e.id}/edit`} className="button">
             Edit enquiry
           </Link>
-          {!e.job_id && e.status !== 'lost' && (
-            <Link to={`/estimating/tracker/new?enquiry=${e.id}`} className="button" title="Send a package out to contractors for pricing">
-              Send tender enquiries
-            </Link>
-          )}
           {e.job_id ? (
             <Link to={`/jobs/${e.job_id}`} className="button primary">
               Open the job →
@@ -410,6 +405,9 @@ export function EnquiryPage() {
 
         {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
         <EnquiryRfiCard e={e} />
+
+        {/* tender enquiries to contractors (script 067): sent from here, only for this enquiry */}
+        {!e.job_id && e.status !== 'lost' && <TenderTracker enquiryId={e.id} />}
 
         <section className="card">
           <div className="pane-head">

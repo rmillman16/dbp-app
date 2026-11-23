@@ -1127,3 +1127,9 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tt-appointed { background: #eaf6ec; }
 .small-input { width: 130px; }
 @media (max-width: 700px) { .tg-form { grid-template-columns: 1fr; } }
+
+.tt-wide { grid-column: 1 / -1; }
+.tg-for { padding: 8px 12px; background: #f1f3f9; border-radius: 6px; }
+
+.tt-wide { grid-column: 1 / -1; }
+.tg-for { padding: 8px 12px; background: #f1f3f9; border-radius: 6px; }

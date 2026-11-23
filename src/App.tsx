@@ -176,7 +176,7 @@ export default function App() {
             }
           />
           <Route
-            path="/estimating/tracker/new"
+            path="/estimating/e/:enquiryId/tender/new"
             element={
               <A section="estimating">
                 <TenderEnquiry />

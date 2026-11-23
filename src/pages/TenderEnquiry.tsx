@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -41,7 +41,7 @@ type Contact = { id: string; name: string; role: string | null; email: string | 
 type Co = Company & { contacts: Contact[] }
 
 export default function TenderEnquiry() {
-  const [params] = useSearchParams()
+  const { enquiryId } = useParams() // the generator only ever works from inside an enquiry
   const navigate = useNavigate()
   const { me } = useAccess()
   const [step, setStep] = useState(1)
@@ -50,7 +50,7 @@ export default function TenderEnquiry() {
   const [pqq, setPqq] = useState<Awaited<ReturnType<typeof loadPqqPack>>>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [f, setF] = useState({ enquiry: params.get('enquiry') ?? '', pkg: '', ret: addDaysIso(todayIso(), 14), address: '', main: '', sub: '', summary: '', scope: '', notes: '', link: '', sender: '', phone: '' })
+  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', ret: addDaysIso(todayIso(), 14), address: '', main: '', sub: '', summary: '', scope: '', notes: '', link: '', sender: '', phone: '' })
   const [files, setFiles] = useState<File[]>([])
   const [subject, setSubject] = useState(DEFAULT_SUBJECT)
   const [body, setBody] = useState(DEFAULT_BODY)
@@ -61,10 +61,10 @@ export default function TenderEnquiry() {
   const set = <K extends keyof typeof f>(k: K, v: string) => setF((x) => ({ ...x, [k]: v }))
 
   useEffect(() => {
-    supabase.from('enquiries').select('*').order('enquiry_no', { ascending: false }).then((r) => {
+    supabase.from('enquiries').select('*').eq('id', enquiryId!).then((r) => {
       const list = (r.data ?? []) as Enquiry[]
       setEnquiries(list)
-      const e = list.find((x) => x.id === params.get('enquiry'))
+      const e = list.find((x) => x.id === enquiryId)
       if (e) setF((x) => ({ ...x, address: e.site_address ?? '', ret: x.ret }))
     })
     Promise.all([supabase.from('companies').select('*').order('name'), supabase.from('contacts').select('id, company_id, name, role, email')]).then(([c, k]) => {
@@ -136,7 +136,7 @@ export default function TenderEnquiry() {
         invites,
       )
       if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the files together are over 3 MB: send it to them separately from Contractors.`)
-      navigate('/estimating/tracker')
+      navigate(`/estimating/e/${enquiryId}`)
     } catch (e) {
       setError(saveError(e))
     }
@@ -149,10 +149,10 @@ export default function TenderEnquiry() {
 
   return (
     <div className="tender-gen">
-      <Link to="/estimating/tracker" className="link-button small">
-        ← Tender tracker
+      <Link to={`/estimating/e/${enquiryId}`} className="link-button small">
+        ← Back to the enquiry
       </Link>
-      <h1>New tender enquiry</h1>
+      <h1>Send tender enquiries{enquiry ? `: ${enquiryRef(enquiry)} ${enquiry.name}` : ''}</h1>
       <ol className="tg-steps">
         {STEPS.map((s, i) => (
           <li key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'done' : ''}>
@@ -168,24 +168,9 @@ export default function TenderEnquiry() {
       {step === 1 && (
         <section className="card tg-form">
           <h2>Job details</h2>
-          <label>
-            Enquiry *
-            <select
-              value={f.enquiry}
-              onChange={(e) => {
-                set('enquiry', e.target.value)
-                const en = enquiries.find((x) => x.id === e.target.value)
-                if (en) setF((x) => ({ ...x, enquiry: en.id, address: x.address || en.site_address || '' }))
-              }}
-            >
-              <option value="">Pick the Estimating enquiry…</option>
-              {enquiries.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {enquiryRef(e)} · {e.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="span-2 tg-for">
+            For enquiry: <strong>{enquiry ? `${enquiryRef(enquiry)} · ${enquiry.name}` : 'Loading…'}</strong>
+          </div>
           <label>
             Package * <small className="muted">the trade you are asking them to price</small>
             <input value={f.pkg} onChange={(e) => set('pkg', e.target.value)} placeholder="e.g. Mechanical and electrical" />
@@ -378,7 +363,8 @@ export default function TenderEnquiry() {
 
 // ---------- the tender tracker ----------
 type View = 'waiting' | 'quoted' | 'all'
-export function TenderTracker() {
+// enquiryId: inside an enquiry (where tender enquiries are sent from); without it, the overview of all enquiries on the Estimating tab
+export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
   const navigate = useNavigate()
   const [data, setData] = useState<{ packages: TenderPackage[]; invites: TenderInvite[] } | null>(null)
   const [enq, setEnq] = useState<Record<string, Enquiry>>({})
@@ -404,7 +390,7 @@ export function TenderTracker() {
 
   const q = search.trim().toLowerCase()
   const inView = (i: TenderInvite) => (view === 'all' ? true : view === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'appointed'].includes(i.status))
-  const packages = (data?.packages ?? []).filter((p) => {
+  const packages = (data?.packages ?? []).filter((p) => !enquiryId || p.enquiry_id === enquiryId).filter((p) => {
     const e = enq[p.enquiry_id]
     const text = `${e ? enquiryRef(e) + ' ' + e.name : ''} ${p.package}`.toLowerCase()
     const mine = data!.invites.filter((i) => i.package_id === p.id)
@@ -422,14 +408,20 @@ export function TenderTracker() {
   }
 
   return (
-    <section className="card">
+    <section className={'card' + (enquiryId ? ' tt-wide' : '')}>
       <div className="pane-head">
-        <h2>Tender tracker</h2>
-        <Link to="/estimating/tracker/new" className="button primary">
-          + New tender enquiry
-        </Link>
+        <h2>{enquiryId ? 'Tender enquiries to contractors' : 'Tender tracker'}</h2>
+        {enquiryId && (
+          <Link to={`/estimating/e/${enquiryId}/tender/new`} className="button primary">
+            + Send tender enquiries
+          </Link>
+        )}
       </div>
-      <p className="muted small">Every package sent out for pricing, and where each contractor has got to. Change a status as replies come in, chase from here, and enter their price when it arrives.</p>
+      <p className="muted small">
+        {enquiryId
+          ? 'Each package you send out for pricing, and where each contractor has got to. Change a status as replies come in, chase from here, and enter their price when it arrives.'
+          : 'Every package sent out for pricing, across all enquiries. Tender enquiries are sent from inside an enquiry: open it and use "Send tender enquiries".'}
+      </p>
       <div className="toolbar">
         <input className="search" placeholder="Search enquiry, package or contractor" value={search} onChange={(e) => setSearch(e.target.value)} />
         <div className="segmented">
@@ -449,7 +441,7 @@ export function TenderTracker() {
       </div>
       {error && <p className="error">{error}</p>}
       {!data && !error && <p className="muted">Loading…</p>}
-      {data && packages.length === 0 && <p className="muted">{data.packages.length === 0 ? 'Nothing sent out yet. Start a new tender enquiry.' : 'Nothing matches.'}</p>}
+      {data && packages.length === 0 && <p className="muted">{data.packages.length === 0 || (enquiryId && !data.packages.some((p) => p.enquiry_id === enquiryId)) ? 'Nothing sent out yet.' : 'Nothing matches.'}</p>}
       {packages.map((p) => {
         const e = enq[p.enquiry_id]
         const all = data!.invites.filter((i) => i.package_id === p.id)
