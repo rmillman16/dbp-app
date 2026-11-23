@@ -38,7 +38,7 @@ const GROUPS: { title: string; items: [string, string][] }[] = [
   {
     title: 'Tracking & EOT',
     items: [
-      ['saving', 'Saving, Commit & history'],
+      ['saving', 'Saving, Save revision & history'],
       ['compare', 'The original programme & slippage'],
     ],
   },
@@ -170,7 +170,7 @@ export default function ProgrammeHelp() {
                 Type the first task in <b>Quick add</b> and press <kbd>Enter</kbd>. Keep typing: each new task starts straight after the one before and is linked to it.
               </li>
               <li>
-                When it's agreed (e.g. at contract award), press <b>Commit</b>: the first commit is the <b>original programme</b> that slippage is measured against.
+                When it's agreed (e.g. at contract award), press <b>Save revision</b>: the first saved revision is the <b>original programme</b> that slippage is measured against.
               </li>
             </ol>
             <div className="tl-tip">
@@ -185,7 +185,7 @@ export default function ProgrammeHelp() {
               <tbody>
                 <Row k={<b>Toolbar, line 1</b>}>Icons: full page, new, undo, redo, open, print, export; Tools; the saved badge; Start; Start on site (Wk 1); the client logo.</Row>
                 <Row k={<b>Toolbar, line 2</b>}>
-                  Programmes, From SoW, Commit, History; + Task, + Milestone, + Section; D / W / 2W / M; Link tasks, Critical path, contractor filter; Help.
+                  Programmes, From SoW, Save revision, History; + Task, + Milestone, + Section; D / W / 2W / M; Link tasks, Critical path, contractor filter; Help.
                 </Row>
                 <Row k={<b>Quick add</b>}>Type a task name and press Enter; pick its trade and days; Link to previous.</Row>
                 <Row k={<b>Task list</b>}>Task, Trade, Start, Days, RAG, Prereq, Slip, and a grip to drag. Navy bands are sections.</Row>
@@ -203,7 +203,7 @@ export default function ProgrammeHelp() {
                 <Row k={<b>⛶ Full page</b>}>
                   Fills the browser with the programme, over the sidebar and job heading (<kbd>F</kbd>; <kbd>Esc</kbd> to leave).
                 </Row>
-                <Row k={<b>New</b> /* file icon */}>Clears the programme to start again. Committed revisions stay in History.</Row>
+                <Row k={<b>New</b> /* file icon */}>Clears the programme to start again. Saved revisions stay in History.</Row>
                 <Row k={<b>Undo / Redo</b>}>
                   The curved arrows (<kbd>Ctrl</kbd> + <kbd>Z</kbd> / <kbd>Ctrl</kbd> + <kbd>Y</kbd>). Hover to see what they'll undo or redo.
                 </Row>
@@ -216,7 +216,7 @@ export default function ProgrammeHelp() {
                   <b>Shutdown</b> (Christmas etc.), <b>Shift</b> (the whole programme or a section), <b>Compare</b> (overlay the original or a revision), <b>Legend</b> (trade
                   colours and symbols), <b>Add client logo</b>. A red dot means the programme runs over Christmas with no shutdown yet.
                 </Row>
-                <Row k={<b>✓ Rev A</b>}>The saved badge: ✓ saved (⟳ saving, ! Retry if it couldn't save), and the last commit. Hover for when.</Row>
+                <Row k={<b>✓ Rev A</b>}>The saved badge: ✓ saved (⟳ saving, ! Retry if it couldn't save), and the last saved revision. Hover for when.</Row>
                 <Row k={<b>Start</b>}>The date of the very first task; new tasks start here, and it decides the year for dates typed without one.</Row>
                 <Row k={<b>Start on site (Wk 1)</b>}>The week that's Wk 1. Blank: worked out from the Construction section. ✕ goes back to automatic.</Row>
               </tbody>
@@ -226,8 +226,8 @@ export default function ProgrammeHelp() {
               <tbody>
                 <Row k={<b>Programmes</b>}>Copy another job's or estimate's programme into this one, moved to a new start date.</Row>
                 <Row k={<b>From SoW…</b>}>(Jobs) a simple programme from the job's SoW trades, replacing this one.</Row>
-                <Row k={<b>Commit</b>}>Locks a numbered copy: Initial issue, Rev A, Rev B… The first is the original programme.</Row>
-                <Row k={<b>History</b>}>Committed revisions: what changed, overlay, make original, download, restore.</Row>
+                <Row k={<b>Save revision</b>}>Locks a numbered copy: Initial issue, Rev A, Rev B… The first is the original programme.</Row>
+                <Row k={<b>History</b>}>Saved revisions: what changed, overlay, make original, download, restore.</Row>
                 <Row k={<b>+ Task / + Milestone</b>}>
                   The full task form (<kbd>T</kbd> / <kbd>M</kbd>).
                 </Row>
@@ -317,7 +317,7 @@ export default function ProgrammeHelp() {
                 <Row k={<b>Prereq</b>}>✓ confirmed, ! not yet (hover for the note).</Row>
                 <Row k={<b>Slip</b>}>
                   How far its finish has moved against the <b>original programme</b> (or the revision being compared): <span className="tl-red">+7d</span> later,{' '}
-                  <span className="tl-green">−2d</span> earlier, on time, or <b>new</b> (not in the original). Hover for working days. Before the first commit it shows —.
+                  <span className="tl-green">−2d</span> earlier, on time, or <b>new</b> (not in the original). Hover for working days. Before the first saved revision it shows —.
                 </Row>
                 <Row k={<b>⋮⋮</b>}>Drag to move the row (into another section, too).</Row>
               </tbody>
@@ -492,28 +492,28 @@ export default function ProgrammeHelp() {
           {/* ---------------- Tracking ---------------- */}
           <h2 className="tl-help-group">Tracking & EOT</h2>
           <section className="card" id="saving">
-            <h2>Saving, Commit & history</h2>
+            <h2>Saving, Save revision & history</h2>
             <table className="tl-help-table">
               <tbody>
                 <Row k={<b>Saving</b>}>
                   Automatic, a moment after each change, for everyone (<kbd>Ctrl</kbd> + <kbd>S</kbd> saves straight away). The label by the project name says Saved, Saving… or Not
                   saved – retry. With no signal, changes are kept on the page and saved when you're back online.
                 </Row>
-                <Row k={<b>Commit</b>}>Locks the programme as it is now as a numbered revision with a note. You carry on editing as normal.</Row>
+                <Row k={<b>Save revision</b>}>Locks the programme as it is now as a numbered revision with a note. You carry on editing as normal.</Row>
                 <Row k={<b>History</b>}>
-                  Every revision with its note and date. <b>What changed</b> lists what moved since the one before; the working programme shows changes since the last commit and
+                  Every revision with its note and date. <b>What changed</b> lists what moved since the one before; the working programme shows changes since the last saved revision and
                   since the original. <b>Overlay</b>, <b>Make original</b>, <b>Download</b>, <b>Restore</b> (undoable).
                 </Row>
               </tbody>
             </table>
-            <div className="tl-tip">Commit at contract award, before a big change and whenever you issue it to the client.</div>
+            <div className="tl-tip">Save a revision at contract award, before a big change and whenever you issue it to the client.</div>
           </section>
 
           <section className="card" id="compare">
             <h2>The original programme & slippage (EOT)</h2>
             <ul>
               <li>
-                The <b>first commit</b> is the <b>original programme</b> (the box in the Commit dialog is ticked for you). History → <b>Make original</b> changes which revision it
+                The <b>first saved revision</b> is the <b>original programme</b> (the box in the Save revision dialog is ticked for you). History → <b>Make original</b> changes which revision it
                 is.
               </li>
               <li>
@@ -547,7 +547,7 @@ export default function ProgrammeHelp() {
               <li>
                 <b>From SoW…</b> (jobs) makes a simple programme from the SoW's trades between the start and PC dates you give.
               </li>
-              <li>Both replace the current programme; committed revisions stay in History, so commit first if you want to keep a copy.</li>
+              <li>Both replace the current programme; saved revisions stay in History, so save a revision first if you want to keep a copy.</li>
             </ul>
           </section>
 
@@ -606,7 +606,7 @@ export default function ProgrammeHelp() {
               </li>
               <li>The saved programme follows whatever you undo to.</li>
               <li>
-                For anything older, open <b>History</b> and restore a committed revision.
+                For anything older, open <b>History</b> and restore a saved revision.
               </li>
             </ul>
           </section>
@@ -635,9 +635,9 @@ export default function ProgrammeHelp() {
                 <Row k={<b>“! Retry”</b>}>It couldn't save, usually no signal. Keep the page open; it saves when you're back online, or click Retry.</Row>
                 <Row k={<b>A task won't stay where I put it</b>}>It's linked: its links decide its start. Change the lag, or remove the link.</Row>
                 <Row k={<b>The critical path looks odd</b>}>Tasks need linking for it to work; unlinked tasks only show as critical if they finish last.</Row>
-                <Row k={<b>Commit / History greyed out</b>}>The database update for them hasn't been run yet (ask Richard).</Row>
-                <Row k={<b>Compare is greyed out</b>}>Nothing's committed yet: commit first.</Row>
-                <Row k={<b>Slip shows —</b>}>There's no original programme yet: commit (the first commit is the original).</Row>
+                <Row k={<b>Save revision / History greyed out</b>}>The database update for them hasn't been run yet (ask Richard).</Row>
+                <Row k={<b>Compare is greyed out</b>}>No revision saved yet: save one first.</Row>
+                <Row k={<b>Slip shows —</b>}>There's no original programme yet: save a revision (the first saved revision is the original).</Row>
                 <Row k={<b>Dates land on the wrong year</b>}>Set Start to the first task's date; dates without a year are read from it.</Row>
                 <Row k={<b>A .mpp file won't open</b>}>Browsers can't read .mpp: in MS Project use File → Save As → XML, then open that.</Row>
                 <Row k={<b>The print cuts the chart into pages</b>}>It's A3 at a readable size; long programmes run onto more pages, with “(continued)”.</Row>
@@ -655,8 +655,8 @@ export default function ProgrammeHelp() {
                 <Row k={<b>Lag</b>}>Working days between linked tasks (negative overlaps them).</Row>
                 <Row k={<b>Float</b>}>How long a task can slip before completion slips.</Row>
                 <Row k={<b>Critical path</b>}>The tasks with no float.</Row>
-                <Row k={<b>Commit / revision</b>}>A locked, numbered copy: Initial issue, Rev A, Rev B…</Row>
-                <Row k={<b>Original programme</b>}>The committed revision slippage is measured against (e.g. the contract programme).</Row>
+                <Row k={<b>Save revision / revision</b>}>A locked, numbered copy: Initial issue, Rev A, Rev B…</Row>
+                <Row k={<b>Original programme</b>}>The saved revision slippage is measured against (e.g. the contract programme).</Row>
                 <Row k={<b>Slip</b>}>How far a task's finish has moved against the original programme.</Row>
                 <Row k={<b>Skeleton crew</b>}>A task that keeps working through shutdowns.</Row>
                 <Row k={<b>RAG</b>}>Red / amber / green status.</Row>

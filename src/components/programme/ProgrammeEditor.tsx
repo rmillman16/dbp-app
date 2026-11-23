@@ -480,7 +480,7 @@ export default function ProgrammeEditor({
     ) : (
       <span
         className="tl-status saved"
-        title={`Saved: every change is saved for everyone straight away. ${lastRev ? `Last commit: ${revName(lastRev.rev_no)}, ${lastWhen}${lastRev.rev_no === programme.contract_rev ? ' (the original programme)' : ''}.` : 'Not committed yet.'}`}
+        title={`Saved: every change is saved for everyone straight away. ${lastRev ? `Last revision: ${revName(lastRev.rev_no)}, ${lastWhen}${lastRev.rev_no === programme.contract_rev ? ' (the original programme)' : ''}.` : 'No revision saved yet.'}`}
       >
         ✓ <span>{lastRev ? revName(lastRev.rev_no) : 'Draft'}</span>
       </span>
@@ -493,7 +493,7 @@ export default function ProgrammeEditor({
       {!has026(programme) && (
         <p className="warning small">
           Run script <strong>026</strong> in Supabase (supabase/README.md) so contractor, RAG, prerequisites, skeleton crew, baselines, section order, Wk 1, the client logo and
-          committed revisions are saved. Tasks, dates, links and shutdowns save already.
+          saved revisions are kept. Tasks, dates, links and shutdowns save already.
         </p>
       )}
       {programme.file_name === GENERATED_FILE && <p className="warning small">A simple programme made from the SoW: edit it here, or use Open file… to import the real one.</p>}
@@ -604,7 +604,7 @@ export default function ProgrammeEditor({
               className={`tl-menu-item ${revisions.length ? '' : 'disabled'}`}
               onClick={() => revisions.length && setPop('compare')}
               title={
-                revisions.length ? 'Overlay the original programme (or any revision) to see slippage' : 'Commit the programme first: the first commit is the original programme'
+                revisions.length ? 'Overlay the original programme (or any revision) to see slippage' : 'Save a revision first: the first one is the original programme'
               }
             >
               Compare{compare ? `: ${revName(compare.rev_no)}` : ''}…
@@ -648,7 +648,7 @@ export default function ProgrammeEditor({
             />
           </Popover>
           <Popover open={pop === 'compare'} onClose={() => setPop(null)} width={300}>
-            <div className="tl-legend-title">Overlay a committed revision</div>
+            <div className="tl-legend-title">Overlay a saved revision</div>
             <div className={`tl-menu-item ${!compare ? 'on' : ''}`} onClick={() => (setPop(null), setCompare(null))}>
               Off
             </div>
@@ -717,9 +717,9 @@ export default function ProgrammeEditor({
           disabled={!has026(programme)}
           title="Lock the programme as it is now as a numbered revision (Initial issue, Rev A, Rev B…); the first is the original programme to compare against"
         >
-          Commit
+          Save revision
         </button>
-        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Committed revisions and what changed between them">
+        <button className="tl-btn" onClick={() => setDialog({ kind: 'history' })} disabled={!has026(programme)} title="Saved revisions and what changed between them">
           History{revisions.length ? ` (${revisions.length})` : ''}
         </button>
         <div className="tl-divider" />
@@ -936,7 +936,7 @@ export default function ProgrammeEditor({
             setRevisions(await listRevisions(programme.id))
             if (asOriginal) apply(setSetting(live.current!, { contract_rev: no }), `make ${revName(no)} the original programme`)
             setDialog(null)
-            flashToast(`${revName(no)} committed${asOriginal ? ' as the original programme' : ''}.`)
+            flashToast(`${revName(no)} saved${asOriginal ? ' as the original programme' : ''}.`)
           }}
         />
       )}
@@ -979,7 +979,7 @@ export default function ProgrammeEditor({
           defaultStart={programme.project_start || defaults.start || new Date().toISOString().slice(0, 10)}
           onClose={() => setDialog(null)}
           onUse={(p, name) => {
-            if (confirm(`Replace this programme with a copy of ${name}? Issued revisions of this one are kept in History.`))
+            if (confirm(`Replace this programme with a copy of ${name}? Saved revisions of this one are kept in History.`))
               replace({ ...p, project_name: programme.project_name || p.project_name }, `Copied from ${name}`, `Programme copied from ${name}.`)
           }}
         />
@@ -1003,13 +1003,13 @@ export default function ProgrammeEditor({
           }
         >
           <ImportSummary p={dialog.parsed} name={dialog.name} />
-          <p className="tl-p tl-light">This programme's committed revisions are kept in History. Commit first if you want to keep a copy of it as it is now.</p>
+          <p className="tl-p tl-light">This programme's saved revisions are kept in History. Save a revision first if you want to keep a copy of it as it is now.</p>
         </Modal>
       )}
       {dialog?.kind === 'sow' && job && (
         <Modal title="Make a simple programme from the SoW" onClose={() => setDialog(null)}>
           <p className="tl-p">
-            A first draft from the job's SoW trades, between the start and PC dates you give: it <b>replaces this programme</b>. Committed revisions stay in History, so commit
+            A first draft from the job's SoW trades, between the start and PC dates you give: it <b>replaces this programme</b>. Saved revisions stay in History, so save a revision
             first if you want to keep a copy of it as it is now.
           </p>
           <SowGenerator
@@ -1056,7 +1056,7 @@ export default function ProgrammeEditor({
           }
         >
           <p className="tl-p">
-            This clears every task from {ownerName}'s programme to start again. Issued revisions stay in History. To start from another job's programme instead, use{' '}
+            This clears every task from {ownerName}'s programme to start again. Saved revisions stay in History. To start from another job's programme instead, use{' '}
             <b>Programmes</b>.
           </p>
         </Modal>
@@ -1320,7 +1320,7 @@ function IssueDialog({
   const [err, setErr] = useState<string | null>(null)
   return (
     <Modal
-      title={`Commit ${next}`}
+      title={`Save revision ${next}`}
       onClose={onClose}
       footer={
         <>
@@ -1342,7 +1342,7 @@ function IssueDialog({
                 }
               }}
             >
-              {busy ? 'Committing…' : `Commit ${next}`}
+              {busy ? 'Saving…' : `Save revision ${next}`}
             </button>
           </div>
         </>
@@ -1438,7 +1438,7 @@ function HistoryDialog({
         </div>
         <div className="tl-row-gap">
           <button className="tl-btn tl-btn-sm" onClick={() => show('now')}>
-            {open[0] ? 'Hide' : 'Changes since last commit'}
+            {open[0] ? 'Hide' : 'Changes since the last revision'}
           </button>
           {original && (
             <button className="tl-btn tl-btn-sm" onClick={() => show('orig')}>
@@ -1448,7 +1448,7 @@ function HistoryDialog({
         </div>
       </div>
       {!revisions.length && (
-        <p className="tl-p tl-light">Nothing committed yet. Use Commit to lock a numbered copy (Initial issue, then Rev A, Rev B…); the first is the original programme.</p>
+        <p className="tl-p tl-light">No revisions saved yet. Use Save revision to lock a numbered copy (Initial issue, then Rev A, Rev B…); the first is the original programme.</p>
       )}
       {revisions.map((r) => (
         <div key={r.id} className="tl-prog-row">
@@ -1458,7 +1458,7 @@ function HistoryDialog({
               {r.rev_no === original && <span className="tl-rev-badge original">Original programme</span>} {r.note || <span className="tl-light">No note</span>}
             </div>
             <div className="tl-prog-meta">
-              Committed {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count}{' '}
+              Saved {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count}{' '}
               tasks
             </div>
             {Array.isArray(open[r.rev_no]) && <Diff lines={open[r.rev_no] as string[]} />}

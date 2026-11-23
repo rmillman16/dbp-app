@@ -111,8 +111,8 @@ a { color: var(--blue); }
 /* job page: header + module tabs */
 .job-meta { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; font-size: 14px; }
 /* the tabs wrap onto another row when they don't fit, rather than scrolling sideways */
-.tabs { display: flex; flex-wrap: wrap; gap: 0 2px; border-bottom: 2px solid var(--line); margin-top: -8px; }
-.tab { padding: 10px 12px; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; font-weight: 600; }
+.tabs { display: flex; flex-wrap: nowrap; gap: 0; border-bottom: 2px solid var(--line); margin-top: -8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; } /* one line (23 Nov) */
+.tab { padding: 10px 9px; font-size: 14px; flex: 0 0 auto; text-decoration: none; color: var(--muted); border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; font-weight: 600; }
 .tab:hover { color: var(--navy); }
 .tab.active { color: var(--navy); border-bottom-color: var(--blue); }
 .tab.disabled { opacity: 0.4; cursor: default; }

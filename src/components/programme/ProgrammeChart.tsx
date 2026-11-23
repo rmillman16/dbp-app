@@ -601,7 +601,7 @@ export default function ProgrammeChart({
                         <span className="slip-badge slip-none">on time</span>
                       )
                     ) : (
-                      <span className="slip-badge slip-none" title="Commit the programme: slip then shows against the original programme">
+                      <span className="slip-badge slip-none" title="Save a revision: slip then shows against the original programme">
                         —
                       </span>
                     )}
