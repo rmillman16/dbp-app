@@ -34,7 +34,7 @@ import MyDetails from './pages/MyDetails'
 import Site, { BuyerList, HireRequisitionForm, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
 import QuotationsRegister from './pages/QuotationsRegister'
 import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
-import { MinutesPage, MinutesTab } from './pages/Minutes'
+import { MinutesEnquiry, MinutesTab } from './pages/Minutes'
 import MyTasks from './pages/MyTasks'
 
 // The sign-in Supabase keeps on the device (cleared on sign-out).
@@ -143,14 +143,6 @@ export default function App() {
             <Route path="cvr/:cvrId" element={<CvrEditor />} />
           </Route>
           <Route path="/help/programme" element={<ProgrammeHelp />} />
-          <Route
-            path="/minutes/:meetingId?"
-            element={
-              <A section="job_minutes" what="Minutes">
-                <MinutesPage />
-              </A>
-            }
-          />
           <Route path="/my-tasks" element={<MyTasks />} />
           <Route
             path="/estimating"
@@ -189,6 +181,14 @@ export default function App() {
             element={
               <A section="estimating">
                 <EnquiryProgramme />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/minutes/:meetingId?"
+            element={
+              <A section="estimating">
+                <MinutesEnquiry />
               </A>
             }
           />

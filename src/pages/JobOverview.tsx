@@ -160,7 +160,7 @@ function MinutesActions({ actions, onDone }: { actions: OpenAction[]; onDone: (a
         return (
           <li key={a.pointId} className={'notif ' + (status === 'overdue' ? 'overdue' : status === 'soon' ? 'due_soon' : 'info')}>
             <div className="notif-main">
-              <Link to={meetingPath({ id: a.meetingId, jobId: a.jobId })}>
+              <Link to={meetingPath({ id: a.meetingId, jobId: a.jobId, enquiryId: a.enquiryId })}>
                 {a.urgent && <strong>Urgent: </strong>}
                 {plainMentions(a.text || '(no description)', a.attendees)}
               </Link>

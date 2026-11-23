@@ -363,6 +363,27 @@ export function EnquiryPage() {
 
         <EnquiryProgrammeCard e={e} />
 
+        {/* tender meetings (23 Nov, script 046): the same Minutes screen as a job's; they move to the job when it's won */}
+        <section className="card">
+          <div className="pane-head">
+            <h2>Minutes</h2>
+            {e.job_id ? (
+              <Link to={`/jobs/${e.job_id}/minutes`} className="button">
+                Open the job's minutes →
+              </Link>
+            ) : (
+              <Link to={`/estimating/e/${e.id}/minutes`} className="button primary">
+                Open minutes
+              </Link>
+            )}
+          </div>
+          <p className="muted small">
+            {e.job_id
+              ? "This enquiry was won; its meetings are now in the job's Minutes tab."
+              : "Tender meetings, with actions on the owners' bells. They move to the job when the enquiry is won."}
+          </p>
+        </section>
+
         <section className="card">
           <div className="pane-head">
             <h2>Quotations</h2>

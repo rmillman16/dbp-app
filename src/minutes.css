@@ -1595,8 +1595,35 @@
   border-radius: 10px;
   overflow: hidden;
 }
-.mint.in-job {
+.mint.in-owner {
   --mint-offset: 250px;
+}
+/* full width (23 Nov): the page area's own width cap is lifted while Minutes is on it, and the note fills it */
+.page:has(.mint.in-owner) {
+  max-width: none;
+}
+.mint .note-inner {
+  max-width: none;
+  padding: 28px 40px 120px;
+}
+/* full page (23 Nov): over the app's sidebar and top bar, as the programme's Full page; Esc or the button to go back */
+.mint.mint-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+}
+.mint .mint-full-btn svg {
+  width: 18px;
+  height: 18px;
+}
+.mint .mint-full-btn.is-on {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .mint .field-label {
   margin: 0;
@@ -1604,11 +1631,6 @@
 .mint .brand-mark-sm {
   width: 26px;
   height: 26px;
-}
-.mint .mi-job {
-  font-size: 11px;
-  color: var(--ink-faint);
-  margin-top: 1px;
 }
 .mint .ac-company {
   color: var(--ink-faint);
@@ -1623,23 +1645,6 @@
   font-size: 11px;
   color: var(--ink-faint);
   margin-top: 6px;
-}
-.mint .job-field select {
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 5px 8px;
-  font-size: 12.5px;
-  color: var(--ink);
-  background: var(--paper-raised);
-  max-width: 280px;
-}
-.mint .ro-note {
-  font-size: 12.5px;
-  color: var(--warn);
-  background: var(--warn-soft);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin: 0 0 12px;
 }
 .mint .mint-error {
   font-size: 12.5px;
@@ -1683,7 +1688,7 @@
 /* phones and small tablets: the page scrolls as one, the meeting list slides in over it (as DBP Minutes did) */
 @media (max-width: 860px) {
   .mint,
-  .mint.in-job {
+  .mint.in-owner {
     height: auto;
     min-height: 0;
     overflow: visible;
@@ -1699,5 +1704,13 @@
   }
   .mint .note-inner {
     padding: 20px 16px 80px;
+  }
+}
+
+@media (max-width: 860px) {
+  /* full page on a phone: the minutes scroll inside the window */
+  .mint.mint-full {
+    height: 100dvh;
+    overflow-y: auto;
   }
 }

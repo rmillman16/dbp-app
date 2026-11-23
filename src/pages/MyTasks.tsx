@@ -1,5 +1,5 @@
 // My tasks (22 Nov, script 045): DBP Minutes' "My tasks" view as a page for everyone. Every open action item
-// assigned to me (an attendee linked to my login) across all meetings, overdue first, then by due date. Click one
+// assigned to me (an attendee linked to my login) across all jobs and estimates, overdue first, then by due date. Click one
 // to open its meeting; Complete ticks it (and closes it on the bell).
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -41,7 +41,9 @@ export default function MyTasks() {
       <main className="note">
         <div className="note-inner">
           <h1 className="dash-title">My tasks</h1>
-          <p className="dash-sub">{tasks === null ? 'Loading…' : `${tasks.length} open action item${tasks.length === 1 ? '' : 's'} assigned to ${name} across all meetings.`}</p>
+          <p className="dash-sub">
+            {tasks === null ? 'Loading…' : `${tasks.length} open action item${tasks.length === 1 ? '' : 's'} assigned to ${name} across all jobs and estimates.`}
+          </p>
           {error && <p className="mint-error">{error}</p>}
           {tasks && !tasks.length && !error && (
             <div className="dash-empty">
@@ -51,7 +53,7 @@ export default function MyTasks() {
           {tasks && tasks.length > 0 && (
             <div className="dash-list">
               {tasks.map((t) => {
-                const open = () => navigate(M.meetingPath({ id: t.meetingId, jobId: t.jobId }))
+                const open = () => navigate(M.meetingPath({ id: t.meetingId, jobId: t.jobId, enquiryId: t.enquiryId }))
                 const point = { done: false, dueDate: t.dueDate }
                 return (
                   <div

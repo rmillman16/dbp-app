@@ -1,34 +1,30 @@
-// Meeting minutes (22 Nov, script 045): DBP Minutes (dbp-mint.firebaseapp.com) copied into the app, same layout,
-// look, wording and keyboard shortcuts. A job's minutes are its Minutes tab (/jobs/:id/minutes); the sidebar's
-// Minutes page (/minutes) lists every meeting, including ones not tied to a job, as DBP Minutes did.
+// Meeting minutes (22 Nov, scripts 045 / 046): DBP Minutes (dbp-mint.firebaseapp.com) copied into the app, same
+// layout, look, wording and keyboard shortcuts. Minutes live in their project (23 Nov): a job's Minutes tab
+// (/jobs/:id/minutes) or an estimate's (/estimating/e/:id/minutes, tender meetings, moved to the job when it's won).
+// The job's or estimate's number, code and name are the project name. Full width, with a Full page button.
 // Typing: Enter saves a point and starts the next; Shift+Enter a new line; Escape undoes the edit. "# " makes a
 // heading, "! " urgent, "£ " a cost impact (in the app only). @ mentions an attendee (Enter / Tab picks the first
 // match). On a point's ⋮⋮ handle, drag or use the up / down arrow keys to reorder.
 // Actions with an owner feed the job's To do; a staff owner also gets it on their bell and in My tasks (045).
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import '../minutes.css'
 import { supabase } from '../lib/supabase'
 import { cached, must } from '../lib/offline'
 import { nudgeEmails } from '../lib/notifications'
-import type { Job, JobStatus } from '../lib/types'
+import type { Enquiry } from '../lib/types'
 import * as M from '../lib/minutes'
 import { exportMinutesDocx, exportMinutesPdf } from '../lib/exportMinutes'
+import { enquiryRef } from '../lib/quotations'
 import { Icon, Mentions, useToast } from '../components/MinutesBits'
 import { useJob } from './JobLayout'
+import { loadEnquiry } from './Estimating'
 
 interface StaffProfile {
   id: string
   full_name: string | null
   email: string | null
   initials: string | null
-}
-interface JobLite {
-  id: string
-  job_no: number
-  code: string
-  name: string
-  status: JobStatus
 }
 interface MentionState {
   pointId: string
@@ -42,12 +38,42 @@ type SaveState = { state: '' | 'saved' | 'saving' | 'error' | 'readonly'; text: 
 
 const MAILTO_BODY_LIMIT = 1500
 
+// a job's Minutes tab
 export function MinutesTab() {
   const { job } = useJob()
-  return <MinutesApp job={job} />
+  const owner = useMemo<M.MinutesOwner>(() => ({ jobId: job.id, enquiryId: null, label: `${job.job_no} ${job.code} · ${job.name}` }), [job.id, job.job_no, job.code, job.name])
+  return <MinutesApp owner={owner} readOnly={job.status === 'archived'} />
 }
-export function MinutesPage() {
-  return <MinutesApp job={null} />
+
+// an estimate's minutes (tender meetings): Estimating › enquiry › Minutes
+export function MinutesEnquiry() {
+  const { enquiryId } = useParams()
+  const [e, setE] = useState<Enquiry | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
+  }, [enquiryId])
+  const owner = useMemo<M.MinutesOwner | null>(() => (e ? { jobId: null, enquiryId: e.id, label: `${enquiryRef(e)} · ${e.name}` } : null), [e])
+  if (error) return <p className="error">{error}</p>
+  if (!e || !owner) return <p className="muted">Loading…</p>
+  return (
+    <>
+      <div className="job-head">
+        <div>
+          <Link to={`/estimating/e/${e.id}`} className="link-button small">
+            ← {enquiryRef(e)} · {e.name}
+          </Link>
+          <h1>Minutes</h1>
+        </div>
+        {e.job_id && (
+          <Link to={`/jobs/${e.job_id}/minutes`} className="button primary">
+            This enquiry is now a job: open its minutes →
+          </Link>
+        )}
+      </div>
+      {!e.job_id && <MinutesApp owner={owner} readOnly={false} />}
+    </>
+  )
 }
 
 // a staff login's @initials: theirs if set and free, else worked out from the name
@@ -71,12 +97,11 @@ function autosize(el: HTMLTextAreaElement) {
   el.style.height = Math.max(35, el.scrollHeight) + 'px'
 }
 
-function MinutesApp({ job }: { job: Job | null }) {
+function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: boolean }) {
   const { meetingId } = useParams()
   const navigate = useNavigate()
-  const jobId = job?.id ?? null
-  const base = job ? `/jobs/${job.id}/minutes` : '/minutes'
-  const defaultProject = job ? job.name : ''
+  const ownerKey = owner.jobId ?? owner.enquiryId
+  const base = M.minutesBase(owner)
 
   // the open meeting is edited in place (as DBP Minutes did) and the page redrawn after each change
   const activeRef = useRef<M.Meeting | null>(null)
@@ -99,16 +124,15 @@ function MinutesApp({ job }: { job: Job | null }) {
     mentionRef.current = m
     setMentionState(m)
   }
-  const [sidebarView, setSidebarView] = useState<{ mode: 'projects' | 'project'; project: string | null }>({ mode: 'projects', project: null })
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState<SaveState>({ state: '', text: 'Ready' })
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const drawerOpenRef = useRef(false)
+  drawerOpenRef.current = drawerOpen
   const [menu, setMenu] = useState<'export' | 'email' | null>(null)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
-  const [renaming, setRenaming] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
+  const [full, setFull] = useState(false)
   const [profiles, setProfiles] = useState<StaffProfile[]>([])
-  const [jobs, setJobs] = useState<JobLite[]>([])
   const [attInput, setAttInput] = useState('')
   const [attPick, setAttPick] = useState(-1)
   const [presentToggle, setPresentToggle] = useState(true)
@@ -128,14 +152,12 @@ function MinutesApp({ job }: { job: Job | null }) {
   const baseRef = useRef(base)
   baseRef.current = base
 
-  const projectInputRef = useRef<HTMLInputElement>(null)
+  const subtitleInputRef = useRef<HTMLInputElement>(null)
   const pointsListRef = useRef<HTMLDivElement>(null)
   const editTaRef = useRef<HTMLTextAreaElement | null>(null)
   const exportWrapRef = useRef<HTMLDivElement>(null)
   const emailWrapRef = useRef<HTMLDivElement>(null)
 
-  const activeJob = active?.jobId ? jobs.find((j) => j.id === active.jobId) : undefined
-  const readOnly = job ? job.status === 'archived' : activeJob?.status === 'archived'
   const readOnlyRef = useRef(readOnly)
   readOnlyRef.current = readOnly
 
@@ -144,7 +166,7 @@ function MinutesApp({ job }: { job: Job | null }) {
     mounted.current = true
     let gone = false
     setList(null)
-    M.loadMeetingList(jobId).then(
+    M.loadMeetingList(owner).then(
       (l) => !gone && setList(l),
       (e: Error) => {
         if (gone) return
@@ -156,15 +178,11 @@ function MinutesApp({ job }: { job: Job | null }) {
       (p) => !gone && setProfiles(p),
       () => {},
     )
-    if (!jobId)
-      cached('minutes:jobs', () => must<JobLite[]>(supabase.from('jobs').select('id,job_no,code,name,status').order('job_no', { ascending: false }))).then(
-        (j) => !gone && setJobs(j),
-        () => {},
-      )
     return () => {
       gone = true
     }
-  }, [jobId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownerKey])
 
   // the meeting in the address; with none, the most recent one (or a fresh page if there are none)
   useEffect(() => {
@@ -189,39 +207,46 @@ function MinutesApp({ job }: { job: Job | null }) {
           navigate(base, { replace: true })
           return
         }
+        // a meeting of another job / estimate (e.g. an estimate's, since moved to the job): open it there
+        if ((m.jobId ?? null) !== owner.jobId || (m.enquiryId ?? null) !== owner.enquiryId) {
+          if (m.jobId || m.enquiryId) navigate(M.meetingPath(m), { replace: true })
+          else navigate(base, { replace: true })
+          return
+        }
         savedRef.current.set(m.id, remote ? M.savedStateOf(remote) : M.emptySaved())
-        openMeeting(m, true)
+        // the project name is the job's / estimate's, kept up to date
+        m.project = owner.label
+        openMeeting(m)
         if (useDraft && !readOnlyRef.current) scheduleSave() // changes made on this device that never reached the database
       })()
       return () => {
         gone = true
       }
     }
-    if (cur && cur.id === freshIdRef.current && (!job || cur.jobId === jobId)) return
+    if (cur && cur.id === freshIdRef.current && cur.jobId === owner.jobId && cur.enquiryId === owner.enquiryId) return
     if (!list) return
     const recent = list.slice().sort((a, b) => b.updatedAt - a.updatedAt)[0]
     if (recent) navigate(`${base}/${recent.id}`, { replace: true })
     else {
-      const m = M.newMeeting(jobId, defaultProject)
+      const m = M.newMeeting(owner)
       freshIdRef.current = m.id
-      openMeeting(m, false)
+      openMeeting(m)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetingId, list === null])
 
-  function openMeeting(m: M.Meeting, drillIn: boolean) {
+  function openMeeting(m: M.Meeting) {
     activeRef.current = m
     setEditing(null)
     setUpdatingPointId(null)
     setMention(null)
     setConfirmDel(null)
-    if (drillIn) setSidebarView({ mode: 'project', project: M.projectNameOf(m) })
     rerender()
   }
 
   // ---------- saving ----------
   function summaryOf(m: M.Meeting): M.MeetingSummary {
-    return { id: m.id, jobId: m.jobId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees }
+    return { id: m.id, jobId: m.jobId, enquiryId: m.enquiryId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees }
   }
   function scheduleSave() {
     const target = activeRef.current
@@ -346,16 +371,15 @@ function MinutesApp({ job }: { job: Job | null }) {
     return () => document.removeEventListener('click', onClick)
   }, [])
 
-  // ---------- meetings: new, next, delete, rename ----------
+  // ---------- meetings: new, next, delete ----------
   function startNewMeeting() {
     flushSave()
-    const project = sidebarView.mode === 'project' && sidebarView.project && sidebarView.project !== 'Untitled project' ? sidebarView.project : defaultProject
-    const m = M.newMeeting(jobId, project)
+    const m = M.newMeeting(owner)
     freshIdRef.current = m.id
-    openMeeting(m, false)
+    openMeeting(m)
     if (meetingId) navigate(base)
     setDrawerOpen(false)
-    requestAnimationFrame(() => projectInputRef.current?.focus())
+    requestAnimationFrame(() => subtitleInputRef.current?.focus())
   }
 
   function startNextMeeting() {
@@ -370,11 +394,11 @@ function MinutesApp({ job }: { job: Job | null }) {
       saveNow(source)
     }
     freshIdRef.current = next.id
-    openMeeting(next, false)
+    openMeeting(next)
     if (meetingId) navigate(base)
     scheduleSave()
     setDrawerOpen(false)
-    requestAnimationFrame(() => projectInputRef.current?.focus())
+    requestAnimationFrame(() => subtitleInputRef.current?.focus())
   }
 
   function confirmDeleteMeeting(id: string) {
@@ -393,42 +417,15 @@ function MinutesApp({ job }: { job: Job | null }) {
       activeRef.current = null
       if (next) navigate(`${base}/${next.id}`)
       else {
-        const m = M.newMeeting(jobId, defaultProject)
+        const m = M.newMeeting(owner)
         freshIdRef.current = m.id
-        openMeeting(m, false)
+        openMeeting(m)
         if (meetingId) navigate(base)
       }
     }
   }
 
-  function startRenameProject(name: string) {
-    setRenaming(name)
-    setRenameValue(name === 'Untitled project' ? '' : name)
-  }
-  // renames every meeting filed under that project name (typing another group's name merges them)
-  async function renameProject(oldName: string, raw: string) {
-    const newName = raw.trim()
-    const newGroup = newName || 'Untitled project'
-    setRenaming(null)
-    if (newGroup === oldName) return
-    const affected = sidebarMeetings().filter((m) => M.projectNameOf(m) === oldName)
-    if (!affected.length) return
-    const cur = activeRef.current
-    const others = affected.filter((m) => m.id !== cur?.id && (list ?? []).some((l) => l.id === m.id)).map((m) => m.id)
-    setList((l) => (l ?? []).map((m) => (affected.some((a) => a.id === m.id) ? { ...m, project: newName } : m)))
-    if (cur && affected.some((m) => m.id === cur.id)) {
-      cur.project = newName
-      scheduleSave()
-    }
-    setSidebarView({ mode: 'project', project: newGroup })
-    try {
-      await M.renameMeetings(others, newName)
-    } catch (e) {
-      showToast((e as Error).message, true)
-    }
-  }
-
-  // ---------- sidebar ----------
+  // ---------- sidebar: this job's / estimate's meetings, most recent first ----------
   function sidebarMeetings(): M.MeetingSummary[] {
     const cur = activeRef.current
     const l = (list ?? []).filter((m) => !cur || m.id !== cur.id)
@@ -440,16 +437,10 @@ function MinutesApp({ job }: { job: Job | null }) {
     if (activeRef.current?.id === id) return
     navigate(`${base}/${id}`)
   }
-  const jobLabel = (id: string | null) => {
-    if (!id || job) return null
-    const j = jobs.find((x) => x.id === id)
-    return j ? `${j.job_no} ${j.code} · ${j.name}` : null
-  }
 
   function renderMeetingItem(m: M.MeetingSummary) {
     const avatars = m.attendees.slice(0, 4)
     const more = m.attendees.length > 4 ? m.attendees.length - 4 : 0
-    const jl = jobLabel(m.jobId)
     return (
       <div
         key={m.id}
@@ -465,11 +456,9 @@ function MinutesApp({ job }: { job: Job | null }) {
         }}
       >
         <div className="mi-top">
-          <span className="mi-project">{m.project || 'Untitled project'}</span>
+          <span className="mi-project">{m.subtitle || 'Meeting'}</span>
           <span className="mi-date">{M.formatDateSidebar(m.date)}</span>
         </div>
-        {m.subtitle && <div className="mi-subtitle">{m.subtitle}</div>}
-        {jl && <div className="mi-job">{jl}</div>}
         <div className="mi-bottom">
           <div className="mi-avatars">
             {avatars.map((a) => (
@@ -484,7 +473,7 @@ function MinutesApp({ job }: { job: Job | null }) {
             )}
           </div>
           <div className="mi-right">
-            {!readOnlyFor(m) &&
+            {!readOnly &&
               (confirmDel === m.id ? (
                 <span className="mi-confirm" data-del>
                   Delete?{' '}
@@ -535,49 +524,13 @@ function MinutesApp({ job }: { job: Job | null }) {
       </div>
     )
   }
-  const readOnlyFor = (m: { jobId: string | null }) => (job ? job.status === 'archived' : jobs.find((j) => j.id === m.jobId)?.status === 'archived')
-
-  function renameHolder(className: string, oldName: string) {
-    const save = () => renameProject(oldName, renameValue)
-    return (
-      <div className={className} key={'rename-' + oldName}>
-        <input
-          type="text"
-          className="project-rename-input"
-          placeholder="Project name"
-          value={renameValue}
-          autoFocus
-          onFocus={(e) => e.currentTarget.select()}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              save()
-            } else if (e.key === 'Escape') {
-              e.preventDefault()
-              setRenaming(null)
-            }
-          }}
-        />
-        <span className="pi-right">
-          <button className="btn btn-small btn-primary" type="button" onClick={save}>
-            Save
-          </button>
-          <button className="btn btn-small" type="button" onClick={() => setRenaming(null)}>
-            Cancel
-          </button>
-        </span>
-      </div>
-    )
-  }
 
   function renderSidebar() {
     if (list === null) return <div className="meeting-empty">Loading…</div>
     const all = sidebarMeetings()
     const q = query.trim().toLowerCase()
-    // search looks across every project, flattened
     if (q) {
-      const filtered = all.filter((m) => [m.project, m.subtitle, ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
+      const filtered = all.filter((m) => [m.subtitle, ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
       if (!filtered.length) return <div className="meeting-empty">No meetings match “{q}”.</div>
       return filtered.map(renderMeetingItem)
     }
@@ -589,91 +542,26 @@ function MinutesApp({ job }: { job: Job | null }) {
           Start typing in the note to create your first one.
         </div>
       )
-    if (sidebarView.mode === 'project') {
-      const inProject = all.filter((m) => M.projectNameOf(m) === sidebarView.project)
-      if (inProject.length) {
-        const name = sidebarView.project!
-        return (
-          <>
-            {renaming === name ? (
-              renameHolder('sidebar-back-row', name)
-            ) : (
-              <div
-                className="sidebar-back-row"
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  if ((e.target as HTMLElement).closest('[data-edit]')) return
-                  setSidebarView({ mode: 'projects', project: null })
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && setSidebarView({ mode: 'projects', project: null })}
-              >
-                <span className="sbr-arrow">
-                  <Icon.chevronLeft />
-                </span>
-                <span className="sbr-title">{name}</span>
-                {!readOnly && (
-                  <button className="sbr-edit" data-edit type="button" aria-label="Rename project" title="Rename project" onClick={() => startRenameProject(name)}>
-                    <Icon.pencil />
-                  </button>
-                )}
-              </div>
-            )}
-            {inProject.map(renderMeetingItem)}
-          </>
-        )
-      }
-      // the last minute for that project was just deleted: back to the projects
-    }
-    // grouped by project, most recently active first
-    const groups: { name: string; count: number; updatedAt: number }[] = []
-    const byName = new Map<string, (typeof groups)[number]>()
-    all.forEach((m) => {
-      const name = M.projectNameOf(m)
-      let g = byName.get(name)
-      if (!g) {
-        g = { name, count: 0, updatedAt: 0 }
-        byName.set(name, g)
-        groups.push(g)
-      }
-      g.count += 1
-      g.updatedAt = Math.max(g.updatedAt, m.updatedAt)
-    })
-    groups.sort((a, b) => b.updatedAt - a.updatedAt)
-    return groups.map((g) =>
-      renaming === g.name ? (
-        renameHolder('project-item', g.name)
-      ) : (
-        <div
-          key={g.name}
-          className="project-item"
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            if ((e.target as HTMLElement).closest('[data-edit]')) return
-            setSidebarView({ mode: 'project', project: g.name })
-          }}
-          onKeyDown={(e) => e.key === 'Enter' && e.target === e.currentTarget && setSidebarView({ mode: 'project', project: g.name })}
-        >
-          <span className="pi-name">{g.name}</span>
-          <span className="pi-right">
-            <span className="pi-count">
-              {g.count}
-              {g.count === 1 ? ' minute' : ' minutes'}
-            </span>
-            {!readOnly && (
-              <button className="pi-edit" data-edit type="button" aria-label="Rename project" title="Rename project" onClick={() => startRenameProject(g.name)}>
-                <Icon.pencil />
-              </button>
-            )}
-            <svg className="pi-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M9 6l6 6-6 6" />
-            </svg>
-          </span>
-        </div>
-      ),
-    )
+    return all.map(renderMeetingItem)
   }
+
+  // ---------- full page: over the app's sidebar and top bar (not the browser's own full screen) ----------
+  useEffect(() => {
+    if (!full) return
+    document.body.classList.add('no-scroll')
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target as HTMLElement
+      // Escape in a field (undo an edit, close the @ list) or with a menu open does that first
+      if (t.closest('textarea, input, select') || mentionRef.current || drawerOpenRef.current) return
+      setFull(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.classList.remove('no-scroll')
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [full])
 
   // ---------- attendees ----------
   const attQuery = attInput.trim().toLowerCase()
@@ -1334,7 +1222,7 @@ function MinutesApp({ job }: { job: Job | null }) {
   const editingPoint = mention && active ? active.points.find((p) => p.id === mention.pointId) : undefined
 
   return (
-    <div className={'mint' + (job ? ' in-job' : '')}>
+    <div className={'mint in-owner' + (full ? ' mint-full' : '')}>
       <header className="mint-bar">
         <button className="icon-btn mint-drawer-toggle" aria-label="Show meeting list" type="button" onClick={() => setDrawerOpen(!drawerOpen)} data-readonly-ok>
           <Icon.menu />
@@ -1353,6 +1241,19 @@ function MinutesApp({ job }: { job: Job | null }) {
           </span>
           <span>{readOnly ? 'Read-only' : status.text}</span>
         </div>
+        <button
+          className={'icon-btn mint-full-btn' + (full ? ' is-on' : '')}
+          type="button"
+          aria-label="Full page"
+          aria-pressed={full}
+          title={full ? 'Back to the page (Esc)' : 'Full page: fill the window with the minutes'}
+          onClick={() => setFull(!full)}
+          data-readonly-ok
+        >
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d={full ? 'M8 3v5H3M17 8h-5V3M12 17v-5h5M3 12h5v5' : 'M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5'} />
+          </svg>
+        </button>
         {!readOnly && (
           <button className="btn btn-ghost" type="button" title="Save now" onClick={manualSave}>
             <Icon.save />
@@ -1446,26 +1347,17 @@ function MinutesApp({ job }: { job: Job | null }) {
         <main className="note">
           <div className="note-inner">
             {loadError && <p className="mint-error">{loadError}</p>}
-            {!job && readOnly && <p className="ro-note">This meeting is filed under an archived job, so it’s read-only. An admin can unarchive the job to make changes.</p>}
             {!active ? (
               <div className="meeting-empty">Loading…</div>
             ) : (
               <>
                 <div className="letterhead">
+                  {/* the project is the job / estimate (23 Nov) */}
+                  <div className="field-project" aria-label="Project">
+                    {owner.label}
+                  </div>
                   <input
-                    ref={projectInputRef}
-                    className="field-project"
-                    placeholder="Untitled project"
-                    aria-label="Project name"
-                    value={active.project}
-                    readOnly={readOnly}
-                    onChange={(e) => {
-                      active.project = e.target.value
-                      scheduleSave()
-                      rerender()
-                    }}
-                  />
-                  <input
+                    ref={subtitleInputRef}
                     className="field-subtitle"
                     placeholder="Add a sub-title…"
                     aria-label="Sub-title"
@@ -1492,34 +1384,6 @@ function MinutesApp({ job }: { job: Job | null }) {
                         }}
                       />
                     </label>
-                    {!job && !readOnly && (
-                      <label className="date-field job-field">
-                        <span className="field-label">Job</span>
-                        <select
-                          aria-label="Job"
-                          value={active.jobId ?? ''}
-                          onChange={(e) => {
-                            active.jobId = e.target.value || null
-                            scheduleSave()
-                            rerender()
-                          }}
-                        >
-                          <option value="">Not tied to a job</option>
-                          {jobs
-                            .filter((j) => j.status !== 'archived' || j.id === active.jobId)
-                            .map((j) => (
-                              <option key={j.id} value={j.id}>
-                                {j.job_no} {j.code} · {j.name}
-                              </option>
-                            ))}
-                        </select>
-                      </label>
-                    )}
-                    {!job && readOnly && activeJob && (
-                      <span className="field-label">
-                        {activeJob.job_no} {activeJob.code} · {activeJob.name}
-                      </span>
-                    )}
                   </div>
                 </div>
 

@@ -199,7 +199,8 @@ export default function JobForm() {
         // the job exists; say what didn't move rather than losing it
         return setError(`Job created, but the enquiry's quotations couldn't be moved: ${saveError(e)}`)
       }
-      // and its programme (from Estimating) becomes the job's
+      // its meetings (tender minutes) move to the job in the database when moveEnquiryToJob puts the job on the
+      // enquiry (script 046); and its programme (from Estimating) becomes the job's
       try {
         await moveEnquiryProgramme(enquiry.id, result.data.id)
       } catch (e) {

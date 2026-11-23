@@ -1,5 +1,6 @@
-// Meeting minutes (22 Nov, script 045): DBP Minutes (dbp-mint.firebaseapp.com) copied into the app. A meeting has
-// a project name, sub-title, date, attendees (staff logins or typed-in people) and a list of points; a point can be
+// Meeting minutes (22 Nov, scripts 045 / 046): DBP Minutes (dbp-mint.firebaseapp.com) copied into the app. A meeting
+// belongs to a job or an Estimating enquiry (tender meetings; they move to the job when it's won), whose number,
+// code and name are its project name (23 Nov). It has a sub-title, date, attendees (staff logins or typed-in people) and a list of points; a point can be
 // a section heading, or an action with an owner and a due date. Actions owned by a staff login go on their bell
 // (the database does that, 045) and every open action shows on the job's To do and the owner's My tasks.
 // The meeting is edited in memory and saved a moment after each change (as DBP Minutes did); a copy is kept on
@@ -51,6 +52,7 @@ export interface Point {
 export interface Meeting {
   id: string
   jobId: string | null
+  enquiryId: string | null // a tender meeting (046); a meeting is a job's or an estimate's
   project: string
   subtitle: string
   date: string
@@ -62,6 +64,7 @@ export interface Meeting {
 export interface MeetingSummary {
   id: string
   jobId: string | null
+  enquiryId: string | null
   project: string
   subtitle: string
   date: string
@@ -100,8 +103,22 @@ export function daysBetween(aIso: string, bIso: string) {
   return Math.round((new Date(bIso + 'T00:00:00').getTime() - new Date(aIso + 'T00:00:00').getTime()) / 86400000)
 }
 
-export function newMeeting(jobId: string | null, project = ''): Meeting {
-  return { id: uid(), jobId, project, subtitle: '', date: todayISO(), attendees: [], points: [], createdAt: Date.now(), updatedAt: Date.now() }
+// whose minutes: a job's (Minutes tab) or an Estimating enquiry's (tender meetings); label = "2611 FISL · Name" / "E012 · Name"
+export type MinutesOwner = { jobId: string; enquiryId: null; label: string } | { jobId: null; enquiryId: string; label: string }
+
+export function newMeeting(owner: MinutesOwner): Meeting {
+  return {
+    id: uid(),
+    jobId: owner.jobId,
+    enquiryId: owner.enquiryId,
+    project: owner.label,
+    subtitle: '',
+    date: todayISO(),
+    attendees: [],
+    points: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
 }
 export function newPoint(type: 'note' | 'heading' = 'note'): Point {
   return {
@@ -121,7 +138,8 @@ export function newPoint(type: 'note' | 'heading' = 'note'): Point {
 }
 export function isMeetingEmpty(m: Meeting | null) {
   if (!m) return true
-  return !m.project.trim() && !m.subtitle.trim() && m.attendees.length === 0 && m.points.length === 0
+  // the project is the job / estimate, so it doesn't count
+  return !m.subtitle.trim() && m.attendees.length === 0 && m.points.length === 0
 }
 export const projectNameOf = (m: { project: string }) => (m.project || '').trim() || 'Untitled project'
 
@@ -216,7 +234,7 @@ export const countOpenActions = (m: Meeting | null) => (m ? m.points.filter((p) 
 // Same team (fresh ids), a heading, then every open action with its update log. The source points are marked
 // carried forward, so they leave My tasks and the bell (the new copies take over).
 export function buildNextMeeting(source: Meeting): Meeting {
-  const next = newMeeting(source.jobId, source.project)
+  const next = newMeeting({ jobId: source.jobId, enquiryId: source.enquiryId, label: source.project } as MinutesOwner)
   next.subtitle = source.subtitle
   const ownerIdMap: Record<string, string> = {}
   source.attendees.forEach((a) => {
@@ -308,6 +326,7 @@ export function slug(str: string) {
 interface MeetingRow {
   id: string
   job_id: string | null
+  enquiry_id?: string | null // 046
   project: string
   subtitle: string
   meeting_date: string
@@ -343,7 +362,11 @@ interface PointRow {
 }
 
 export const needs045 = (m: string) =>
-  /meeting|minutes/i.test(m) && /does not exist|schema cache|could not find/i.test(m) ? 'Minutes need script 045 run in Supabase first (supabase/README.md).' : m
+  /enquiry_id|enquiry_no/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
+    ? 'Minutes need script 046 run in Supabase first (supabase/README.md).'
+    : /meeting|minutes/i.test(m) && /does not exist|schema cache|could not find/i.test(m)
+      ? 'Minutes need script 045 run in Supabase first (supabase/README.md).'
+      : m
 
 const toAttendee = (r: AttendeeRow): Attendee => ({
   id: r.id,
@@ -369,21 +392,25 @@ const toPoint = (r: PointRow): Point => ({
   carriedForward: r.carried_forward,
 })
 
-// every meeting of a job (or all meetings, for the Minutes page), with attendees for the avatars and search
-export async function loadMeetingList(jobId: string | null): Promise<MeetingSummary[]> {
-  return cached(`minutes:list:${jobId ?? 'all'}`, async () => {
-    let mq = supabase.from('meetings').select('id,job_id,project,subtitle,meeting_date,updated_at')
-    let aq = supabase.from('meeting_attendees').select('id,meeting_id,name,initials,present,sort').order('sort')
-    if (jobId) {
-      mq = mq.eq('job_id', jobId)
-      aq = aq.eq('job_id', jobId)
-    }
-    const [ms, as] = await Promise.all([
-      must<Omit<MeetingRow, 'created_at'>[]>(mq),
-      must<Pick<AttendeeRow, 'id' | 'meeting_id' | 'name' | 'initials' | 'present' | 'sort'>[]>(aq),
-    ]).catch((e: Error) => {
+// every meeting of a job or an estimate, with attendees for the avatars and search
+export async function loadMeetingList(owner: MinutesOwner): Promise<MeetingSummary[]> {
+  return cached(`minutes:list:${owner.jobId ?? 'e-' + owner.enquiryId}`, async () => {
+    const mq = supabase.from('meetings').select('*')
+    const ms = await must<Omit<MeetingRow, 'created_at'>[]>(owner.jobId ? mq.eq('job_id', owner.jobId) : mq.eq('enquiry_id', owner.enquiryId)).catch((e: Error) => {
       throw new Error(needs045(e.message))
     })
+    const as = ms.length
+      ? await must<Pick<AttendeeRow, 'id' | 'meeting_id' | 'name' | 'initials' | 'present' | 'sort'>[]>(
+          supabase
+            .from('meeting_attendees')
+            .select('id,meeting_id,name,initials,present,sort')
+            .in(
+              'meeting_id',
+              ms.map((m) => m.id),
+            )
+            .order('sort'),
+        )
+      : []
     const byMeeting = new Map<string, MeetingSummary['attendees']>()
     as.forEach((a) => {
       const list = byMeeting.get(a.meeting_id) ?? []
@@ -393,6 +420,7 @@ export async function loadMeetingList(jobId: string | null): Promise<MeetingSumm
     return ms.map((m) => ({
       id: m.id,
       jobId: m.job_id,
+      enquiryId: m.enquiry_id ?? null,
       project: m.project,
       subtitle: m.subtitle,
       date: m.meeting_date,
@@ -415,6 +443,7 @@ export async function loadMeeting(id: string): Promise<Meeting | null> {
     return {
       id: m.id,
       jobId: m.job_id,
+      enquiryId: m.enquiry_id ?? null,
       project: m.project,
       subtitle: m.subtitle,
       date: m.meeting_date,
@@ -443,7 +472,8 @@ export const emptySaved = (): SavedState => ({ meeting: '', attendees: new Map()
 
 function rows(m: Meeting) {
   const attendeeIds = new Set(m.attendees.map((a) => a.id))
-  const meeting = { id: m.id, job_id: m.jobId, project: m.project, subtitle: m.subtitle, meeting_date: m.date || todayISO() }
+  // enquiry_id only when set, so a job's minutes work before script 046
+  const meeting = { id: m.id, job_id: m.jobId, ...(m.enquiryId ? { enquiry_id: m.enquiryId } : {}), project: m.project, subtitle: m.subtitle, meeting_date: m.date || todayISO() }
   const attendees = m.attendees.map((a, i) => ({
     id: a.id,
     meeting_id: m.id,
@@ -517,25 +547,22 @@ export async function deleteMeeting(id: string) {
   await clearDraft(id)
 }
 
-export async function renameMeetings(ids: string[], project: string) {
-  if (!ids.length) return
-  const { error } = await supabase.from('meetings').update({ project }).in('id', ids)
-  if (error) throw new Error(needs045(error.message))
-}
-
 // tick an action done / not done from outside the meeting (To do, My tasks): the owner or anyone with Minutes
 export async function completeAction(pointId: string, done = true) {
   const { error } = await supabase.rpc('complete_minutes_action', { point: pointId, is_done: done })
   if (error) throw new Error(needs045(error.message))
 }
 
-export const meetingPath = (m: { id: string; jobId: string | null }) => (m.jobId ? `/jobs/${m.jobId}/minutes/${m.id}` : `/minutes/${m.id}`)
+export const minutesBase = (m: { jobId: string | null; enquiryId: string | null }) =>
+  m.jobId ? `/jobs/${m.jobId}/minutes` : m.enquiryId ? `/estimating/e/${m.enquiryId}/minutes` : '/my-tasks'
+export const meetingPath = (m: { id: string; jobId: string | null; enquiryId: string | null }) => (m.jobId || m.enquiryId ? `${minutesBase(m)}/${m.id}` : '/my-tasks')
 
 // ---------- My tasks and the job's To do ----------
 export interface OpenAction {
   pointId: string
   meetingId: string
   jobId: string | null
+  enquiryId: string | null
   text: string
   dueDate: string | null
   urgent: boolean
@@ -560,7 +587,7 @@ export function sortActions(list: OpenAction[]) {
   })
 }
 
-// mine, across all jobs (045 my_minutes_actions: works whatever my profile type)
+// mine, across all jobs and estimates (045 / 046 my_minutes_actions: works whatever my profile type)
 export async function loadMyActions(): Promise<OpenAction[]> {
   type Row = {
     point_id: string
@@ -576,6 +603,9 @@ export async function loadMyActions(): Promise<OpenAction[]> {
     job_code: string | null
     job_name: string | null
     job_status: string | null
+    enquiry_id?: string | null // 046
+    enquiry_no?: number | null
+    enquiry_name?: string | null
     attendees: Named[]
   }
   const data = await cached('minutes:mine', () => must<Row[]>(supabase.rpc('my_minutes_actions'))).catch((e: Error) => {
@@ -586,13 +616,14 @@ export async function loadMyActions(): Promise<OpenAction[]> {
       pointId: r.point_id,
       meetingId: r.meeting_id,
       jobId: r.job_id,
+      enquiryId: r.enquiry_id ?? null,
       text: r.text,
       dueDate: r.due_date,
       urgent: r.urgent,
       project: r.project,
       subtitle: r.subtitle,
       meetingDate: r.meeting_date,
-      jobLabel: r.job_no != null ? `${r.job_no} ${r.job_code}` : null,
+      jobLabel: r.job_no != null ? `${r.job_no} ${r.job_code}` : r.enquiry_no != null ? `E${String(r.enquiry_no).padStart(3, '0')} (estimate)` : null,
       jobArchived: r.job_status === 'archived',
       ownerName: null,
       attendees: r.attendees ?? [],
@@ -621,6 +652,7 @@ export async function loadJobActions(jobId: string): Promise<OpenAction[]> {
           pointId: p.id,
           meetingId: p.meeting_id,
           jobId,
+          enquiryId: null,
           text: p.text,
           dueDate: p.due_date,
           urgent: p.urgent,

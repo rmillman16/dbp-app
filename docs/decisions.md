@@ -114,13 +114,17 @@
   - Overdue reminders, open requisitions, and hire (on hire, £ ordered, past end date).
   - Headline tiles show the totals; warnings carry ⚠ as well as colour.
   - Ticked for Project manager and Commercial in Settings › Access. Each person only sees figures from parts they can open.
-- **Meeting minutes: built 22 Nov (045).** DBP Minutes (dbp-mint.firebaseapp.com) copied into the app: same layout, look, wording, keyboard shortcuts and PDF / Word exports. Existing minutes are not brought across.
-  - **Where:** each job's **Minutes** tab, and sidebar › **Minutes** for every meeting, including ones not tied to a job (pick the job on the meeting, or leave it).
+- **Meeting minutes: built 22 Nov (045), revised 23 Nov (046).** DBP Minutes (dbp-mint.firebaseapp.com) copied into the app: same layout, look, wording, keyboard shortcuts and PDF / Word exports. Existing minutes are not brought across.
+  - **Where (23 Nov: minutes live within projects):**
+    - each job's **Minutes** tab;
+    - each estimate's **Minutes** (Estimating › enquiry › Minutes) for tender meetings. When the enquiry is won and set up as a job, its meetings move to the job, with their bell reminders.
+  - The job's or estimate's number, code and name are the project name; there's no typed project, grouping or job picker. No Minutes list outside a job or estimate.
+  - **Full width** of the page, and a **Full page** button (⛶) that fills the whole window, over the sidebar and top bar. Esc or the button to go back.
   - **People:** attendees are staff logins (they come up as you type) or anyone typed in as "Name, Company, email". @mentions and action owners use them.
   - **Actions:** every open action shows on the job's **To do**, with owner, due date, a link to the meeting and **Done**.
   - An action owned by a staff login goes on their **bell** (and emails, once set up), dated when it's due. It moves when the owner or date changes. It closes when ticked done or carried to the next meeting. Done on the bell ticks the action.
-  - **My tasks** (sidebar, everyone): my open actions across all jobs, overdue first.
-  - **Access:** Job › Minutes in Settings › Access, ticked for Project manager, Commercial, Site management and Design. An archived job's minutes are read-only.
+  - **My tasks** (sidebar, everyone): my open actions across all jobs and estimates, overdue first, each linking to its meeting.
+  - **Access:** a job's minutes follow Job › Minutes in Settings › Access (ticked for Project manager, Commercial, Site management and Design); an estimate's follow Estimating. An archived job's minutes are read-only.
   - **Changed from DBP Minutes:**
     - No Share button: everyone with Minutes access sees every meeting.
     - My tasks goes by your login rather than a typed name.

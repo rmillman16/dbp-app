@@ -14,7 +14,6 @@ const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: bo
   { to: '/my-tasks', label: 'My tasks', icon: 'M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9' },
   { to: '/dashboard', label: 'Dashboard', icon: 'M4 20V10M10 20V4M16 20v-7M22 20H2', section: 'dashboard' },
   { to: '/jobs', label: 'Jobs', icon: 'M4 7h16v13H4zM9 7V4h6v3', section: 'jobs' },
-  { to: '/minutes', label: 'Minutes', icon: 'M6 3h12v18H6zM9 8h6M9 12h6M9 16h4', section: 'job_minutes' },
   {
     to: '/estimating',
     label: 'Estimating',
