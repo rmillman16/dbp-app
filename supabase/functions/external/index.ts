@@ -111,7 +111,7 @@ async function bySession(db: DB, session: string, kind: string, id: string): Pro
   const p = await person(db, hit.kind, hit.personRow);
   return { email: s.email, kind: hit.kind, itemId: id, personRow: hit.personRow, role: p.role, name: p.name, company: p.company, linkId: null };
 }
-async function byToken(db: DB, token: string, ip: string): Promise<Ctx> {
+async function byToken(db: DB, token: string, ip: string, kind?: string, id?: string): Promise<Ctx> {
   // (the short codes in brackets say which check failed, to help find a problem; they reveal nothing about anyone's data)
   if (!TOKEN.test(token)) {
     await limit(db, "badtoken", ip, 30, 60);
@@ -133,10 +133,19 @@ async function byToken(db: DB, token: string, ip: string): Promise<Ctx> {
   const p = await person(db, l.kind, l.person_id);
   if (p.itemId !== l.item_id) throw new Fail(404, "This link isn't valid. (code 4: it points at a different item)");
   await db.from("external_links").update({ last_used_at: new Date().toISOString(), use_count: (l.use_count ?? 0) + 1 }).eq("id", l.id);
+  // the link was made for one person (their email): it also opens their other RFIs and submittals
+  if (kind && id && !(kind === l.kind && id === l.item_id)) {
+    if (!l.email || (kind !== "rfi" && kind !== "submittal") || !/^[0-9a-f-]{36}$/.test(id)) throw new Fail(404, "That item isn't available to you.");
+    const mine = (await findAccess(db, l.email)).filter((i) => i.kind === kind && i.itemId === id);
+    const hit = mine.find((i) => i.role !== "cc") ?? mine[0];
+    if (!hit) throw new Fail(404, "That item isn't available to you.");
+    const q = await person(db, hit.kind, hit.personRow);
+    return { email: l.email, kind: hit.kind, itemId: id, personRow: hit.personRow, role: q.role, name: q.name, company: q.company, linkId: l.id };
+  }
   return { email: l.email, kind: l.kind, itemId: l.item_id, personRow: l.person_id, role: p.role, name: p.name, company: p.company, linkId: l.id };
 }
 async function resolve(db: DB, b: Record<string, string>, ip: string) {
-  return b.token ? byToken(db, String(b.token), ip) : bySession(db, String(b.session ?? ""), String(b.kind ?? ""), String(b.id ?? ""));
+  return b.token ? byToken(db, String(b.token), ip, b.kind ? String(b.kind) : undefined, b.id ? String(b.id) : undefined) : bySession(db, String(b.session ?? ""), String(b.kind ?? ""), String(b.id ?? ""));
 }
 
 // every RFI / submittal addressed to this email address (contacts, or a company's own address)
@@ -285,6 +294,24 @@ async function sendMail(to: string, subject: string, html: string) {
   return r.ok;
 }
 
+// the RFIs and submittals an outside person can see (those addressed to them), for the list pages
+async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: string; personRow: string; role: string }[]) {
+  const rfiIds = acc.filter((a) => a.kind === "rfi").map((a) => a.itemId);
+  const subIds = acc.filter((a) => a.kind === "submittal").map((a) => a.itemId);
+  const [rf, sb] = await Promise.all([
+    rfiIds.length ? db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
+    subIds.length ? db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
+  ]);
+  const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
+  const items = [
+    // deno-lint-ignore no-explicit-any
+    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("rfi", r.id) === "assignee" && (r.status === "open" || r.status === "answered") })),
+    // deno-lint-ignore no-explicit-any
+    ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("submittal", r.id) === "reviewer" && r.status === "out" })),
+  ];
+  return items;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply({ ok: false, error: "Not found." }, 404);
@@ -339,21 +366,14 @@ Deno.serve(async (req) => {
       if (!TOKEN.test(sess)) throw new Fail(401, "Please sign in again.");
       const { data: s } = await db.from("external_sessions").select("email, expires_at").eq("token_hash", await sha256(sess)).maybeSingle();
       if (!s || new Date(s.expires_at) < new Date()) throw new Fail(401, "Your sign-in has expired. Please sign in again.");
-      const acc = await findAccess(db, s.email);
-      const rfiIds = acc.filter((a) => a.kind === "rfi").map((a) => a.itemId);
-      const subIds = acc.filter((a) => a.kind === "submittal").map((a) => a.itemId);
-      const [rf, sb] = await Promise.all([
-        rfiIds.length ? db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", rfiIds).in("status", RFI_VISIBLE) : Promise.resolve({ data: [] }),
-        subIds.length ? db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name)").in("id", subIds).in("status", SUB_VISIBLE) : Promise.resolve({ data: [] }),
-      ]);
-      const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
-      const items = [
-        // deno-lint-ignore no-explicit-any
-        ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("rfi", r.id) === "assignee" && (r.status === "open" || r.status === "answered") })),
-        // deno-lint-ignore no-explicit-any
-        ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", act: roleOf("submittal", r.id) === "reviewer" && r.status === "out" })),
-      ];
-      return reply({ ok: true, email: s.email, items });
+      return reply({ ok: true, email: s.email, items: await listItems(db, await findAccess(db, s.email)) });
+    }
+    if (action === "list_link") {
+      // everything for the person a private link was made for
+      const c = await byToken(db, String(b.token ?? ""), ip);
+      await log(c, "list");
+      const acc = c.email ? await findAccess(db, c.email) : [{ kind: c.kind, itemId: c.itemId, personRow: c.personRow, role: c.role }];
+      return reply({ ok: true, email: c.email, name: c.name, focus: { kind: c.kind, id: c.itemId }, items: await listItems(db, acc) });
     }
 
     // ----- one item: by private link or by sign-in -----

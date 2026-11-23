@@ -17,7 +17,8 @@ const OUTCOMES: [string, string][] = [
 export default function ExternalRoutes() {
   return (
     <Routes>
-      <Route path="/r/:token" element={<ByLink />} />
+      <Route path="/r/:token" element={<LinkHome />} />
+      <Route path="/r/:token/:kind/:id" element={<ByLink />} />
       <Route path="/external" element={<ExternalHome />} />
       <Route path="/external/:kind/:id" element={<BySession />} />
       <Route path="*" element={<Shell><p>This page doesn't exist.</p></Shell>} />
@@ -37,11 +38,33 @@ function Shell({ children }: { children: ReactNode }) {
   )
 }
 
-function ByLink() {
+// a private link opens the whole list for the person it was made for, the item it was sent for first
+function LinkHome() {
   const { token } = useParams()
+  const [data, setData] = useState<{ items: ExtListItem[]; name: string; focus: { kind: string; id: string } } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    ext<{ items: ExtListItem[]; name: string; focus: { kind: string; id: string } }>({ action: 'list_link', token }).then(setData, (e: Error) => setError(e.message))
+  }, [token])
   return (
     <Shell>
-      <ItemView auth={{ token: token! }} />
+      <h1>{data?.name && data.name !== 'You' ? `${data.name.split(' ')[0]}, your RFIs and submittals` : 'Your RFIs and submittals'}</h1>
+      {error && <p className="error">{error}</p>}
+      {!data && !error && <p className="muted">Loading…</p>}
+      {data && data.items.length === 0 && <p>There is nothing addressed to you at the moment.</p>}
+      {data && <ItemList items={data.items} to={(i) => `/r/${token}/${i.kind}/${i.id}`} focus={data.focus} />}
+    </Shell>
+  )
+}
+function ByLink() {
+  const { token, kind, id } = useParams()
+  if (kind !== 'rfi' && kind !== 'submittal') return <Shell><p>This page doesn't exist.</p></Shell>
+  return (
+    <Shell>
+      <p>
+        <Link to={`/r/${token}`}>← All your RFIs and submittals</Link>
+      </p>
+      <ItemView auth={{ token: token!, kind, id: id! }} />
     </Shell>
   )
 }
@@ -157,8 +180,6 @@ function ExternalHome() {
       </Shell>
     )
 
-  const byProject = new Map<string, ExtListItem[]>()
-  for (const i of items ?? []) byProject.set(i.project, [...(byProject.get(i.project) ?? []), i])
   return (
     <Shell>
       <div className="ext-bar">
@@ -171,25 +192,37 @@ function ExternalHome() {
       {error && <p className="error">{error}</p>}
       {items === null && <p className="muted">Loading…</p>}
       {items && items.length === 0 && <p>There is nothing addressed to you at the moment.</p>}
+      {items && <ItemList items={items} to={(i) => `/external/${i.kind}/${i.id}`} />}
+    </Shell>
+  )
+}
+
+// the items grouped by project: what is waiting for them first, the one a link was sent for marked
+function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
+  const byProject = new Map<string, ExtListItem[]>()
+  for (const i of items) byProject.set(i.project, [...(byProject.get(i.project) ?? []), i])
+  return (
+    <>
       {[...byProject.entries()].map(([project, list]) => (
         <section key={project} className="card">
           <h2>{project}</h2>
           <ul className="ext-list">
             {list
-              .sort((a, b) => Number(b.act) - Number(a.act))
+              .sort((a, b) => Number(b.act) - Number(a.act) || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1))
               .map((i) => (
                 <li key={i.kind + i.id}>
-                  <Link to={`/external/${i.kind}/${i.id}`}>
+                  <Link to={to(i)}>
                     {i.kind === 'rfi' ? 'RFI' : 'Submittal'} {i.number}: {i.title}
                   </Link>
                   <span className={`q-status ext-${i.status}`}>{STATUS[i.status] ?? i.status}</span>
                   {i.act && <strong className="ext-act">Waiting for you{i.due_date ? `, due ${ukDate(i.due_date)}` : ''}</strong>}
+                  {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act"> · the one you were sent</span>}
                 </li>
               ))}
           </ul>
         </section>
       ))}
-    </Shell>
+    </>
   )
 }
 
@@ -314,7 +347,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
         <div className="card">
           <p className="saved">{done}</p>
           <p>
-            <Link to="/external" onClick={() => navigate('/external')}>
+            <Link to={'token' in auth ? `/r/${auth.token}` : '/external'} onClick={() => navigate('token' in auth ? `/r/${auth.token}` : '/external')}>
               See everything addressed to you
             </Link>
           </p>

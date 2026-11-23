@@ -4,7 +4,7 @@
 const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '')
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
-export type ExtAuth = { token: string } | { session: string; kind: 'rfi' | 'submittal'; id: string }
+export type ExtAuth = { token: string; kind?: 'rfi' | 'submittal'; id?: string } | { session: string; kind: 'rfi' | 'submittal'; id: string }
 
 export async function ext<T = Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   if (!url) throw new Error('This page is not set up yet.')
