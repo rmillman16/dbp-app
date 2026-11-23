@@ -1066,3 +1066,17 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-row.soon td:first-child { box-shadow: inset 5px 0 0 #e08a00; }
 .ext-row.quiet td:first-child { box-shadow: inset 5px 0 0 #c9c9d3; }
 .ext-due.ok { color: inherit; }
+
+/* outside item page: even spacing */
+.ext-main > .card, .ext-main .ext-form { padding: 22px 24px; }
+.ext-main .card h1 { margin: 4px 0 12px; }
+.ext-main .card h2 { margin: 0 0 14px; }
+.ext-main .card > p { margin: 0 0 12px; }
+.ext-form label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; font-weight: 600; }
+.ext-form textarea { font-weight: 400; min-height: 150px; padding: 10px 12px; }
+.ext-form .rfi-field { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; margin-bottom: 20px; }
+.ext-form .rfi-field .label { font-weight: 600; }
+.ext-form .rfi-field .file-button { margin: 0; display: inline-block; }
+.ext-form .rfi-field .hint { margin: 0; }
+.ext-form .var-file { display: inline-flex; gap: 8px; align-items: center; }
+.ext-form .error { margin: 0 0 14px; }
