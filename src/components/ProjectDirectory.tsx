@@ -5,6 +5,7 @@ import { saveError } from '../lib/offline'
 import { DIRECTORY_ROLES, addDirectoryEntry, deleteDirectoryEntry, loadTeam, type DirectoryEntry, type TeamMember } from '../lib/om'
 import type { Company, CompanyType, Job } from '../lib/types'
 import SuggestInput from './SuggestInput'
+import { isExternalEmail } from '../lib/users'
 
 type Contact = { id: string; company_id: string; name: string; role: string | null; email: string | null; phone: string | null }
 
@@ -116,6 +117,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
             <li key={t.profile_id + t.role}>
               <strong>{t.full_name ?? t.email}</strong> <span className="dir-role">{t.role}</span>
               {t.email && <a href={`mailto:${t.email}`}>{t.email}</a>}
+              {isExternalEmail(t.email) && <span className="dir-ext" title="Not a @duboulay.co.uk email, so treated as external">External email</span>}
             </li>
           ))}
         </ul>
@@ -141,6 +143,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
                   <li key={e.id}>
                     <strong>{p?.name ?? <span className="muted">No named person</span>}</strong> <span className="dir-role">{e.role}</span>
                     {(p?.email || c?.email) && <a href={`mailto:${p?.email || c?.email}`}>{p?.email || c?.email}</a>}
+                    <span className="dir-ext" title="Outside DBP: answers RFIs through a private link, never the app">{isExternalEmail(p?.email || c?.email) || !(p?.email || c?.email) ? 'External' : 'Internal address'}</span>
                     {(p?.phone || c?.phone) && <span className="muted">{p?.phone || c?.phone}</span>}
                     <button type="button" className="small-button" title="Remove from this job" onClick={() => remove(e)}>
                       ✕

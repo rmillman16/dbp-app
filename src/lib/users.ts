@@ -4,6 +4,12 @@
 import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
+// Anyone without a @duboulay.co.uk email is external (Richard, 23 Nov): an extra check on top of the profile type, so an outside
+// person is never treated as DBP staff by mistake.
+export const INTERNAL_DOMAIN = 'duboulay.co.uk'
+export const isInternalEmail = (email: string | null | undefined) => (email ?? '').trim().toLowerCase().endsWith('@' + INTERNAL_DOMAIN)
+export const isExternalEmail = (email: string | null | undefined) => !!(email ?? '').trim() && !isInternalEmail(email)
+
 export interface LoginStatus {
   last_sign_in_at: string | null
   disabled: boolean
@@ -29,8 +35,9 @@ async function call<T>(body: Record<string, unknown>): Promise<T> {
 }
 
 export const listLogins = () => call<{ users: Record<string, LoginStatus> }>({ action: 'list' }).then((r) => r.users)
+// a login for a non-@duboulay address is always the External type, whatever was asked for
 export const createLogin = (email: string, full_name: string, roles: string[]) =>
-  call<{ user_id: string; password: string; warning?: string }>({ action: 'create', email, full_name, roles })
+  call<{ user_id: string; password: string; warning?: string }>({ action: 'create', email, full_name, roles: isExternalEmail(email) ? ['external'] : roles })
 export const resetPassword = (user_id: string) => call<{ password: string }>({ action: 'reset_password', user_id }).then((r) => r.password)
 export const setLoginOn = (user_id: string, on: boolean) => call<{ ok: true }>({ action: on ? 'enable' : 'disable', user_id })
 

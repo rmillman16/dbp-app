@@ -948,3 +948,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .dir-people li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 3px 0 3px 14px; }
 .dir-role { background: #eef2ff; color: var(--navy); border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
 .check-row { display: block; padding: 3px 0; }
+.dir-ext { background: #f3e1e1; color: var(--red); border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
