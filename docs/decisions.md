@@ -152,14 +152,16 @@
     3. **Variations**: totals plus every VO, newest first, click to open.
     4. The modules at a glance: Programme finish against PC, Procurement ordered / past order-by, Sampling approved / awaited, Minutes, Requisitions. Each shows only if you can open that part.
     5. Job details, valuation dates, SoW and the job's notifications.
-- **Company dashboard: built 22 Nov (044).** Sidebar › Dashboard, one row per live job (or live and complete):
-  - Value: the anticipated final value from the latest finalised CVR, else the contract sum.
-  - Margin: £ and % from that CVR.
-  - Cash received: paid against applications, with the last application.
-  - Programme finish against PC, with days late.
-  - Overdue reminders, open requisitions, and hire (on hire, £ ordered, past end date).
-  - Headline tiles show the totals; warnings carry ⚠ as well as colour.
-  - Ticked for Project manager and Commercial in Settings › Access. Each person only sees figures from parts they can open.
+- **Company dashboard: built 22 Nov (044), rebuilt 23 Nov as the directors' overview of the company.** Sidebar › Dashboard. No database changes: every figure comes from tables the modules already fill, loaded in bulk (`src/lib/dashboard.ts`, which also holds the definitions). All figures exclude VAT. "Live jobs / Live and complete" picks the jobs; pipeline and win rate are company-wide.
+  - **Headline tiles:** Jobs · Value (gross, with net) · Owed to us · Owed to subcontractors · Pipeline · Win rate (12 months) · Late jobs. Warnings carry ⚠ and words as well as colour.
+  - **Value:** gross = the latest finalised CVR's anticipated final value (SoW total + agreed VOs ± possible reduction); no finalised CVR: contract sum + every VO's projected value. Net = the CVR's margin; a job with no CVR shows "no CVR" and is counted separately, never as 0. **Click the Value tile** for how it's made up, per job: contract sum, + agreed VOs, + other VOs (shown but not counted where there's a CVR, as the CVR counts agreed only), ± possible reduction, = gross, − total cost, = net and %. Toggles show / hide jobs by status (Tender, Live, Complete, Archived, with counts); totals recalculate.
+  - **Cash:** per job, applied (latest application sent: £ claimed + materials on site + L&E, gross), certified (latest the client has assessed: Client Assessment £ + MoS + L&E, gross), paid (every Paid £ on applications), owed to us (client certified £, after retention, less paid; overdue 14 days after the application went in, from the front sheet's "Payment due within 14 days") and retention held (gross certified × retention %, halved once practical completion is ticked; half back at PC, the rest at the end of defects, which the app doesn't date). **Owed to subcontractors:** each order's latest issued payment notice (its "due" by the notice's own sums) until its dbp payment date has passed or a later notice is issued; past its payment due date = ⚠ overdue. Draft notices are listed but not totalled.
+  - **Pipeline:** open enquiries by status (New enquiry, Pricing, Submitted) with value (the accepted quotation, else the latest not rejected or withdrawn), those due back this month, every open one by due date, win rate over 6 and 12 months (won ÷ won-or-lost, dated by the accepted quotation, else when the enquiry was last changed) and won value by month for 12 months (plain bars, hover for the figure).
+  - **Margin & risk:** margin best to worst with the change since the previous finalised CVR (£ and points); below the target margin (10%, `TARGET_MARGIN_PCT` in `src/lib/dashboard.ts`) ⚠; unagreed VOs at risk (issued / not issued); open EOT claims (not yet granted or rejected) with days and prolongation at the weekly prelims rate. **LDs aren't shown:** jobs don't hold an LD rate yet.
+  - **Programme & delivery:** programme finishing after PC (days, with EOT days granted), jobs finishing in the next 3 months (programme, else PC), outstanding O&M documents past their due date, procurement rows past their order-by date with no order.
+  - **Every job** table at the bottom: value (gross), net, received, last application, programme finish, overdue reminders and open requisitions (hire taken off, 23 Nov).
+  - Every row opens the job's tab (or the enquiry). Cards stack on a phone.
+  - Ticked for Project manager and Commercial in Settings › Access. Each person only sees figures from parts they can open; a part they can't open says so rather than showing nothing.
 - **Meeting minutes: built 22 Nov (045), revised 23 Nov (046).** DBP Minutes (dbp-mint.firebaseapp.com) copied into the app: same layout, look, wording, keyboard shortcuts and PDF / Word exports. Existing minutes are not brought across.
   - **Where (23 Nov: minutes live within projects):**
     - each job's **Minutes** tab;

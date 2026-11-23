@@ -40,7 +40,7 @@ export type Section =
   | 'contractors'
 // the parts of the app, as ticked in Settings › Access (Settings itself is admins only)
 export const SECTIONS: [Section, string, string][] = [
-  ['dashboard', 'Dashboard', 'Every job’s value, margin, cash, programme, overdue items and hire in one view'],
+  ['dashboard', 'Dashboard', 'The directors’ overview: value, cash, pipeline, margin and risk, programme and delivery across every job'],
   ['jobs', 'Jobs', 'The jobs list and each job’s Overview'],
   ['job_programme', 'Job › Programme', ''],
   ['job_commercial', 'Job › Commercial', 'Variations, quotations, applications, payment notices, cashflow, CVR'],

@@ -823,6 +823,24 @@ select.req-status.req-off_hired { background: #eee; }
 .dash-tile.warn { border-color: #f0c8c8; }
 .dash-tile.warn .dash-tile-value { color: var(--red); }
 .dash-table td { vertical-align: top; }
+/* directors' overview (23 Nov): a clickable Value tile, the breakdown panel, section cards, the won-by-month bars */
+.dash-tile-button { font: inherit; text-align: left; align-items: stretch; cursor: pointer; min-height: 0; }
+.dash-tile-button:hover, .dash-tile-button.open { border-color: var(--blue); background: #f7fbfe; }
+.dash-tile-more { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--blue); }
+.dash-breakdown { margin-bottom: 16px; }
+.dash-filter { flex-wrap: wrap; margin-bottom: 12px; }
+.dash-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr)); gap: 16px; margin-bottom: 16px; align-items: start; }
+.dash-card { min-width: 0; }
+.dash-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--navy); margin: 20px 0 6px; }
+.dash-card h2 + h3 { margin-top: 4px; }
+.dash-table tr.dash-total td { font-weight: 700; border-top: 2px solid var(--line); }
+.dash-winrate { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 0; }
+.dash-bars { display: flex; align-items: flex-end; gap: 2px; height: 110px; border-bottom: 1px solid var(--line); }
+.dash-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.dash-bar:hover { background: #f0f6fb; }
+.dash-bar span { display: block; background: var(--navy); border-radius: 4px 4px 0 0; }
+.dash-bar-labels { display: flex; gap: 2px; font-size: 11px; color: var(--muted); }
+.dash-bar-labels span { flex: 1; text-align: center; }
 
 /* job overview (23 Nov): TODO full width, Submittals | RFIs side by side, VOs, then the modules at a glance */
 .overview-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
