@@ -436,9 +436,9 @@ function EnquiryProgrammeCard({ e }: { e: Enquiry }) {
   return (
     <section className="card">
       <div className="pane-head">
-        <h2>Programme</h2>
+        <h2>Tender programme</h2>
         <Link to={`/estimating/e/${e.id}/programme`} className="button primary">
-          {prog ? 'Open programme' : 'Start a programme'}
+          {prog ? 'Open tender programme' : 'Start a tender programme'}
         </Link>
       </div>
       {p === null ? (
@@ -449,7 +449,7 @@ function EnquiryProgrammeCard({ e }: { e: Enquiry }) {
           won.
         </p>
       ) : (
-        <p className="muted small">A programme for the tender: start from a previous job's programme, import one, or start blank. It moves to the job when the enquiry is won.</p>
+        <p className="muted small">The tender programme: start from a previous job's programme, import one, or start blank. It moves to the job when the enquiry is won.</p>
       )}
     </section>
   )
@@ -472,7 +472,7 @@ export function EnquiryProgramme() {
           <Link to={`/estimating/e/${e.id}`} className="link-button small">
             ← {enquiryRef(e)} · {e.name}
           </Link>
-          <h1>Programme</h1>
+          <h1>Tender programme</h1>
         </div>
         {e.job_id && (
           <Link to={`/jobs/${e.job_id}/programme`} className="button primary">
