@@ -221,6 +221,31 @@ function NewTask({
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // @someone in the task line (23 Nov): pick a colleague and the task is set for them
+  const [at, setAt] = useState<{ q: string; from: number } | null>(null)
+  const [atHi, setAtHi] = useState(0)
+  const atList = at
+    ? people
+        .filter((p) => {
+          const n = personName(p).toLowerCase()
+          return !at.q || n.split(/s+/).some((w) => w.startsWith(at.q.toLowerCase())) || n.startsWith(at.q.toLowerCase())
+        })
+        .slice(0, 6)
+    : []
+  function typed(v: string, caret: number) {
+    setTitle(v)
+    const m = /(^|s)@([w'-]*)$/.exec(v.slice(0, caret))
+    setAt(m ? { q: m[2], from: caret - m[2].length - 1 } : null)
+    setAtHi(0)
+  }
+  function pickPerson(p: Person) {
+    if (!at) return
+    const before = title.slice(0, at.from)
+    const after = title.slice(at.from + 1 + at.q.length)
+    setTitle(`${before}@${personName(p)} ${after.replace(/^s+/, '')}`)
+    if (p.id !== me) setWho(p.id)
+    setAt(null)
+  }
   async function submit(e: FormEvent) {
     e.preventDefault()
     setErr(null)
@@ -244,7 +269,38 @@ function NewTask({
   }
   return (
     <form className="new-task" onSubmit={submit}>
-      <input className="new-task-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="New task… e.g. Chase the electrical O&Ms" aria-label="Task" />
+      <span className="new-task-title">
+        <input
+          value={title}
+          onChange={(e) => typed(e.target.value, e.target.selectionStart ?? e.target.value.length)}
+          onKeyDown={(e) => {
+            if (!at || !atList.length) return
+            if (e.key === 'ArrowDown') (e.preventDefault(), setAtHi((h) => Math.min(h + 1, atList.length - 1)))
+            else if (e.key === 'ArrowUp') (e.preventDefault(), setAtHi((h) => Math.max(h - 1, 0)))
+            else if (e.key === 'Enter' || e.key === 'Tab') (e.preventDefault(), pickPerson(atList[atHi]))
+            else if (e.key === 'Escape') (e.preventDefault(), setAt(null))
+          }}
+          onBlur={() => setTimeout(() => setAt(null), 150)}
+          placeholder="New task… type @ to give it to someone, e.g. @Ant chase the electrical O&Ms"
+          aria-label="Task"
+        />
+        {at && atList.length > 0 && (
+          <ul className="suggest-list mention-list" role="listbox">
+            {atList.map((p, i) => (
+              <li
+                key={p.id}
+                role="option"
+                aria-selected={i === atHi}
+                className={i === atHi ? 'on' : ''}
+                onMouseDown={(e) => (e.preventDefault(), pickPerson(p))}
+                onMouseEnter={() => setAtHi(i)}
+              >
+                @{personName(p)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </span>
       <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="For whom">
         <option value="">For me</option>
         {people
@@ -256,7 +312,7 @@ function NewTask({
           ))}
       </select>
       <input type="date" value={due} min={todayIso()} onChange={(e) => setDue(e.target.value)} aria-label="Due date" title="Due date (optional)" />
-      <button type="submit" className="btn-primary" disabled={busy || !title.trim()}>
+      <button type="submit" className="primary new-task-add" disabled={busy || !title.trim()}>
         {busy ? 'Adding…' : 'Add task'}
       </button>
       <button type="button" className="link-button small" onClick={() => setMore(!more)}>

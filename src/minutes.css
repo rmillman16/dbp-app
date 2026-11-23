@@ -1727,3 +1727,10 @@
 .mint .task-done { opacity: 0.6; }
 .mint .task-buttons { display: inline-flex; gap: 8px; align-items: center; }
 .mint .new-task-err { flex-basis: 100%; margin: 0; }
+
+/* the task line with its @ list; the app's own buttons (23 Nov) */
+.mint .new-task-title { position: relative; display: flex; flex: 1 1 320px; min-width: 220px; }
+.mint .new-task-title > input { flex: 1; font: inherit; padding: 8px 10px; border: 1px solid #c9c9d3; border-radius: 6px; }
+.mint .new-task .mention-list { position: absolute; top: calc(100% + 4px); left: 0; min-width: 240px; }
+.mint .new-task select, .mint .new-task input[type='date'] { padding: 8px 10px; border-color: #c9c9d3; }
+.mint .new-task .new-task-add { padding: 8px 16px; }
