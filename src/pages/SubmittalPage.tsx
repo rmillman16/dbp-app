@@ -22,7 +22,8 @@ import {
   openFile,
   recordResponse,
   removeFile,
-  revLetter,
+  revName,
+  worstOutcome,
   setSubmittalPeople,
   submitForReview,
   typeLabel,
@@ -51,7 +52,7 @@ export default function SubmittalPage() {
   const [d, setD] = useState<{ s: Submittal; people: SubmittalPerson[]; revisions: Revision[]; files: SubmittalFile[] } | null>(null)
   const [edit, setEdit] = useState<(Omit<Submittal, 'id'> & { submitter: string[]; reviewers: string[]; cc: string[] }) | null>(null)
   const [responding, setResponding] = useState(false)
-  const [resp, setResp] = useState<{ outcome: Outcome; by: string; on: string; notes: string }>({ outcome: 'approved', by: '', on: todayIso(), notes: '' })
+  const [resp, setResp] = useState<{ outcome: Outcome; by: string; on: string; notes: string; perFile: Record<string, Outcome> }>({ outcome: 'approved', by: '', on: todayIso(), notes: '', perFile: {} })
   const [respFiles, setRespFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -67,6 +68,9 @@ export default function SubmittalPage() {
   if (!d) return <p className="muted">Loading…</p>
   const { s, people, revisions, files } = d
   const cur = revisions.find((r) => r.rev === s.current_rev)
+  const curName = revName(s.current_rev, cur?.rev_label ?? s.rev_label)
+  // the documents of the revision now out: each gets its own status from the reviewer
+  const curDocs = cur ? files.filter((f) => f.revision_id === cur.id && f.kind === 'submission') : []
   const reviewers = people.filter((p) => p.role === 'reviewer')
   const sb = ctx.dir.find((x) => x.id === s.submitted_by)
   const isDraft = s.status === 'draft'
@@ -116,7 +120,7 @@ export default function SubmittalPage() {
     if (!reviewers.length) return setError('Add at least one reviewer first (Edit).')
     if (!s.due_date) return setError('Set a "return by" date first (Edit): reviewers need to know when you need it back.')
     if (!files.some((f) => f.revision_id === cur.id && f.kind === 'submission')) return setError('Attach the submittal document (drawing, data sheet, sample details…) to this revision first: the reviewers have nothing to review without it.')
-    if (!confirm(`Send Submittal ${s.number} (Rev ${revLetter(s.current_rev)}) out for review? The reviewers are told and it starts to be chased.`)) return
+    if (!confirm(`Send Submittal ${s.number} (${curName}) out for review? The reviewers are told and it starts to be chased.`)) return
     await run(async () => {
       await submitForReview(s.id, cur.id, s.due_date)
     }, 'Out for review.')
@@ -125,10 +129,13 @@ export default function SubmittalPage() {
   async function saveResponse() {
     if (!cur) return
     await run(async () => {
-      await recordResponse(s, cur.id, resp, respFiles)
+      // with documents on the revision, each needs a status and the submittal takes the worst of them
+      if (curDocs.length && curDocs.some((f) => !resp.perFile[f.id])) throw new Error('Choose a status (A, B or C) for every document.')
+      const outcome = curDocs.length ? worstOutcome(curDocs.map((f) => resp.perFile[f.id])) : resp.outcome
+      await recordResponse(s, cur.id, { ...resp, outcome }, respFiles)
       setResponding(false)
       setRespFiles([])
-      setResp({ outcome: 'approved', by: '', on: todayIso(), notes: '' })
+      setResp({ outcome: 'approved', by: '', on: todayIso(), notes: '', perFile: {} })
     }, 'Response recorded.')
     nudgeEmails()
   }
@@ -155,7 +162,7 @@ export default function SubmittalPage() {
           <h2>
             Submittal {s.number} · {s.title}
           </h2>
-          <span className={`q-status sub-${s.status}`}>{SUBMITTAL_STATUS[s.status]}</span> <span className="rfi-kind">Rev {revLetter(s.current_rev)}</span>
+          <span className={`q-status sub-${s.status}`}>{SUBMITTAL_STATUS[s.status]}</span> <span className="rfi-kind">{curName}</span>
           {isLate(s, today) && <span className="late"> ⚠ overdue</span>}
         </div>
         <div className="button-row">
@@ -182,8 +189,13 @@ export default function SubmittalPage() {
             </button>
           )}
           {(s.status === 'revise' || s.status === 'rejected') && (
-            <button className="primary" disabled={busy} onClick={() => run(async () => void (await newRevision(s)), `Rev ${revLetter(s.current_rev + 1)} started: add the revised files, then send it out.`)}>
-              New revision (Rev {revLetter(s.current_rev + 1)})
+            <button className="primary" disabled={busy} onClick={() => run(async () => void (await newRevision(s, 'resubmit')), 'Resubmission started: add the revised files, then send it out.')}>
+              Resubmit (next revision)
+            </button>
+          )}
+          {s.status === 'approved_noted' && (
+            <button className="primary" disabled={busy} onClick={() => run(async () => void (await newRevision(s, 'construction')), 'Construction issue started: add the final drawings with the comments picked up, then send it out.')}>
+              Issue for construction
             </button>
           )}
           {s.status !== 'void' && !isDraft && canManage && (
@@ -205,18 +217,38 @@ export default function SubmittalPage() {
 
       {responding && (
         <section className="card">
-          <h2>Record the reviewers' response (Rev {revLetter(s.current_rev)})</h2>
+          <h2>Record the reviewers' response ({curName})</h2>
           <div className="form-grid">
-            <label>
-              Outcome
-              <select value={resp.outcome} onChange={(e) => setResp({ ...resp, outcome: e.target.value as Outcome })}>
-                {OUTCOMES.map(([k, l]) => (
-                  <option key={k} value={k}>
-                    {l}
-                  </option>
+            {curDocs.length === 0 && (
+              <label>
+                Outcome
+                <select value={resp.outcome} onChange={(e) => setResp({ ...resp, outcome: e.target.value as Outcome })}>
+                  {OUTCOMES.map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {curDocs.length > 0 && (
+              <div className="span-2 rfi-field">
+                <span className="label">Status of each document (the submittal takes the worst)</span>
+                {curDocs.map((f) => (
+                  <div key={f.id} className="doc-status">
+                    <span>📎 {f.name}</span>
+                    <select value={resp.perFile[f.id] ?? ''} onChange={(e) => setResp({ ...resp, perFile: { ...resp.perFile, [f.id]: e.target.value as Outcome } })} aria-label={`Status of ${f.name}`}>
+                      <option value="">Choose…</option>
+                      {OUTCOMES.map(([k, l]) => (
+                        <option key={k} value={k}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
-              </select>
-            </label>
+              </div>
+            )}
             <label>
               From
               <input value={resp.by} onChange={(e) => setResp({ ...resp, by: e.target.value })} list="resp-by" placeholder="Who responded" />
@@ -392,7 +424,7 @@ export default function SubmittalPage() {
             return (
               <li key={r.id} className={r.outcome ? 'rev-' + r.outcome : ''}>
                 <div className="rfi-thread-head">
-                  <strong>Rev {revLetter(r.rev)}</strong>
+                  <strong>{revName(r.rev, r.rev_label)}</strong>
                   <span className="rfi-kind">{r.submitted_on ? `Submitted ${ukDate(r.submitted_on)}` : 'Not yet submitted'}</span>
                   {r.due_date && <small>return by {ukDate(r.due_date)}</small>}
                   {r.outcome && <span className={`q-status sub-${r.outcome}`}>{OUTCOMES.find(([k]) => k === r.outcome)?.[1]}</span>}
@@ -405,7 +437,12 @@ export default function SubmittalPage() {
                 </div>
                 {r.response_notes && <div className="rte-view" dangerouslySetInnerHTML={{ __html: cleanHtml(r.response_notes) }} />}
                 <div className="var-files">
-                  {mine.filter((f) => f.kind === 'submission').map((f) => fileChip(f, isCur && (isDraft || s.status === 'out')))}
+                  {mine.filter((f) => f.kind === 'submission').map((f) => (
+                    <span key={f.id} className="doc-chip">
+                      {fileChip(f, isCur && (isDraft || s.status === 'out'))}
+                      {f.outcome && <span className={`q-status sub-${f.outcome}`}>{(OUTCOMES.find(([k]) => k === f.outcome)?.[1] ?? '').split(':')[0]}</span>}
+                    </span>
+                  ))}
                   {mine.filter((f) => f.kind === 'response').map((f) => fileChip(f, false))}
                   {isCur && (isDraft || s.status === 'out') && (
                     <label className="file-button">
@@ -418,7 +455,7 @@ export default function SubmittalPage() {
                           if (list.length) run(async () => void (await Promise.all(list.map((f) => addFile(s.id, r.id, f, 'submission')))), 'Attached.')
                         }}
                       />
-                      <span className="button small-button">+ Attach to Rev {revLetter(r.rev)}</span>
+                      <span className="button small-button">+ Attach to {revName(r.rev, r.rev_label)}</span>
                     </label>
                   )}
                 </div>

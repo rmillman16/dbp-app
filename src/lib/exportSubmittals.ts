@@ -1,7 +1,7 @@
 // The submittal register as Excel and as a PDF report (23 Nov), as for RFIs. Both take the same rows; the "outstanding"
 // report is the same with only those still out for review. Excel: the register (filterable) and every revision.
 import { todayIso, ukDate } from './format'
-import { SUBMITTAL_STATUS, OUTCOMES, daysOut, isLate, revLetter, typeLabel, type Revision, type Submittal } from './submittals'
+import { SUBMITTAL_STATUS, OUTCOMES, daysOut, isLate, revName, typeLabel, type Revision, type Submittal } from './submittals'
 import { htmlToText } from './richText'
 import { downloadBlob } from './letter'
 import { download, excelDate, newWorkbook, safeName } from './excel'
@@ -42,7 +42,7 @@ export async function exportSubmittalsExcel(owner: ReportOwner, rows: SubmittalR
     const iso = (x: string | null) => (x ? excelDate(x.slice(0, 10)) : null)
     const last = [...revisions].reverse().find((r) => r.outcome)
     ;[
-      s.number, s.title, typeLabel(s.type), s.trade ?? '', submittedBy, reviewers, manager, revLetter(s.current_rev), SUBMITTAL_STATUS[s.status],
+      s.number, s.title, typeLabel(s.type), s.trade ?? '', submittedBy, reviewers, manager, revName(s.current_rev, s.rev_label), SUBMITTAL_STATUS[s.status],
       iso(s.submitted_at), iso(s.due_date), iso(s.responded_at), s.submitted_at ? daysOut(s, today) : null, iso(s.required_by),
       last ? `${outcomeLabel(last.outcome)}${last.response_notes ? ': ' + htmlToText(last.response_notes) : ''}` : '',
     ].forEach((v, k) => {
@@ -67,7 +67,7 @@ export async function exportSubmittalsExcel(owner: ReportOwner, rows: SubmittalR
   let n = 2
   for (const { s, revisions } of rows)
     for (const r of revisions) {
-      ;[s.number, s.title, revLetter(r.rev), r.submitted_on ? excelDate(r.submitted_on) : null, r.due_date ? excelDate(r.due_date) : null, outcomeLabel(r.outcome), r.responded_on ? excelDate(r.responded_on) : null, r.responded_by ?? '', htmlToText(r.response_notes)].forEach((x, k) => {
+      ;[s.number, s.title, revName(r.rev, r.rev_label), r.submitted_on ? excelDate(r.submitted_on) : null, r.due_date ? excelDate(r.due_date) : null, outcomeLabel(r.outcome), r.responded_on ? excelDate(r.responded_on) : null, r.responded_by ?? '', htmlToText(r.response_notes)].forEach((x, k) => {
         const c = rs.getRow(n).getCell(k + 1)
         c.value = x as never
         c.alignment = { vertical: 'top', wrapText: k === 8 }
@@ -135,12 +135,12 @@ export async function buildSubmittalsPdf(owner: ReportOwner, rows: SubmittalRow[
   head(true)
   for (const { s, submittedBy, reviewers, revisions } of rows) {
     const cells = [
-      String(s.number), s.title, typeLabel(s.type), submittedBy || '-', reviewers || '-', revLetter(s.current_rev),
+      String(s.number), s.title, typeLabel(s.type), submittedBy || '-', reviewers || '-', revName(s.current_rev, s.rev_label),
       s.due_date ? ukDate(s.due_date) : '-', SUBMITTAL_STATUS[s.status], s.submitted_at ? `${daysOut(s, today)}d` : '-', s.required_by ? ukDate(s.required_by) : '-',
     ]
     const wrapped = cells.map((t, i) => wrap(t, cols[i].w - 6, 8))
     const last = [...revisions].reverse().find((r) => r.outcome)
-    const note = last ? wrap(`Latest response (Rev ${revLetter(last.rev)}, ${outcomeLabel(last.outcome)}${last.responded_by ? ', ' + last.responded_by : ''}): ${htmlToText(last.response_notes)}`, W - 2 * M - 12, 8).slice(0, 4) : []
+    const note = last ? wrap(`Latest response (${revName(last.rev, last.rev_label)}, ${outcomeLabel(last.outcome)}${last.responded_by ? ', ' + last.responded_by : ''}): ${htmlToText(last.response_notes)}`, W - 2 * M - 12, 8).slice(0, 4) : []
     const height = Math.max(...wrapped.map((w) => w.length)) * 10 + note.length * 10 + 8
     if (y - height < M + 14) {
       page = doc.addPage([W, H])

@@ -1176,3 +1176,9 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 /* enquiry overview (24 Nov): tender details across the top, then equal tiles like a job's overview */
 .enq-details { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 18px; }
 .module-cards .module-card { min-height: 92px; }
+
+/* a status for each document on a submittal (24 Nov) */
+.doc-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.doc-status > span { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.doc-status select { flex: 0 1 280px; }
+.doc-chip { display: inline-flex; align-items: center; gap: 6px; }

@@ -7,7 +7,7 @@ import { ext, extOpenFile, extUpload, getSession, setSession, type ExtAuth, type
 // through the "external" Edge Function. /r/<token> is one item by private link; /external is the email-code page.
 const MarkupEditor = lazy(() => import('../components/MarkupEditor')) // loaded only when someone opens a drawing to mark up
 const ukDate = (iso: string | null | undefined) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '')
-const STATUS: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', out: 'Out for review', approved: 'Approved', approved_noted: 'Approved as noted', revise: 'Revise and resubmit', rejected: 'Rejected' }
+const STATUS: Record<string, string> = { open: 'Open', answered: 'Answered', closed: 'Closed', out: 'Out for review', approved: 'Status A: Approved', approved_noted: 'Status B: Approved with comments', revise: 'Status C: Revise and resubmit', rejected: 'Rejected' }
 // how an item stands for the person looking: an answered RFI that DBP has the ball on is "replied", not "answered"
 const stateLabel = (state: string | undefined, status: string) =>
   state === 'with_you' ? 'Waiting for you' : state === 'with_dbp' ? 'You have replied: with du Boulay Projects' : state === 'fyi' ? 'For your information' : (STATUS[status] ?? status)
@@ -17,12 +17,15 @@ const dueTone = (due: string | null | undefined, live: boolean) => {
   const days = Math.floor((new Date(due.slice(0, 10)).getTime() - new Date(new Date().toISOString().slice(0, 10)).getTime()) / 86400000)
   return days < 0 ? 'overdue' : days <= 3 ? 'soon' : ''
 }
+// what a reviewer chooses for each document
 const OUTCOMES: [string, string][] = [
-  ['approved', 'Approved'],
-  ['approved_noted', 'Approved as noted'],
-  ['revise', 'Revise and resubmit'],
-  ['rejected', 'Rejected'],
+  ['approved', 'Status A: Approved, no comments'],
+  ['approved_noted', 'Status B: Approved with comments'],
+  ['revise', 'Status C: Revise and resubmit'],
 ]
+const letterRev = (n: number) => String.fromCharCode(64 + n)
+// the first issue is the Initial issue; then Rev A, Rev B...; or the Construction issue
+const revName = (rev: number, label?: string | null) => label || (rev <= 1 ? 'Initial issue' : `Rev ${letterRev(rev - 1)}`)
 
 export default function ExternalRoutes() {
   return (
@@ -288,6 +291,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
   const [done, setDone] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [outcome, setOutcome] = useState('approved')
+  const [perDoc, setPerDoc] = useState<Record<string, string>>({})
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [marking, setMarking] = useState<{ name: string; blob: Blob } | null>(null)
@@ -305,7 +309,12 @@ function ItemView({ auth }: { auth: ExtAuth }) {
       const uploaded = []
       for (const f of files) uploaded.push(await extUpload(auth, f))
       if (item.kind === 'rfi') await ext({ action: 'reply', ...auth, text, files: uploaded })
-      else await ext({ action: 'respond', ...auth, outcome, text, files: uploaded })
+      else {
+        const cur = (item.revisions ?? []).find((r) => r.rev === item.current_rev)
+        const docs = (cur?.files ?? []).filter((f) => f.kind === 'submission')
+        if (docs.some((d) => !perDoc[d.id])) throw new Error('Please choose a status (A, B or C) for every document.')
+        await ext({ action: 'respond', ...auth, outcome, items: docs.map((d) => ({ file_id: d.id, outcome: perDoc[d.id] })), text, files: uploaded })
+      }
       setText('')
       setFiles([])
       setDone(item.kind === 'rfi' ? 'Thank you: your reply has been sent to du Boulay Projects.' : 'Thank you: your response has been sent to du Boulay Projects.')
@@ -328,7 +337,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
       setError("Couldn't open that file for mark-up. Please try again.")
     }
   }
-  const chips = (list: { id: string; name: string }[] | undefined) =>
+  const chips = (list: { id: string; name: string; outcome?: string | null }[] | undefined) =>
     (list ?? []).length > 0 && (
       <div className="var-files">
         {list!.map((f) => (
@@ -336,6 +345,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
             <button type="button" className="link-button small" onClick={() => open(f.id)}>
               📎 {f.name}
             </button>
+            {f.outcome && <span className={`q-status ext-${f.outcome}`}>{(STATUS[f.outcome] ?? '').split(':')[0]}</span>}
             {item?.can_act && !done && /\.(pdf|png|jpe?g|gif|bmp)$/i.test(f.name) && (
               <button type="button" className="small-button markup-open" onClick={() => markUp(f)} title="Draw lines, arrows, boxes and notes on this drawing">
                 ✏ Mark up
@@ -380,7 +390,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
         {item.ref && <p className="muted small">Reference: <strong>{item.ref}</strong> (quote this if you phone us)</p>}
         <p>
           <span className={`q-status ext-${item.state ?? item.status}`}>{stateLabel(item.state, item.status)}</span>
-          {!rfi && <span className="rfi-kind"> Rev {String.fromCharCode(64 + (item.current_rev ?? 1))}</span>}
+          {!rfi && <span className="rfi-kind"> {revName(item.current_rev ?? 1, item.rev_label)}</span>}
           {item.due_date && <span> · {rfi ? 'Reply' : 'Respond'} by <strong className={`ext-due ${dueTone(item.due_date, item.state === 'with_you')}`}>{ukDate(item.due_date)}</strong></span>}
           {item.trade && <span> · {item.trade}</span>}
         </p>
@@ -392,8 +402,9 @@ function ItemView({ auth }: { auth: ExtAuth }) {
           const docs = (cur?.files ?? []).filter((f) => f.kind === 'submission')
           return docs.length > 0 && (
             <div className="ext-docs">
-              <span className="label">Documents to review (Rev {String.fromCharCode(64 + (item.current_rev ?? 1))})</span>
+              <span className="label">Documents to review ({revName(item.current_rev ?? 1, item.rev_label)})</span>
               {chips(docs)}
+              {item.can_act && !done && <p className="muted small">Give each document a status in the response form below.</p>}
             </div>
           )
         })()}
@@ -425,7 +436,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
             {[...(item.revisions ?? [])].reverse().map((r) => (
               <li key={r.id} className={r.outcome ? 'rev-' + r.outcome : ''}>
                 <div className="rfi-thread-head">
-                  <strong>Rev {String.fromCharCode(64 + r.rev)}</strong>
+                  <strong>{revName(r.rev, r.rev_label)}</strong>
                   <span className="rfi-kind">{r.submitted_on ? `Submitted ${ukDate(r.submitted_on)}` : 'Not yet submitted'}</span>
                   {r.outcome && <span className={`q-status ext-${r.outcome}`}>{STATUS[r.outcome]}</span>}
                   {r.responded_by && (
@@ -455,18 +466,40 @@ function ItemView({ auth }: { auth: ExtAuth }) {
       {item.can_act && !done ? (
         <div className="card ext-form">
           <h2>{rfi ? 'Your reply' : 'Your response'}</h2>
-          {!rfi && (
-            <label>
-              Outcome
-              <select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-                {OUTCOMES.map(([k, l]) => (
-                  <option key={k} value={k}>
-                    {l}
-                  </option>
+          {!rfi && (() => {
+            const cur = (item.revisions ?? []).find((r) => r.rev === item.current_rev)
+            const docs = (cur?.files ?? []).filter((f) => f.kind === 'submission')
+            return docs.length > 0 ? (
+              <div className="rfi-field">
+                <span className="label">Status of each document</span>
+                {docs.map((d) => (
+                  <div key={d.id} className="doc-status">
+                    <span>📎 {d.name}</span>
+                    <select value={perDoc[d.id] ?? ''} onChange={(e) => setPerDoc({ ...perDoc, [d.id]: e.target.value })} aria-label={`Status of ${d.name}`}>
+                      <option value="">Choose a status…</option>
+                      {OUTCOMES.map(([k, l]) => (
+                        <option key={k} value={k}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 ))}
-              </select>
-            </label>
-          )}
+                <span className="hint">If any document is Status C, the whole submittal comes back as Status C.</span>
+              </div>
+            ) : (
+              <label>
+                Outcome
+                <select value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+                  {OUTCOMES.map(([k, l]) => (
+                    <option key={k} value={k}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          })()}
           <label>
             {rfi ? 'Reply' : 'Comments'}
             <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={rfi ? 'Type your reply…' : 'Comments and any conditions (needed unless it is simply approved)…'} />

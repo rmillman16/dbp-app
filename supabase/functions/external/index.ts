@@ -173,10 +173,12 @@ const RFI_VISIBLE = ["open", "answered", "closed"];
 const SUB_VISIBLE = ["out", "approved", "approved_noted", "revise", "rejected"];
 
 // where an item stands for THIS person: with them (they need to act), with DBP (they have answered), for information (copied in), or finished
-function stateOf(kind: string, role: string, status: string) {
+// An RFI that isn't closed sits with whoever wrote last: if DBP's last word was a question or a comment, it is back with the
+// assignee even if its status still says "answered". (dbpLast = the last public message came from DBP.)
+function stateOf(kind: string, role: string, status: string, dbpLast = false) {
   if (kind === "rfi") {
     if (status === "closed") return "done";
-    if (role === "assignee") return status === "open" ? "with_you" : "with_dbp";
+    if (role === "assignee") return status === "open" || dbpLast ? "with_you" : "with_dbp";
     return "fyi";
   }
   if (status !== "out") return "done";
@@ -200,6 +202,10 @@ const plain = (h: string | null, n = 170) => {
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 };
 
+// was this public message written by DBP (staff) rather than by the outside person or recorded on their behalf?
+const fromDbp = (x: { kind: string; author_id: string | null; author_name: string | null }) =>
+  x.kind === "follow_up" || (x.kind === "reply" && !!x.author_id && !/recorded by/i.test(x.author_name ?? ""));
+
 async function names(db: DB, ids: (string | null)[]) {
   const u = [...new Set(ids.filter(Boolean))] as string[];
   if (!u.length) return new Map<string, string>();
@@ -215,6 +221,8 @@ async function viewRfi(db: DB, ctx: Ctx) {
     db.from("rfi_files").select("id, response_id, name").eq("rfi_id", r.id).order("created_at"),
   ]);
   const nm = await names(db, [r.manager_id, ...(resp ?? []).map((x: { author_id: string | null }) => x.author_id)]);
+  const last = (resp ?? []).length ? resp[resp.length - 1] : null;
+  const dbpLast = !!last && fromDbp(last);
   return {
     kind: "rfi",
     id: r.id,
@@ -228,7 +236,7 @@ async function viewRfi(db: DB, ctx: Ctx) {
     trade: r.trade,
     manager: r.manager_id ? nm.get(r.manager_id) : null,
     you: { name: ctx.name, company: ctx.company, role: ctx.role },
-    state: stateOf("rfi", ctx.role, r.status),
+    state: stateOf("rfi", ctx.role, r.status, dbpLast),
     can_act: ctx.role === "assignee" && (r.status === "open" || r.status === "answered"),
     responses: (resp ?? []).map((x: { id: string; kind: string; body: string; author_id: string | null; author_name: string | null; created_at: string }) => ({
       id: x.id,
@@ -243,11 +251,11 @@ async function viewRfi(db: DB, ctx: Ctx) {
 }
 
 async function viewSubmittal(db: DB, ctx: Ctx) {
-  const { data: s } = await db.from("submittals").select("id, job_id, number, title, description, type, trade, status, current_rev, due_date, manager_id, jobs(name, status, job_no, code)").eq("id", ctx.itemId).maybeSingle();
+  const { data: s } = await db.from("submittals").select("id, job_id, number, title, description, type, trade, status, current_rev, rev_label, due_date, manager_id, jobs(name, status, job_no, code)").eq("id", ctx.itemId).maybeSingle();
   if (!s || !SUB_VISIBLE.includes(s.status)) throw new Fail(404, "This submittal isn't available.");
   const [{ data: revs }, { data: files }] = await Promise.all([
-    db.from("submittal_revisions").select("id, rev, submitted_on, due_date, outcome, response_notes, responded_by, responded_on").eq("submittal_id", s.id).order("rev"),
-    db.from("submittal_files").select("id, revision_id, kind, name").eq("submittal_id", s.id).order("created_at"),
+    db.from("submittal_revisions").select("id, rev, rev_label, submitted_on, due_date, outcome, response_notes, responded_by, responded_on").eq("submittal_id", s.id).order("rev"),
+    db.from("submittal_files").select("id, revision_id, kind, name, outcome").eq("submittal_id", s.id).order("created_at"),
   ]);
   const nm = await names(db, [s.manager_id]);
   return {
@@ -262,12 +270,13 @@ async function viewSubmittal(db: DB, ctx: Ctx) {
     trade: s.trade,
     status: s.status,
     current_rev: s.current_rev,
+    rev_label: s.rev_label ?? null,
     due_date: s.due_date,
     manager: s.manager_id ? nm.get(s.manager_id) : null,
     you: { name: ctx.name, company: ctx.company, role: ctx.role },
     state: stateOf("submittal", ctx.role, s.status),
     can_act: ctx.role === "reviewer" && s.status === "out",
-    revisions: (revs ?? []).map((r: { id: string }) => ({ ...r, files: (files ?? []).filter((f: { revision_id: string }) => f.revision_id === r.id).map((f: { id: string; kind: string; name: string }) => ({ id: f.id, name: f.name, kind: f.kind })) })),
+    revisions: (revs ?? []).map((r: { id: string }) => ({ ...r, files: (files ?? []).filter((f: { revision_id: string }) => f.revision_id === r.id).map((f: { id: string; kind: string; name: string; outcome: string | null }) => ({ id: f.id, name: f.name, kind: f.kind, outcome: f.outcome ?? null })) })),
   };
 }
 
@@ -340,6 +349,12 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
     subIds.length ? db.from("submittal_files").select("submittal_id").in("submittal_id", subIds) : Promise.resolve({ data: [] }),
     rfiIds.length ? db.from("rfi_responses").select("id").in("rfi_id", rfiIds).eq("kind", "note") : Promise.resolve({ data: [] }),
   ]);
+  // who wrote last on each RFI (for whose turn it is)
+  const lastMsg: Record<string, boolean> = {};
+  if (rfiIds.length) {
+    const { data: msgs } = await db.from("rfi_responses").select("rfi_id, kind, author_id, author_name, created_at").in("rfi_id", rfiIds).neq("kind", "note").order("created_at");
+    for (const m of msgs ?? []) lastMsg[m.rfi_id] = fromDbp(m);
+  }
   const noteIds = new Set((notes.data ?? []).map((n: { id: string }) => n.id));
   const count: Record<string, number> = {};
   for (const f of rff.data ?? []) if (!f.response_id || !noteIds.has(f.response_id)) count[f.rfi_id] = (count[f.rfi_id] ?? 0) + 1;
@@ -347,7 +362,7 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
   const roleOf = (k: string, id: string) => acc.find((a) => a.kind === k && a.itemId === id)?.role;
   const items = [
     // deno-lint-ignore no-explicit-any
-    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, ref: refOf("rfi", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, files: count[r.id] ?? 0, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status) === "with_you" })),
+    ...(rf.data ?? []).filter((r: any) => r.job_id).map((r: any) => ({ kind: "rfi", id: r.id, ref: refOf("rfi", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.question), trade: r.trade, files: count[r.id] ?? 0, state: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status, !!lastMsg[r.id]), act: stateOf("rfi", roleOf("rfi", r.id) ?? "cc", r.status, !!lastMsg[r.id]) === "with_you" })),
     // deno-lint-ignore no-explicit-any
     ...(sb.data ?? []).map((r: any) => ({ kind: "submittal", id: r.id, ref: refOf("submittal", r.number, r.jobs), number: r.number, title: r.title, status: r.status, due_date: r.due_date, project: r.jobs?.name ?? "", snippet: plain(r.description), trade: r.trade, files: count[r.id] ?? 0, state: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status), act: stateOf("submittal", roleOf("submittal", r.id) ?? "cc", r.status) === "with_you" })),
   ];
@@ -456,8 +471,23 @@ Deno.serve(async (req) => {
     if (action === "respond" && ctx.kind === "submittal") {
       const item = await viewSubmittal(db, ctx);
       if (!item.can_act) throw new Fail(403, "This submittal isn't waiting for your response.");
-      const outcome = String(b.outcome ?? "");
-      if (!["approved", "approved_noted", "revise", "rejected"].includes(outcome)) throw new Fail(400, "Please choose an outcome.");
+      const GOOD = ["approved", "approved_noted", "revise", "rejected"];
+      const RANK: Record<string, number> = { approved: 0, approved_noted: 1, revise: 2, rejected: 3 };
+      // Each document gets its own status (A approved, B approved with comments, C revise and resubmit); the submittal takes
+      // the worst. A submittal with no documents is answered with a single outcome.
+      const rvDocs = await db.from("submittal_revisions").select("id").eq("submittal_id", ctx.itemId).eq("rev", item.current_rev).maybeSingle();
+      const docs = rvDocs.data ? ((await db.from("submittal_files").select("id").eq("submittal_id", ctx.itemId).eq("revision_id", rvDocs.data.id).eq("kind", "submission")).data ?? []) : [];
+      const per: Record<string, string> = {};
+      if (docs.length) {
+        const given = (Array.isArray(b.items) ? b.items : []) as { file_id?: string; outcome?: string }[];
+        for (const d of docs as { id: string }[]) {
+          const g = given.find((x) => x.file_id === d.id);
+          if (!g || !GOOD.includes(String(g.outcome))) throw new Fail(400, "Please choose a status (A, B or C) for every document.");
+          per[d.id] = String(g.outcome);
+        }
+      }
+      const outcome = docs.length ? Object.values(per).reduce((w, o) => (RANK[o] > RANK[w] ? o : w), "approved") : String(b.outcome ?? "");
+      if (!GOOD.includes(outcome)) throw new Fail(400, "Please choose an outcome.");
       const text = String(b.text ?? "").slice(0, 20000);
       if ((outcome === "revise" || outcome === "rejected" || outcome === "approved_noted") && !text.trim()) throw new Fail(400, "Please say what needs to change.");
       const files = await checkFiles(ctx, b.files);
@@ -467,6 +497,7 @@ Deno.serve(async (req) => {
       if (!rv.data) throw new Fail(404, "Couldn't find the revision.");
       const upd = await db.from("submittal_revisions").update({ outcome, response_notes: paragraphs(text), responded_by: author, responded_on: new Date().toISOString().slice(0, 10) }).eq("id", rv.data.id);
       if (upd.error) throw new Fail(500, "Couldn't save your response.");
+      for (const id of Object.keys(per)) await db.from("submittal_files").update({ outcome: per[id] }).eq("id", id);
       for (const f of files) await db.from("submittal_files").insert({ submittal_id: ctx.itemId, revision_id: rv.data.id, kind: "response", name: f.name, path: f.path, file_name: f.name, uploaded_by: null });
       // only if it is still out (two people answering at once: the first wins)
       const st = await db.from("submittals").update({ status: outcome }).eq("id", ctx.itemId).eq("status", "out").select("id");

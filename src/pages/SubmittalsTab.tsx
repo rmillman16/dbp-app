@@ -19,7 +19,7 @@ import {
   loadSubmittalTemplates,
   loadSubmittals,
   nextSubmittalNumber,
-  revLetter,
+  revName,
   saveSubmittalTemplate,
   typeLabel,
   type Submittal,
@@ -211,7 +211,7 @@ export default function SubmittalsTab() {
                 <td data-label="Type">{typeLabel(s.type)}</td>
                 <td data-label="Trade">{s.trade ?? ''}</td>
                 <td data-label="Submitted by">{submittedBy || <span className="muted">–</span>}</td>
-                <td data-label="Rev">{revLetter(s.current_rev)}</td>
+                <td data-label="Rev">{revName(s.current_rev, s.rev_label)}</td>
                 <td data-label="Return by" className={isLate(s, today) ? 'late' : ''}>
                   {s.due_date ? ukDate(s.due_date) : '–'}
                   {isLate(s, today) ? ' ⚠' : ''}
@@ -436,7 +436,7 @@ function CreateSubmittal({
           <span className="hint">Out for review and not answered: the manager and reviewers are chased this often ({chaseLabel(f.chase_days).toLowerCase()})</span>
         </label>
         <div className="rfi-field">
-          <span className="label">Attachments (Rev A)</span>
+          <span className="label">Attachments (Initial issue)</span>
           <label className="file-button">
             <input type="file" multiple onChange={(e) => (setFiles((l) => [...l, ...(e.target.files ?? [])]), (e.target.value = ''))} />
             <span className="button">+ Add attachments</span>

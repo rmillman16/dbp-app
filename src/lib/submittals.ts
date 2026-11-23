@@ -10,19 +10,24 @@ export type SubmittalStatus = 'draft' | 'out' | 'approved' | 'approved_noted' | 
 export const SUBMITTAL_STATUS: Record<SubmittalStatus, string> = {
   draft: 'Draft',
   out: 'Out for review',
-  approved: 'Approved',
-  approved_noted: 'Approved as noted',
-  revise: 'Revise and resubmit',
+  approved: 'Status A: Approved',
+  approved_noted: 'Status B: Approved with comments',
+  revise: 'Status C: Revise and resubmit',
   rejected: 'Rejected',
   void: 'Void',
 }
 export type Outcome = 'approved' | 'approved_noted' | 'revise' | 'rejected'
 export const OUTCOMES: [Outcome, string][] = [
-  ['approved', 'Approved'],
-  ['approved_noted', 'Approved as noted'],
-  ['revise', 'Revise and resubmit'],
+  ['approved', 'Status A: Approved, no comments'],
+  ['approved_noted', 'Status B: Approved with comments'],
+  ['revise', 'Status C: Revise and resubmit'],
   ['rejected', 'Rejected'],
 ]
+// what the outside reviewers choose from, for each document
+export const REVIEW_OUTCOMES = OUTCOMES.slice(0, 3)
+const RANK: Record<Outcome, number> = { approved: 0, approved_noted: 1, revise: 2, rejected: 3 }
+// the submittal takes the worst of its documents' statuses
+export const worstOutcome = (list: Outcome[]): Outcome => list.reduce((w, o) => (RANK[o] > RANK[w] ? o : w), 'approved' as Outcome)
 export type SubmittalType = 'shop_drawing' | 'product_data' | 'sample' | 'method_statement' | 'certificate' | 'other'
 export const TYPES: [SubmittalType, string][] = [
   ['shop_drawing', 'Shop drawing'],
@@ -34,6 +39,10 @@ export const TYPES: [SubmittalType, string][] = [
 ]
 export const typeLabel = (t: string) => TYPES.find(([k]) => k === t)?.[1] ?? t
 export const revLetter = (n: number) => (n >= 1 && n <= 26 ? String.fromCharCode(64 + n) : String(n)) // 1 = A
+// What a revision is called. The first issue is the "Initial issue"; after Status C (revise and resubmit) it is Rev A, Rev B...;
+// after Status B (approved with comments) it is reissued as the "Construction issue". New revisions store their name; older
+// ones are worked out from the number.
+export const revName = (rev: number, label?: string | null) => label || (rev <= 1 ? 'Initial issue' : `Rev ${revLetter(rev - 1)}`)
 export const isFinal = (s: SubmittalStatus) => s === 'approved' || s === 'approved_noted'
 
 export interface Submittal {
@@ -46,6 +55,7 @@ export interface Submittal {
   trade: string | null
   status: SubmittalStatus
   current_rev: number
+  rev_label?: string | null // the current revision's name (script 069)
   submitted_by: string | null // a project directory entry
   manager_id: string | null
   due_date: string | null // return by
@@ -70,6 +80,7 @@ export interface Revision {
   id: string
   submittal_id: string
   rev: number
+  rev_label?: string | null
   submitted_on: string | null
   due_date: string | null
   outcome: Outcome | null
@@ -83,6 +94,7 @@ export interface SubmittalFile {
   submittal_id: string
   revision_id: string | null
   kind: 'submission' | 'response'
+  outcome?: Outcome | null // the reviewer's status for this document (069)
   name: string
   path: string
   file_name: string
@@ -239,7 +251,12 @@ export async function submitForReview(id: string, revisionId: string, due: strin
   return updateSubmittal(id, { status: 'out', due_date: due })
 }
 // a response from the reviewers (recorded by DBP): the revision is answered, the submittal takes the outcome
-export async function recordResponse(s: Submittal, revisionId: string, o: { outcome: Outcome; notes: string; by: string; on: string }, files: File[]) {
+export async function recordResponse(s: Submittal, revisionId: string, o: { outcome: Outcome; notes: string; by: string; on: string; perFile?: Record<string, Outcome> }, files: File[]) {
+  // each document's own status; the submittal then takes the worst of them
+  for (const id of Object.keys(o.perFile ?? {})) {
+    const u = await supabase.from('submittal_files').update({ outcome: o.perFile![id] }).eq('id', id)
+    if (u.error) throw new Error(/outcome/i.test(u.error.message) ? 'Statuses for each document need script 069 run in Supabase first.' : u.error.message)
+  }
   const rv = await supabase
     .from('submittal_revisions')
     .update({ outcome: o.outcome, response_notes: cleanHtml(o.notes), responded_by: o.by || null, responded_on: o.on || todayIso() })
@@ -248,12 +265,17 @@ export async function recordResponse(s: Submittal, revisionId: string, o: { outc
   for (const f of files) await addFile(s.id, revisionId, f, 'response')
   return updateSubmittal(s.id, { status: o.outcome })
 }
-// "Revise and resubmit" / "Rejected": start the next revision (a draft)
-export async function newRevision(s: Submittal) {
+// The next revision, as a draft. After Status C or Rejected: "resubmit" (Rev A, Rev B...). After Status B: "construction"
+// (the Construction issue, with the comments picked up).
+export async function newRevision(s: Submittal, kind: 'resubmit' | 'construction' = 'resubmit') {
   const next = s.current_rev + 1
-  const rv = await supabase.from('submittal_revisions').insert({ submittal_id: s.id, rev: next, due_date: s.due_date }).select('*').single()
-  if (rv.error) throw fail(rv.error)
-  await updateSubmittal(s.id, { status: 'draft', current_rev: next })
+  const have = await supabase.from('submittal_revisions').select('rev, rev_label').eq('submittal_id', s.id)
+  // Rev A, Rev B...: one letter for each earlier resubmission
+  const resubs = (have.data ?? []).filter((r) => !/construction/i.test((r.rev_label as string | null) ?? '') && (r.rev as number) > 1).length
+  const label = kind === 'construction' ? 'Construction issue' : `Rev ${revLetter(resubs + 1)}`
+  const rv = await supabase.from('submittal_revisions').insert({ submittal_id: s.id, rev: next, due_date: s.due_date, rev_label: label }).select('*').single()
+  if (rv.error) throw new Error(/rev_label/i.test(rv.error.message) ? 'Revision names need script 069 run in Supabase first.' : fail(rv.error).message)
+  await updateSubmittal(s.id, { status: 'draft', current_rev: next, rev_label: label })
   return rv.data as Revision
 }
 export async function deleteSubmittal(id: string) {

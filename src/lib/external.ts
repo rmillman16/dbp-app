@@ -24,6 +24,7 @@ export interface ExtFile {
   id: string
   name: string
   kind?: string
+  outcome?: string | null
 }
 export interface ExtItem {
   kind: 'rfi' | 'submittal'
@@ -39,12 +40,13 @@ export interface ExtItem {
   manager: string | null
   type?: string
   current_rev?: number
+  rev_label?: string | null
   you: { name: string; company: string; role: string }
   can_act: boolean
   state?: 'with_you' | 'with_dbp' | 'fyi' | 'done'
   responses?: { id: string; kind: string; body: string | null; author: string; at: string; files: ExtFile[] }[]
   files?: ExtFile[]
-  revisions?: { id: string; rev: number; submitted_on: string | null; due_date: string | null; outcome: string | null; response_notes: string | null; responded_by: string | null; responded_on: string | null; files: ExtFile[] }[]
+  revisions?: { id: string; rev: number; rev_label?: string | null; submitted_on: string | null; due_date: string | null; outcome: string | null; response_notes: string | null; responded_by: string | null; responded_on: string | null; files: ExtFile[] }[]
 }
 export interface ExtListItem {
   kind: 'rfi' | 'submittal'
