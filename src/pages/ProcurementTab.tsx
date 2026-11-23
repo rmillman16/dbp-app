@@ -404,7 +404,7 @@ function ItemEditor({ row, vo, data, onSave, onCancel }: { row: ProcRow; vo: boo
         </label>
         {data.orders.length > 0 && (
           <label>
-            Or from an order (Payment notices)
+            Or from an order (Orders)
             <select
               value={it.order_id ?? ''}
               onChange={(e) => {

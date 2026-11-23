@@ -96,6 +96,18 @@ export async function saveNotice(pn: PaymentNotice, app: SubApplication, lines: 
 export const lineAmount = (l: Pick<SubAppLine, 'value' | 'pct' | 'their_amount'>) =>
   l.their_amount != null ? Number(l.their_amount) : l.value != null && l.pct != null ? r2(l.value * l.pct) : 0
 
+// DBP's certified amount for a line (054): typed by % or £ (the other follows); blank = as claimed
+export const certAmount = (l: Pick<SubAppLine, 'value' | 'pct' | 'their_amount' | 'cert_amount' | 'cert_pct'>) =>
+  l.cert_amount != null ? Number(l.cert_amount) : l.cert_pct != null && l.value != null ? r2(Number(l.value) * Number(l.cert_pct)) : lineAmount(l)
+export const isCertified = (l: Pick<SubAppLine, 'cert_amount' | 'cert_pct'>) => l.cert_amount != null || l.cert_pct != null
+// typing one fills in the other (against the line's value)
+export function certifyBy(l: SubAppLine, by: 'pct' | 'amount', v: number | null): Partial<SubAppLine> {
+  if (v == null) return { cert_pct: null, cert_amount: null }
+  const value = l.value != null ? Number(l.value) : null
+  if (by === 'pct') return { cert_pct: v, cert_amount: value != null ? r2(value * v) : null }
+  return { cert_amount: v, cert_pct: value ? Math.round((v / value) * 1e6) / 1e6 : null }
+}
+
 export interface Column {
   measured: number
   variations: number
@@ -110,6 +122,7 @@ export interface Column {
 }
 
 export interface NoticeTotals {
+  // dub.measured etc. = certified lines + adjustments
   theirs: { measuredValue: number; variationsValue: number } & Column // the subcontractor's valuation
   dub: Column // DuB assessment: theirs plus adjustments
   previous: Column // the previous notice
@@ -146,7 +159,8 @@ export function noticeTotals(pn: PaymentNotice, lines: SubAppLine[], adjustments
     measuredValue: sum('measured', (l) => Number(l.value ?? 0)),
     variationsValue: sum('variations', (l) => Number(l.value ?? 0)),
   }
-  const dub = column(theirM + adj('measured'), theirV + adj('variations'), theirMat + adj('materials'), le, contra, retPct, prevPaid)
+  // DuB: each line as DBP certified it (as claimed where not certified), plus the adjustments
+  const dub = column(sum('measured', certAmount) + adj('measured'), sum('variations', certAmount) + adj('variations'), sum('materials', certAmount) + adj('materials'), le, contra, retPct, prevPaid)
   return { theirs, dub, previous: prevCol, retentionPct: retPct }
 }
 

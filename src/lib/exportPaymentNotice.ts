@@ -7,7 +7,7 @@
 import type { Cell, Worksheet } from 'exceljs'
 import type { Adjustment, Company, Job, Order, PaymentNotice, SubAppLine, SubApplication } from './types'
 import type { NoticeTotals } from './subcontracts'
-import { lineAmount } from './subcontracts'
+import { certAmount, isCertified, lineAmount } from './subcontracts'
 import { download, excelDate, newWorkbook, placeLogo, safeName, setupPage } from './excel'
 
 const ACC = '_(* #,##0.00_);[Red]_(* (#,##0.00);[Red]_(* "-"??_);_(@_)'
@@ -185,6 +185,7 @@ function buildBreakdown(ws: Worksheet, d: NoticeDoc, title: 'SOW' | 'Variations'
   const own = d.lines.filter((l) => l.block === block)
   const value = own.reduce((s, l) => s + Number(l.value ?? 0), 0)
   const claimed = own.reduce((s, l) => s + lineAmount(l), 0)
+  const certified = own.reduce((s, l) => s + certAmount(l), 0)
   const r7 = row(7)
   set(ws, `A${r7}`, 1)
   set(ws, `B${r7}`, `As per App ${d.app.app_no}`)
@@ -193,9 +194,9 @@ function buildBreakdown(ws: Worksheet, d: NoticeDoc, title: 'SOW' | 'Variations'
   set(ws, `E${r7}`, f(valueRef, value), { fmt: ACC })
   set(ws, `F${r7}`, f(`C${r7}*E${r7}`, value), { fmt: ACC })
   set(ws, `I${r7}`, f(claimedRef, claimed), { fmt: ACC })
-  set(ws, `L${r7}`, f(`I${r7}`, claimed), { fmt: ACC })
+  set(ws, `L${r7}`, Math.abs(certified - claimed) < 0.005 ? f(`I${r7}`, claimed) : certified, { fmt: ACC })
   set(ws, `O${r7}`, previous, { fmt: ACC })
-  pctCols(ws, r7, { F: value, I: claimed, L: claimed, O: previous })
+  pctCols(ws, r7, { F: value, I: claimed, L: certified, O: previous })
 
   // DuB adjustments: extra lines that change the DuB assessment only
   let r = r7 + 1
@@ -307,7 +308,8 @@ function buildApp(ws: Worksheet, d: NoticeDoc) {
       set(ws, `G${r}`, eff, { fmt: PCT })
       set(ws, `H${r}`, f(`IF(ISNUMBER(F${r}),F${r}*N(G${r}),0)`, amount), { fmt: NUM })
       const stated = l.pct != null && eff != null && Math.abs(l.pct - eff) > 0.0005 ? `Stated ${Math.round(l.pct * 1000) / 10}%. ` : ''
-      set(ws, `I${r}`, `${stated}${l.note ?? ''}`.trim() || null, { wrap: true })
+      const cert = isCertified(l) && Math.abs(certAmount(l) - amount) >= 0.005 ? `DBP certified ${l.value ? Math.round((certAmount(l) / Number(l.value)) * 1000) / 10 + '%, ' : ''}£${certAmount(l).toFixed(2)}. ` : ''
+      set(ws, `I${r}`, `${stated}${cert}${l.note ?? ''}`.trim() || null, { wrap: true })
       r++
     }
     if (!totalLabel) {

@@ -261,7 +261,17 @@ export interface Company {
   phone: string | null
   iplicit_code: string | null
   notes: string | null
+  // PQQ (054; missing until it's run)
+  pqq_status?: PqqStatus
+  pqq_sent_on?: string | null
+  pqq_received_on?: string | null
+  pqq_approved_on?: string | null
+  pqq_expires_on?: string | null // approved + 12 months
+  pqq_owner?: string | null // who chases it
+  pqq_notes?: string | null
 }
+
+export type PqqStatus = 'not_sent' | 'sent' | 'received' | 'approved' | 'rejected' | 'not_required'
 
 export interface Order {
   id: string
@@ -276,6 +286,16 @@ export interface Order {
   order_date: string | null
   retention_pct: number
   notes: string | null
+  // 054 (missing until it's run)
+  package_name?: string | null // the procurement package (its SoW name)
+  scope?: string | null
+  delivery_date?: string | null
+  delivery_from?: string | null
+  contact_id?: string | null
+  status?: 'draft' | 'placed'
+  placed_on?: string | null
+  placed_by?: string | null
+  emailed_at?: string | null
 }
 
 export interface SubVariation {
@@ -315,6 +335,8 @@ export interface SubAppLine {
   their_amount: number | null // what they say they claim
   note: string | null // DuB notes
   sort: number
+  cert_pct?: number | null // DBP certifies, 0–1 (054); blank = as claimed
+  cert_amount?: number | null
 }
 
 export interface PaymentNotice {

@@ -57,6 +57,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ⬜ Not yet |
 | `052_tasks.sql` | Tasks: set a task for yourself or any DBP team member (optionally on a job, with a due date); it goes on their bell and the job's TODO; done tells whoever set it | ⬜ Not yet |
 | `053_task_details.sql` | Task details, as in Microsoft To Do (run after 052): important (star), steps, My Day, remind me on a date (bell and email that day), repeat (the next one is set up when it's done, from the page or the bell), files on a task (storage "tasks"); bell links open the task | ⬜ Not yet |
+| `054_orders_pqq.sql` | Orders (was Payment notices): order numbers 2611_FISL_001, package from the procurement schedule with delivery date, placing an order fills in the procurement schedule, appendices (any file) + a standard library in Settings, contractors' PQQ tracking (12 months, documents with expiry dates, sent log, reminders to whoever chases), DBP certifies each payment-notice line by % or £ (run after 053) | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

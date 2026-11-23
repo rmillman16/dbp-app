@@ -8,6 +8,7 @@ import AdminOnly from '../components/AdminOnly'
 import { nudgeEmails } from '../lib/notifications'
 import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type LoginStatus } from '../lib/users'
 import { Insurances, OmStandardDocuments } from './Sections'
+import StandardDocuments from '../components/StandardDocuments'
 
 export default function Settings() {
   return (
@@ -16,6 +17,7 @@ export default function Settings() {
       <CompanyDetails />
       <Insurances />
       <OmStandardDocuments />
+      <StandardDocuments />
       <AccessRequests />
       <Users />
       <AccessGrid />

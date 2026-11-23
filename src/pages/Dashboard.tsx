@@ -443,7 +443,7 @@ function CashCard({
               {t.notices.map((n) => {
                 const job = jobOf.get(n.jobId)
                 return (
-                  <tr key={n.noticeId} className="clickable" onClick={go(`/jobs/${n.jobId}/payment-notices/${n.orderId}/${n.noticeId}`)}>
+                  <tr key={n.noticeId} className="clickable" onClick={go(`/jobs/${n.jobId}/orders/${n.orderId}/${n.noticeId}`)}>
                     <td className="stack-title">
                       <strong>{n.company}</strong> <span className="muted small">Notice {n.noticeNo}</span>
                       {n.draft && <span className="tag"> draft</span>}

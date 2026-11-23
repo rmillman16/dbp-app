@@ -17,7 +17,7 @@ const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] =
   { to: 'variations', label: 'Variations', section: 'job_commercial' },
   { to: 'quotations', label: 'Quotations', section: 'job_commercial' },
   { to: 'applications', label: 'Applications', section: 'job_commercial' },
-  { to: 'payment-notices', label: 'Payment notices', section: 'job_commercial' },
+  { to: 'orders', label: 'Orders', section: 'job_commercial' },
   { to: 'cashflow', label: 'Cashflow', section: 'job_commercial' },
   { to: 'procurement', label: 'Procurement', section: 'job_procurement' },
   { to: 'sampling', label: 'Sampling', section: 'job_sampling' },

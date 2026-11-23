@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { money } from '../lib/format'
 import { saveError } from '../lib/offline'
-import { lineAmount, loadCompanies, loadNotice, loadOrder, noticeTotals, orderLabel, parsePasted, runChecks, saveNotice, PAYMENT_DAYS, type Column } from '../lib/subcontracts'
+import { certAmount, certifyBy, isCertified, lineAmount, loadCompanies, loadNotice, loadOrder, noticeTotals, orderLabel, parsePasted, runChecks, saveNotice, PAYMENT_DAYS, type Column } from '../lib/subcontracts'
 import { addDaysIso } from '../lib/format'
 import { exportPaymentNotice } from '../lib/exportPaymentNotice'
 import { readApplicationPdf } from '../lib/readPdf'
@@ -135,7 +135,7 @@ export default function PaymentNoticeEditor() {
     <div className="quote-editor pn-editor">
       <div className="sub-bar">
         <div>
-          <Link to={`/jobs/${job.id}/payment-notices/${order.id}`} className="link-button small">
+          <Link to={`/jobs/${job.id}/orders/${order.id}`} className="link-button small">
             ← {orderLabel(order, company)}
           </Link>
           <h2>
@@ -281,6 +281,8 @@ export default function PaymentNoticeEditor() {
                       <th className="num">Value £</th>
                       <th className="num">Their %</th>
                       <th className="num">Their £</th>
+                      <th className="num cert-col" title="What DBP certifies. Type a % or a £ and the other follows; blank = as claimed">DBP %</th>
+                      <th className="num cert-col">DBP £</th>
                       <th>DuB note</th>
                       <th />
                     </tr>
@@ -290,7 +292,7 @@ export default function PaymentNoticeEditor() {
                       <Fragment key={i}>
                         {l.heading && l.heading !== idx[k - 1]?.[0].heading && (
                           <tr key={`h${i}`} className="sec-row">
-                            <td colSpan={7}>{l.heading}</td>
+                            <td colSpan={9}>{l.heading}</td>
                           </tr>
                         )}
                         <tr className="line-row">
@@ -322,6 +324,28 @@ export default function PaymentNoticeEditor() {
                               onChange={(e) => setLine(i, { their_amount: numOrNull(e.target.value) })}
                             />
                           </td>
+                          <td className={'c-unit cert-col' + (isCertified(l) ? ' certified' : '')} data-label="DBP %">
+                            <input
+                              type="number"
+                              step="any"
+                              inputMode="decimal"
+                              value={pctText(l.cert_pct ?? null)}
+                              placeholder={l.value ? pctText(lineAmount(l) / Number(l.value)) : ''}
+                              title="DBP certified %: the £ follows"
+                              onChange={(e) => setLine(i, certifyBy(l, 'pct', e.target.value === '' ? null : Number(e.target.value) / 100))}
+                            />
+                          </td>
+                          <td className={'c-rate cert-col' + (isCertified(l) ? ' certified' : '')} data-label="DBP £">
+                            <input
+                              type="number"
+                              step="any"
+                              inputMode="decimal"
+                              value={l.cert_amount ?? ''}
+                              placeholder={String(lineAmount(l))}
+                              title="DBP certified £: the % follows"
+                              onChange={(e) => setLine(i, certifyBy(l, 'amount', numOrNull(e.target.value)))}
+                            />
+                          </td>
                           <td className="c-note" data-label="Note">
                             <input value={l.note ?? ''} onChange={(e) => setLine(i, { note: e.target.value || null })} />
                           </td>
@@ -338,6 +362,8 @@ export default function PaymentNoticeEditor() {
                       <td className="num">{money(idx.reduce((s, [l]) => s + Number(l.value ?? 0), 0))}</td>
                       <td />
                       <td className="num">{money(idx.reduce((s, [l]) => s + lineAmount(l), 0))}</td>
+                      <td />
+                      <td className="num">{money(idx.reduce((s, [l]) => s + certAmount(l), 0))}</td>
                       <td colSpan={2} />
                     </tr>
                   </tbody>
@@ -346,7 +372,10 @@ export default function PaymentNoticeEditor() {
             </div>
           )
         })}
-        <p className="muted small">"Their £" is what they claim; leave it blank to use % × value. Lines where the two disagree show in Checks.</p>
+        <p className="muted small">
+          "Their £" is what they claim; leave it blank to use % × value. Lines where the two disagree show in Checks. "DBP %" / "DBP £" is what DBP certifies for the
+          line: type either and the other follows. Blank = as claimed (shown in grey).
+        </p>
       </section>
 
       <section className="card">

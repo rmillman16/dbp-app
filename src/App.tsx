@@ -16,7 +16,7 @@ import VariationEditor from './pages/VariationEditor'
 import { Contracts } from './pages/Sections'
 import ApplicationsTab from './pages/ApplicationsTab'
 import ApplicationEditor from './pages/ApplicationEditor'
-import SubcontractsTab, { OrderPage } from './pages/Subcontracts'
+import SubcontractsTab, { OldOrdersLink, OrderPage } from './pages/Subcontracts'
 import PaymentNoticeEditor from './pages/PaymentNoticeEditor'
 import Contractors from './pages/Contractors'
 import EotTab from './pages/EotTab'
@@ -131,9 +131,10 @@ export default function App() {
             <Route path="quotations/:quoteId" element={<QuotationEditor />} />
             <Route path="applications" element={<ApplicationsTab />} />
             <Route path="applications/:appId" element={<ApplicationEditor />} />
-            <Route path="payment-notices" element={<SubcontractsTab />} />
-            <Route path="payment-notices/:orderId" element={<OrderPage />} />
-            <Route path="payment-notices/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
+            <Route path="orders" element={<SubcontractsTab />} />
+            <Route path="orders/:orderId" element={<OrderPage />} />
+            <Route path="orders/:orderId/:noticeId" element={<PaymentNoticeEditor />} />
+            <Route path="payment-notices/*" element={<OldOrdersLink />} />
             <Route path="programme" element={<ProgrammeTab />} />
             <Route path="minutes/:meetingId?" element={<MinutesTab />} />
             <Route path="cashflow" element={<CashflowTab />} />

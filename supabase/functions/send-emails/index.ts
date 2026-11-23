@@ -25,9 +25,9 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 // sent on their own day, not when they're made
-const DATED = ["off_hire_due", "task_reminder"];
+const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
 function serverKey() {
   const raw = Deno.env.get("SUPABASE_SECRET_KEYS");
