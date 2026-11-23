@@ -72,6 +72,15 @@ export default function JobOverview() {
         <SubmittalsCard jobId={job.id} />
       </div>
 
+      {/* space kept for snagging (23 Nov): coming soon */}
+      <section className="card coming-card span-all">
+        <div className="pane-head">
+          <h2>Snagging</h2>
+          <span className="soon">soon</span>
+        </div>
+        <p className="muted small">Coming soon: a snag list for each job with photos and locations, items assigned to subcontractors, due dates and chasing, and sign-off at handover.</p>
+      </section>
+
       {/* all the VOs */}
       <section className="card span-all">
         <div className="pane-head">

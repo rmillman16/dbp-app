@@ -8,6 +8,7 @@ import { buildUp, lineTotal } from '../lib/variations'
 import { exportSingleVo } from '../lib/exportVariations'
 import { cached, must, saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
+import { loadRfiForVariation } from '../lib/rfis'
 
 // Inputs are held as text while editing and converted on save.
 interface LineDraft {
@@ -58,6 +59,11 @@ export default function VariationEditor() {
   const { voId } = useParams()
   const { job } = useJob()
   const isNew = voId === 'new'
+  // the RFI this VO was raised from, if any (script 062)
+  const [fromRfi, setFromRfi] = useState<{ id: string; number: number; title: string } | null>(null)
+  useEffect(() => {
+    if (voId && voId !== 'new') loadRfiForVariation(voId).then(setFromRfi, () => setFromRfi(null))
+  }, [voId])
   const navigate = useNavigate()
   const [head, setHead] = useState<HeaderDraft | null>(null)
   const [lines, setLines] = useState<LineDraft[]>([])
@@ -277,6 +283,11 @@ export default function VariationEditor() {
             ← All variations
           </Link>
           <h2>{isNew ? 'New variation' : `VO ${head.vo_no}`}</h2>
+          {fromRfi && (
+            <p className="muted small">
+              Raised from <Link to={`/jobs/${job.id}/rfis/${fromRfi.id}`}>RFI {fromRfi.number}: {fromRfi.title}</Link>
+            </p>
+          )}
         </div>
         <div className="button-row">
           {!isNew && (

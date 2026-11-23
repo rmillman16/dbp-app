@@ -16,6 +16,8 @@ import {
   daysOpen,
   isOverdue,
   loadRfi,
+  loadRfiVariation,
+  raiseVariationFromRfi,
   openRfiFile,
   removeRfiFile,
   setPeople,
@@ -27,7 +29,7 @@ import {
   type RfiStatus,
 } from '../lib/rfis'
 import { keyOf, refOf, useRfiContext } from '../lib/rfiContext'
-import { cleanHtml } from '../lib/richText'
+import { cleanHtml, htmlToText } from '../lib/richText'
 import { exportRfisPdf } from '../lib/exportRfis'
 import RichTextEditor from '../components/RichTextEditor'
 import ExternalAccess from '../components/ExternalAccess'
@@ -58,6 +60,13 @@ export default function RfiPage() {
   useEffect(() => {
     load()
   }, [rfiId]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the variation raised from this RFI, if any (script 062)
+  const [vo, setVo] = useState<{ id: string; vo_no: number; title: string; status: string } | null>(null)
+  const voId = d?.rfi.variation_id ?? null
+  useEffect(() => {
+    if (!voId) return setVo(null)
+    loadRfiVariation(voId).then(setVo, () => setVo(null))
+  }, [voId])
 
   const assigneeNames = useMemo(() => (d ? d.people.filter((p) => p.role === 'assignee').map(ctx.nameOf).filter(Boolean) : []), [d, ctx.dir, ctx.profiles]) // eslint-disable-line react-hooks/exhaustive-deps
   if (error && !d) return <p className="error">{error}</p>
@@ -122,6 +131,15 @@ export default function RfiPage() {
   }
 
   const person = (id: string | null) => ctx.profileName(id)
+  // an answered RFI that changes the scope becomes a draft variation carrying the question and the answers
+  async function raiseVo() {
+    if (!confirm(`Raise a variation from RFI ${rfi.number}? A draft VO is made with the question and the answer(s) in it, and linked to this RFI. You then price it in Variations.`)) return
+    await run(async () => {
+      const answers = responses.filter((r) => r.kind === 'reply').map((r) => ({ by: r.author_name || person(r.author_id) || 'DBP', text: htmlToText(r.body) }))
+      const v = await raiseVariationFromRfi(rfi, answers)
+      navigate(`/jobs/${rfi.job_id}/variations/${v.id}`)
+    })
+  }
   const fileLink = (f: RfiFile) => (
     <span key={f.id} className="var-file">
       <button type="button" className="link-button small" onClick={() => openRfiFile(f.path).catch((e) => setError((e as Error).message))}>
@@ -150,6 +168,11 @@ export default function RfiPage() {
         </div>
         <div className="button-row">
           <button onClick={() => exportRfisPdf(owner, [ctx.rowFor(rfi, people, responses)], `RFI ${rfi.number}`).catch((e) => setError((e as Error).message))}>PDF</button>
+          {!tender && !isDraft && rfi.status !== 'void' && !rfi.variation_id && (
+            <button disabled={busy} onClick={raiseVo} title="Make a draft variation from this RFI's question and answer">
+              Raise a variation
+            </button>
+          )}
           {isDraft && (
             <>
               <button
@@ -218,6 +241,18 @@ export default function RfiPage() {
               <dd>{rfi.received_from ? ctx.dir.find((x) => x.id === rfi.received_from)?.name : '–'}</dd>
 </>
 )}
+              {rfi.variation_id && (
+                <>
+                  <dt>Variation</dt>
+                  <dd>
+                    {vo ? (
+                      <Link to={`/jobs/${rfi.job_id}/variations/${vo.id}`}>VO {vo.vo_no}: raised from this RFI →</Link>
+                    ) : (
+                      'Raised from this RFI'
+                    )}
+                  </dd>
+                </>
+              )}
               <dt>Due</dt>
               <dd className={isOverdue(rfi, today) ? 'late' : ''}>{rfi.due_date ? ukDate(rfi.due_date) : '–'}</dd>
               <dt>Created</dt>

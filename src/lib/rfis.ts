@@ -42,6 +42,7 @@ export interface Rfi {
   answered_at: string | null
   closed_at: string | null
   issued_at?: string | null // when a draft was issued (059)
+  variation_id?: string | null // the VO raised from this RFI (062)
 }
 export interface RfiPerson {
   id: string
@@ -365,3 +366,57 @@ export const daysOpen = (r: Pick<Rfi, 'created_at' | 'closed_at' | 'answered_at'
   return Math.max(0, Math.floor((new Date(end.slice(0, 10)).getTime() - new Date(r.created_at.slice(0, 10)).getTime()) / 86400000))
 }
 export const isOverdue = (r: Pick<Rfi, 'status' | 'due_date'>, today = todayIso()) => r.status === 'open' && !!r.due_date && r.due_date < today
+
+// ---------- RFI to variation (script 062) ----------
+// An answered RFI that changes the scope becomes a draft variation carrying the question and the answer(s), and the two are
+// linked: the RFI shows its VO, and the VO shows the RFI it came from.
+export interface RaisedVo {
+  id: string
+  vo_no: number
+}
+export async function raiseVariationFromRfi(rfi: Rfi, answers: { by: string; text: string }[]): Promise<RaisedVo> {
+  if (!rfi.job_id) throw new Error('Only a job’s RFI can raise a variation.')
+  const [job, max] = await Promise.all([
+    supabase.from('jobs').select('ohp_pct, prelims_pct').eq('id', rfi.job_id).single(),
+    supabase.from('variations').select('vo_no').eq('job_id', rfi.job_id).order('vo_no', { ascending: false }).limit(1),
+  ])
+  if (job.error) throw new Error(job.error.message)
+  if (max.error) throw new Error(max.error.message)
+  const { htmlToText } = await import('./richText')
+  const question = htmlToText(rfi.question)
+  const description = [
+    `Raised from RFI ${rfi.number}: ${rfi.title}`,
+    question ? `\nQuestion:\n${question}` : '',
+    ...answers.map((a) => `\nAnswer (${a.by}):\n${a.text}`),
+  ]
+    .filter(Boolean)
+    .join('\n')
+  const vo_no = ((max.data?.[0]?.vo_no as number | undefined) ?? 0) + 1
+  const ins = await supabase
+    .from('variations')
+    .insert({
+      job_id: rfi.job_id,
+      vo_no,
+      title: `RFI ${rfi.number}: ${rfi.title}`.slice(0, 200),
+      description,
+      status: 'not_issued',
+      vo_date: todayIso(),
+      ohp_pct: job.data.ohp_pct,
+      prelims_pct: job.data.prelims_pct,
+      programme_days: 0,
+    })
+    .select('id, vo_no')
+    .single()
+  if (ins.error) throw new Error(ins.error.message)
+  const link = await supabase.from('rfis').update({ variation_id: ins.data.id }).eq('id', rfi.id)
+  if (link.error) throw fail(link.error)
+  return ins.data as RaisedVo
+}
+export async function loadRfiVariation(variationId: string) {
+  const r = await supabase.from('variations').select('id, vo_no, title, status').eq('id', variationId).maybeSingle()
+  return r.data as { id: string; vo_no: number; title: string; status: string } | null
+}
+export async function loadRfiForVariation(variationId: string) {
+  const r = await supabase.from('rfis').select('id, number, title, job_id').eq('variation_id', variationId).limit(1)
+  return r.error ? null : ((r.data?.[0] as { id: string; number: number; title: string; job_id: string } | undefined) ?? null)
+}
