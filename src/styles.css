@@ -847,3 +847,4 @@ select.req-status.req-off_hired { background: #eee; }
 .suggest-list li { padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .suggest-list li.on { background: var(--navy); color: #fff; }
 .suggest-list li.suggest-add { color: var(--blue); font-weight: 600; border-top: 1px solid var(--line); margin-top: 2px; }
+.site-filter { flex-wrap: wrap; } /* a button per site (23 Nov) */

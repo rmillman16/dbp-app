@@ -54,6 +54,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `048_om_link_check.sql` | O&M: keeps whether each SharePoint link can be opened by anyone (green tick), checked by the check-link function | ✅ Run |
 | `049_om_item_names.sql` | O&M: add your own project items to the dropdown list (offered on every job) | ✅ Run |
 | `050_om_packages.sql` | O&M: items by SoW package (package_id), received = has a link (status follows the link), removing items / list entries for admins and Operations only, reminders per package | ⬜ Not yet |
+| `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

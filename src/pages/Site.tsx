@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { supabase } from '../lib/supabase'
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -58,7 +59,7 @@ function SiteNav() {
       </div>
       <nav className="pills">
         <NavLink to="/site" end className="pill">
-          My requisitions
+          Requisitions for my sites
         </NavLink>
         {can('buyer_material') && (
           <NavLink to="/site/buyer/material" className="pill">
@@ -98,25 +99,47 @@ function AddFiles({ onFiles, disabled, label = 'Choose files…' }: { onFiles: (
 
 const statusTag = (s: ReqStatus, kind: ReqKind) => <span className={`tag req-${s}`}>{statusLabel(s, kind)}</span>
 
-// ---------- my requisitions (the site manager's view) ----------
+// ---------- requisitions for my sites (23 Nov): every requisition on the jobs I'm on the Team of, plus any I raised ----------
 export default function Site() {
   const navigate = useNavigate()
   const [rows, setRows] = useState<Requisition[] | null>(null)
+  const [myJobs, setMyJobs] = useState<string[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
+  const [site, setSite] = useState<string>('all')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    me().then((u) => (u ? loadRequisitions({ mine: u.id }).then(setRows, (e: Error) => setError(e.message)) : setRows([])))
+    ;(async () => {
+      const u = await me()
+      if (!u) return setRows([])
+      setUserId(u.id)
+      const team = await supabase.from('job_team').select('job_id').eq('profile_id', u.id)
+      const ids = [...new Set((team.data ?? []).map((t) => t.job_id as string))]
+      setMyJobs(ids)
+      let q = supabase.from('requisitions').select('*')
+      q = ids.length ? q.or(`requested_by.eq.${u.id},job_id.in.(${ids.join(',')})`) : q.eq('requested_by', u.id)
+      const r = await q.order('req_no', { ascending: false })
+      if (r.error) setError(r.error.message)
+      else setRows(r.data as Requisition[])
+    })()
     loadSites().then(setJobs, () => {})
   }, [])
   const jobById = useMemo(() => new Map(jobs.map((j) => [j.id, j])), [jobs])
+  // a filter button for each of my sites (and any other site I've raised a requisition on)
+  const siteIds = useMemo(() => [...new Set([...myJobs, ...(rows ?? []).map((r) => r.job_id)])], [myJobs, rows])
+  const shown = (rows ?? []).filter((r) => site === 'all' || r.job_id === site)
+  const short = (id: string) => {
+    const j = jobById.get(id)
+    return j ? `${j.job_no} ${j.code}` : 'Other site'
+  }
 
   return (
     <>
       <SiteNav />
       <section className="card">
         <div className="pane-head">
-          <h2>My requisitions</h2>
+          <h2>Requisitions for my sites</h2>
           <span className="button-row">
             <Link to="/site/requisitions/new" className="button primary">
               + Material
@@ -126,28 +149,50 @@ export default function Site() {
             </Link>
           </span>
         </div>
+        {myJobs.length === 0 && rows && (
+          <p className="muted small intro">
+            You’re not on any job’s Team yet, so this shows just the requisitions you’ve raised. Ask for yourself to be added on the job’s Overview › Team.
+          </p>
+        )}
+        {siteIds.length > 1 && (
+          <div className="toolbar">
+            <div className="segmented site-filter">
+              <button className={site === 'all' ? 'on' : ''} onClick={() => setSite('all')}>
+                All my sites<span className="seg-count">{rows?.length ?? 0}</span>
+              </button>
+              {siteIds.map((id) => (
+                <button key={id} className={site === id ? 'on' : ''} onClick={() => setSite(id)} title={jobLabel(jobById.get(id))}>
+                  {short(id)}
+                  <span className="seg-count">{(rows ?? []).filter((r) => r.job_id === id).length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {error && <p className="error">{error}</p>}
         {rows === null && !error && <p className="muted">Loading…</p>}
-        {rows && rows.length === 0 && <p className="muted">You haven't raised any requisitions yet.</p>}
-        {rows && rows.length > 0 && (
+        {rows && shown.length === 0 && <p className="muted">{rows.length === 0 ? 'No requisitions on your sites yet.' : 'None for this site.'}</p>}
+        {shown.length > 0 && (
           <table className="table stack">
             <thead>
               <tr>
                 <th>Ref</th>
                 <th>Site</th>
                 <th>What’s needed</th>
+                <th>Raised by</th>
                 <th>Needed by</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
                   <td className="stack-title nowrap">
                     <strong>{reqRef(r)}</strong>
                   </td>
                   <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
                   <td data-label="What">{r.element}</td>
+                  <td data-label="Raised by">{r.requested_by === userId ? 'Me' : r.requester_name}</td>
                   <td className="nowrap" data-label="Needed by">
                     {ukDate(r.required_by)}
                   </td>
@@ -737,12 +782,16 @@ export function RequisitionPage() {
             )
           })}
         </ul>
-        <form onSubmit={send} className="req-reply">
-          <textarea rows={3} value={draft} placeholder={isRequester ? 'Your answer…' : 'Your question for the requester…'} onChange={(e) => setDraft(e.target.value)} />
-          <button className="primary" disabled={busy || !draft.trim()}>
-            {isRequester ? 'Send answer' : 'Ask requester'}
-          </button>
-        </form>
+        {isRequester || asBuyer ? (
+          <form onSubmit={send} className="req-reply">
+            <textarea rows={3} value={draft} placeholder={isRequester ? 'Your answer…' : 'Your question for the requester…'} onChange={(e) => setDraft(e.target.value)} />
+            <button className="primary" disabled={busy || !draft.trim()}>
+              {isRequester ? 'Send answer' : 'Ask requester'}
+            </button>
+          </form>
+        ) : (
+          <p className="muted small">Only the person who raised it and the buyer can reply here.</p>
+        )}
       </section>
 
       {asBuyer && (

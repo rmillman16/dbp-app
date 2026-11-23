@@ -93,6 +93,7 @@
       - **Form** (`/site/requisitions/hire/new`): Site name, Hire requisition (as much detail as possible, including accessories), Hire period start date (date required on site; starts 3 days from today), Hire end date (if known), Notes and Attachments. Its short title is the first line of what's needed.
       - **Hire buyer's list**, laid out like the SharePoint hire list: Site, Hire requisition, Hire start, Hire end, Notes, Status, Buyer notes and Created.
       - On a hire requisition's page, the buyer's fields are Hire company and On site.
+    - **Requisitions for my sites (23 Nov, 051):** replaces My requisitions. It shows every requisition on the jobs you're on the Team of (Overview › Team), plus any you raised, with a filter button per site and a Raised by column. Team members can read a requisition and its conversation, but only the requester and the buyer can reply.
     - **After submitting either form** (22 Nov): back to a blank form, with the site kept, and a green banner ("MR0012 sent to the buyer. Add another below, or view it").
     - **The back ends are named "Material Req - ADMIN" and "Hire Req - ADMIN"** (22 Nov).
     - **On hire / off-hire (039):**
