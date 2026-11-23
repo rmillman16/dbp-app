@@ -30,6 +30,7 @@ import CvrEditor from './pages/CvrEditor'
 import OmTab from './pages/OmTab'
 import RfiTab from './pages/RfiTab'
 import RfiPage from './pages/RfiPage'
+import EnquiryRfis from './pages/EnquiryRfis'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
@@ -189,6 +190,26 @@ export default function App() {
             element={
               <A section="estimating">
                 <EnquiryProgramme />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/rfis"
+            element={
+              <A section="estimating">
+                <EnquiryRfis>
+                  <RfiTab />
+                </EnquiryRfis>
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/rfis/:rfiId"
+            element={
+              <A section="estimating">
+                <EnquiryRfis>
+                  <RfiPage />
+                </EnquiryRfis>
               </A>
             }
           />

@@ -13,7 +13,10 @@ type Contact = { id: string; company_id: string; name: string; role: string | nu
 // the role each plays here. Companies come from the Contractors list (subcontractors, suppliers, consultants, the client's
 // team…); one company can have several people on the job. RFIs and submittals are addressed from this list, and the
 // external people on it are the ones who can be sent RFIs to answer.
-export default function ProjectDirectory({ job }: { job: Job }) {
+export default function ProjectDirectory({ job, enquiryId }: { job?: Job; enquiryId?: string }) {
+  const isJob = !!job
+  const ownerId = (job?.id ?? enquiryId) as string
+  const owner = { kind: (isJob ? 'job' : 'enquiry') as 'job' | 'enquiry', id: ownerId }
   const [team, setTeam] = useState<TeamMember[]>([])
   const [entries, setEntries] = useState<DirectoryEntry[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -25,11 +28,11 @@ export default function ProjectDirectory({ job }: { job: Job }) {
 
   const load = useCallback(async () => {
     const [t, d, c, p, o] = await Promise.all([
-      loadTeam(job.id).catch(() => [] as TeamMember[]),
-      supabase.from('job_directory').select('*').eq('job_id', job.id),
+      (isJob ? loadTeam(ownerId) : Promise.resolve([] as TeamMember[])).catch(() => [] as TeamMember[]),
+      supabase.from('job_directory').select('*').eq(isJob ? 'job_id' : 'enquiry_id', ownerId),
       supabase.from('companies').select('*').order('name'),
       supabase.from('contacts').select('*').order('name'),
-      supabase.from('orders').select('company_id, trade').eq('job_id', job.id),
+      isJob ? supabase.from('orders').select('company_id, trade').eq('job_id', ownerId) : Promise.resolve({ data: [] as { company_id: string; trade: string | null }[], error: null }),
     ])
     setTeam(t)
     setEntries((d.data ?? []).filter((e) => !(e as DirectoryEntry).client_direct) as DirectoryEntry[])
@@ -37,7 +40,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
     setContacts((p.data ?? []) as Contact[])
     setOrderCompanies((o.data ?? []) as { company_id: string; trade: string | null }[])
     if (d.error) setError(d.error.message)
-  }, [job.id])
+  }, [ownerId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     load()
   }, [load])
@@ -68,7 +71,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
     const todo = orderCompanies.filter((o, i, a) => !have.has(o.company_id) && a.findIndex((x) => x.company_id === o.company_id) === i)
     try {
       const added: DirectoryEntry[] = []
-      for (const o of todo) added.push(await addDirectoryEntry({ job_id: job.id, company_id: o.company_id, contact_id: null, role: o.trade || 'Subcontractor', client_direct: false }))
+      for (const o of todo) added.push(await addDirectoryEntry({ job_id: ownerId, company_id: o.company_id, contact_id: null, role: o.trade || 'Subcontractor', client_direct: false }))
       setEntries((l) => [...l, ...added])
       setMsg(added.length ? `Added ${added.length} compan${added.length === 1 ? 'y' : 'ies'} from this job's orders. Add their people below.` : "Every company with an order on this job is already in the directory.")
     } catch (x) {
@@ -95,7 +98,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
       {msg && <p className="saved">{msg}</p>}
       {adding && (
         <AddToDirectory
-          job={job}
+          owner={owner}
           companies={companies}
           contacts={contacts}
           onCompany={(c) => setCompanies((l) => [...l, c].sort((a, b) => a.name.localeCompare(b.name)))}
@@ -108,10 +111,10 @@ export default function ProjectDirectory({ job }: { job: Job }) {
         />
       )}
 
-      <h3 className="sub-head">DBP</h3>
-      {team.length === 0 ? (
+      {isJob && <h3 className="sub-head">DBP</h3>}
+      {isJob && team.length === 0 ? (
         <p className="muted small">Nobody on the job's team yet: add them under Team below.</p>
-      ) : (
+      ) : !isJob ? null : (
         <ul className="dir-people">
           {team.map((t) => (
             <li key={t.profile_id + t.role}>
@@ -161,7 +164,7 @@ export default function ProjectDirectory({ job }: { job: Job }) {
 
 // pick (or make) a company, tick the people from it who work on this job, give the role
 function AddToDirectory({
-  job,
+  owner,
   companies,
   contacts,
   onCompany,
@@ -169,7 +172,7 @@ function AddToDirectory({
   onAdded,
   onCancel,
 }: {
-  job: Pick<Job, 'id'>
+  owner: { kind: 'job' | 'enquiry'; id: string }
   companies: Company[]
   contacts: Contact[]
   onCompany: (c: Company) => void
@@ -216,7 +219,15 @@ function AddToDirectory({
       }
       const rows: DirectoryEntry[] = []
       // no person ticked: the company on its own
-      for (const cid of ids.length ? ids : [null]) rows.push(await addDirectoryEntry({ job_id: job.id, company_id: companyId, contact_id: cid, role: role.trim(), client_direct: false }))
+      for (const cid of ids.length ? ids : [null]) {
+        const ins = await supabase
+          .from('job_directory')
+          .insert({ job_id: owner.kind === 'job' ? owner.id : null, enquiry_id: owner.kind === 'enquiry' ? owner.id : null, company_id: companyId, contact_id: cid, role: role.trim(), client_direct: false })
+          .select('*')
+          .single()
+        if (ins.error) throw ins.error
+        rows.push(ins.data as DirectoryEntry)
+      }
       onAdded(rows)
     } catch (e) {
       setError(saveError(e))

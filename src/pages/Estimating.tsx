@@ -8,6 +8,7 @@ import { createQuotation, enquiryRef, fullRef, loadQuotations } from '../lib/quo
 import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryStatus, type Quotation } from '../lib/types'
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
+import ProjectDirectory from '../components/ProjectDirectory'
 import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
@@ -384,14 +385,9 @@ export function EnquiryPage() {
           </p>
         </section>
 
-        {/* tender RFIs: coming soon (23 Nov) */}
-        <section className="card coming-card">
-          <div className="pane-head">
-            <h2>RFIs</h2>
-            <span className="soon">soon</span>
-          </div>
-          <p className="muted small">Tender queries to the client / design team: who they're with, response due dates and reminders.</p>
-        </section>
+        {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
+        <EnquiryRfiCard e={e} />
+        {!e.job_id && <ProjectDirectory enquiryId={e.id} />}
 
         <section className="card">
           <div className="pane-head">
@@ -420,6 +416,50 @@ export function EnquiryPage() {
         </section>
       </div>
     </>
+  )
+}
+
+// tender RFIs at a glance (23 Nov, script 059)
+function EnquiryRfiCard({ e }: { e: Enquiry }) {
+  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
+  useEffect(() => {
+    if (e.job_id) return
+    supabase
+      .from('rfis')
+      .select('status, due_date')
+      .eq('enquiry_id', e.id)
+      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
+  }, [e.id, e.job_id])
+  const today = todayIso()
+  const open = (rows ?? []).filter((r) => r.status === 'open')
+  const late = open.filter((r) => r.due_date && r.due_date < today).length
+  const answered = (rows ?? []).filter((r) => r.status === 'answered').length
+  return (
+    <section className="card">
+      <div className="pane-head">
+        <h2>RFIs</h2>
+        {e.job_id ? (
+          <Link to={`/jobs/${e.job_id}/rfis`} className="button">
+            Open the job's RFIs →
+          </Link>
+        ) : (
+          <Link to={`/estimating/e/${e.id}/rfis`} className="button primary">
+            Open RFIs
+          </Link>
+        )}
+      </div>
+      {e.job_id ? (
+        <p className="muted small">This enquiry was won; its RFIs are now in the job's RFIs tab.</p>
+      ) : rows === null ? (
+        <p className="muted small">Tender queries to the client and design team. RFIs on estimates need script 059 run in Supabase first.</p>
+      ) : rows.length === 0 ? (
+        <p className="muted small">No tender RFIs yet. They move to the job when the enquiry is won.</p>
+      ) : (
+        <p>
+          <strong>{open.length}</strong> open{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
+        </p>
+      )}
+    </section>
   )
 }
 

@@ -1,7 +1,6 @@
 // The RFI register as Excel and as a PDF report (23 Nov). Both take the same rows, so the weekly "unanswered RFIs"
 // report is just this with only the open ones. Excel: the register (filterable) and every reply. PDF: A4 landscape,
 // the register table with the question under each RFI.
-import type { Job } from './types'
 import { todayIso, ukDate } from './format'
 import { STATUS_LABELS, chaseLabel, daysOpen, isOverdue, type Rfi } from './rfis'
 import { htmlToText } from './richText'
@@ -16,17 +15,19 @@ export interface RegisterRow {
   receivedFrom: string
   replies: { at: string; by: string; kind: string; text: string }[]
 }
-const fileBase = (job: Pick<Job, 'job_no' | 'code'>, title: string) => safeName(`${job.job_no} ${job.code} ${title} ${todayIso()}`)
+// what the reports are headed with: the job ("2611 FISL") or the enquiry ("E012")
+export type ReportOwner = { ref: string; name: string }
+const fileBase = (o: ReportOwner, title: string) => safeName(`${o.ref} ${title} ${todayIso()}`)
 
 // ---------- Excel ----------
-export async function exportRfisExcel(job: Pick<Job, 'job_no' | 'code' | 'name'>, rows: RegisterRow[], title = 'RFI register') {
+export async function exportRfisExcel(job: ReportOwner, rows: RegisterRow[], title = 'RFI register') {
   const { wb } = await newWorkbook()
   const ws = wb.addWorksheet('RFIs', { views: [{ state: 'frozen', ySplit: 4 }] })
   const cols: [string, number][] = [
     ['RFI', 7], ['Title', 38], ['Status', 11], ['Trade', 14], ['Assignees', 30], ['RFI manager', 18], ['Received from', 24], ['Cc', 26],
     ['Created', 12], ['Due', 12], ['Answered', 12], ['Closed', 12], ['Days open', 10], ['Chased', 15], ['Question', 60],
   ]
-  ws.getCell('A1').value = `${job.job_no} ${job.code} ${job.name}`
+  ws.getCell('A1').value = `${job.ref} ${job.name}`
   ws.getCell('A1').font = { bold: true, size: 14 }
   ws.getCell('A2').value = `${title}, ${ukDate(todayIso())} (${rows.length} RFI${rows.length === 1 ? '' : 's'})`
   const head = ws.getRow(4)
@@ -87,10 +88,10 @@ const M = 36
 // the built-in font only shows Latin-1 and a few more
 const clean = (s: string) => s.replace(/[•]/g, '-').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/\t/g, ' ').replace(/[^\n\x20-\x7e\xa0-\xff]/g, '?')
 
-export async function exportRfisPdf(job: Pick<Job, 'job_no' | 'code' | 'name'>, rows: RegisterRow[], title = 'RFI register') {
+export async function exportRfisPdf(job: ReportOwner, rows: RegisterRow[], title = 'RFI register') {
   const PDFLib: PdfLib = await import('pdf-lib')
   const doc = await PDFLib.PDFDocument.create()
-  doc.setTitle(`${job.job_no} ${job.code} ${job.name}: ${title}`)
+  doc.setTitle(`${job.ref} ${job.name}: ${title}`)
   doc.setCreator('DBP app')
   const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica)
   const bold = await doc.embedFont(PDFLib.StandardFonts.HelveticaBold)
@@ -124,7 +125,7 @@ export async function exportRfisPdf(job: Pick<Job, 'job_no' | 'code' | 'name'>, 
   let y = H - M
   const pageHead = (first: boolean) => {
     if (first) {
-      page.drawText(clean(`${job.job_no} ${job.code} ${job.name}`), { x: M, y, size: 15, font: bold, color: navy })
+      page.drawText(clean(`${job.ref} ${job.name}`), { x: M, y, size: 15, font: bold, color: navy })
       y -= 18
       page.drawText(clean(`${title} - ${ukDate(today)} - ${rows.length} RFI${rows.length === 1 ? '' : 's'}`), { x: M, y, size: 10, font, color: grey })
       y -= 22

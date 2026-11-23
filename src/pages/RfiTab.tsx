@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
-import { useJob } from './JobLayout'
+import { ownerKeys, useRfiOwner } from '../lib/rfiOwner'
 import { CHASE_OPTIONS, STATUS_LABELS, addTrade, chaseLabel, createRfi, daysOpen, fillFromTemplate, isOverdue, loadRfis, nextNumber, saveTemplate, type Rfi, type RfiPerson, type RfiStatus } from '../lib/rfis'
 import { keyOf, refOf, useRfiContext } from '../lib/rfiContext'
 import { exportRfisExcel, exportRfisPdf } from '../lib/exportRfis'
@@ -18,9 +18,9 @@ type Filter = 'open' | 'answered' | 'closed' | 'all'
 
 // Job › RFIs (23 Nov, script 057): the register, with Excel and PDF reports, and the Create RFI form.
 export default function RfiTab() {
-  const { job } = useJob()
+  const owner = useRfiOwner()
   const navigate = useNavigate()
-  const ctx = useRfiContext(job.id)
+  const ctx = useRfiContext(owner)
   const [data, setData] = useState<{ rfis: Rfi[]; people: RfiPerson[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -33,10 +33,10 @@ export default function RfiTab() {
   const { me: meNow } = useAccess()
   const today = todayIso()
 
-  const load = () => loadRfis(job.id).then(setData, (e: Error) => (setError(e.message), setData({ rfis: [], people: [] })))
+  const load = () => loadRfis(owner).then(setData, (e: Error) => (setError(e.message), setData({ rfis: [], people: [] })))
   useEffect(() => {
     load()
-  }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [owner.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = useMemo(() => (data ? data.rfis.map((r) => ctx.rowFor(r, data.people.filter((p) => p.rfi_id === r.id))) : []), [data, ctx.dir, ctx.profiles]) // eslint-disable-line react-hooks/exhaustive-deps
   const shown = rows.filter(({ rfi: r, assignees }) => {
@@ -65,9 +65,9 @@ export default function RfiTab() {
           return ctx.rowFor(d.rfi, d.people, d.responses)
         }),
       )
-      if (kind === 'xlsx') await exportRfisExcel(job, withReplies, filter === 'all' ? 'RFI register' : `RFI register (${filter})`)
-      else if (kind === 'pdf') await exportRfisPdf(job, withReplies, filter === 'all' ? 'RFI register' : `RFI register (${filter})`)
-      else await exportRfisPdf(job, withReplies, 'Unanswered RFIs')
+      if (kind === 'xlsx') await exportRfisExcel(owner, withReplies, filter === 'all' ? 'RFI register' : `RFI register (${filter})`)
+      else if (kind === 'pdf') await exportRfisPdf(owner, withReplies, filter === 'all' ? 'RFI register' : `RFI register (${filter})`)
+      else await exportRfisPdf(owner, withReplies, 'Unanswered RFIs')
     } catch (e) {
       setError((e as Error).message)
     }
@@ -98,7 +98,7 @@ export default function RfiTab() {
         </span>
       </div>
       {error && <p className="error">{error}</p>}
-      {tpls && ctx.ready && <JobRfiTemplates jobId={job.id} ctx={ctx} me={meNow?.id ?? null} onClose={() => setTpls(false)} />}
+      {tpls && ctx.ready && <JobRfiTemplates owner={owner} ctx={ctx} me={meNow?.id ?? null} onClose={() => setTpls(false)} />}
       {creating && ctx.ready && (
         <CreateRfi
           ctx={ctx}
@@ -193,7 +193,7 @@ export default function RfiTab() {
 
 // ---------- Create RFI (the form as the screenshot) ----------
 function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfiContext>; onCancel: () => void; onCreated: (r: Rfi) => void }) {
-  const { job } = useJob()
+  const owner = useRfiOwner()
   const { me } = useAccess()
   const [f, setF] = useState({
     template_id: '',
@@ -217,8 +217,8 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((c) => ({ ...c, [k]: v }))
 
   useEffect(() => {
-    nextNumber(job.id).then((n) => setF((c) => ({ ...c, number: c.number || String(n) })))
-  }, [job.id])
+    nextNumber(owner).then((n) => setF((c) => ({ ...c, number: c.number || String(n) })))
+  }, [owner.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function applyTemplate(id: string) {
     const t = ctx.templates.find((x) => x.id === id)
@@ -255,7 +255,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
     try {
       const r = await createRfi(
         {
-          job_id: job.id,
+          ...ownerKeys(owner),
           number: f.number ? Number(f.number) : null,
           title: f.title.trim(),
           question: f.question,
@@ -317,7 +317,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
               try {
                 await saveTemplate({
                   name: name.trim(),
-                  job_id: job.id,
+                  ...ownerKeys(owner),
                   trade: f.trade.trim() || null,
                   manager_id: f.manager_id || null,
                   assignee_keys: assignees,
@@ -339,7 +339,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
             Save these people as a template for this project
           </button>
         )}
-        {missing.length > 0 && <span className="hint warn">No one on this job is set as: {missing.join(', ')}. Add them in the Project directory, or pick people below.</span>}
+        {missing.length > 0 && <span className="hint warn">No one on this {owner.kind === 'job' ? 'job' : 'enquiry'} is set as: {missing.join(', ')}. Add them in the Project directory, or pick people below.</span>}
       </label>
       <div className="form-grid">
         <label>

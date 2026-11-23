@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { saveError } from '../lib/offline'
 import { CHASE_OPTIONS, addTrade, archiveTemplate, fillFromTemplate, saveTemplate, type RfiTemplate } from '../lib/rfis'
 import { keyOf, type useRfiContext } from '../lib/rfiContext'
+import { ownerKeys, type RfiOwner } from '../lib/rfiOwner'
 import PeoplePicker from './PeoplePicker'
 import SuggestInput from './SuggestInput'
 
@@ -22,12 +23,12 @@ type Draft = {
 }
 const blank: Draft = { name: '', trade: '', manager_id: '', assignees: [], cc: [], title_prefix: '', question: '', due_days: '5', chase_days: 7 }
 
-export default function JobRfiTemplates({ jobId, ctx, me, onClose }: { jobId: string; ctx: ReturnType<typeof useRfiContext>; me: string | null; onClose: () => void }) {
+export default function JobRfiTemplates({ owner, ctx, me, onClose }: { owner: RfiOwner; ctx: ReturnType<typeof useRfiContext>; me: string | null; onClose: () => void }) {
   const [d, setD] = useState<Draft | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const mine = ctx.templates.filter((t) => t.job_id === jobId)
-  const standard = ctx.templates.filter((t) => !t.job_id)
+  const mine = ctx.templates.filter((t) => (owner.kind === 'job' ? t.job_id === owner.id : t.enquiry_id === owner.id))
+  const standard = ctx.templates.filter((t) => !t.job_id && !t.enquiry_id)
   const keys = (t: RfiTemplate) => t
 
   const fromTemplate = (t: RfiTemplate): Draft => {
@@ -55,7 +56,7 @@ export default function JobRfiTemplates({ jobId, ctx, me, onClose }: { jobId: st
       await saveTemplate({
         ...(d.id ? { id: d.id } : {}),
         name: d.name.trim(),
-        job_id: jobId,
+        ...ownerKeys(owner),
         trade: d.trade.trim() || null,
         manager_id: d.manager_id || null,
         assignee_keys: d.assignees,

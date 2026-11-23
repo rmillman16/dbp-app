@@ -4,7 +4,7 @@ import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
 import { nudgeEmails } from '../lib/notifications'
-import { useJob } from './JobLayout'
+import { useRfiOwner } from '../lib/rfiOwner'
 import {
   CHASE_OPTIONS,
   STATUS_LABELS,
@@ -34,10 +34,10 @@ import SuggestInput from '../components/SuggestInput'
 
 // Job › RFIs › one RFI: the question, who it's with, replies, files; DBP's RFI manager closes it.
 export default function RfiPage() {
-  const { job } = useJob()
+  const owner = useRfiOwner()
   const { rfiId } = useParams()
   const { me, isAdmin } = useAccess()
-  const ctx = useRfiContext(job.id)
+  const ctx = useRfiContext(owner)
   const [d, setD] = useState<{ rfi: Rfi; people: RfiPerson[]; responses: RfiResponse[]; files: RfiFile[] } | null>(null)
   const [edit, setEdit] = useState<(Omit<Rfi, 'id'> & { assignees: string[]; cc: string[] }) | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -134,7 +134,7 @@ export default function RfiPage() {
     <div className="quote-editor rfi-page">
       <div className="sub-bar">
         <div>
-          <Link to={`/jobs/${job.id}/rfis`} className="link-button small">
+          <Link to={owner.base} className="link-button small">
             ← All RFIs
           </Link>
           <h2>
@@ -144,7 +144,7 @@ export default function RfiPage() {
           {isOverdue(rfi, today) && <span className="late"> ⚠ overdue</span>}
         </div>
         <div className="button-row">
-          <button onClick={() => exportRfisPdf(job, [ctx.rowFor(rfi, people, responses)], `RFI ${rfi.number}`).catch((e) => setError((e as Error).message))}>PDF</button>
+          <button onClick={() => exportRfisPdf(owner, [ctx.rowFor(rfi, people, responses)], `RFI ${rfi.number}`).catch((e) => setError((e as Error).message))}>PDF</button>
           {!finished && canClose && (
             <button className="primary" disabled={busy} onClick={() => confirm(`Close RFI ${rfi.number}? It stops being chased.`) && setStatus('closed', 'Closed.')}>
               Close RFI

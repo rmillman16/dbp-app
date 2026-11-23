@@ -17,9 +17,14 @@ export const CHASE_OPTIONS: [number, string][] = [
 ]
 export const chaseLabel = (d: number) => CHASE_OPTIONS.find(([n]) => n === d)?.[1] ?? `Every ${d} days`
 
+// an RFI belongs to a job or to an Estimating enquiry (script 059)
+export type OwnerRef = { kind: 'job' | 'enquiry'; id: string }
+const ownerCol = (o: OwnerRef) => (o.kind === 'job' ? 'job_id' : 'enquiry_id')
+
 export interface Rfi {
   id: string
-  job_id: string
+  job_id: string | null
+  enquiry_id?: string | null
   number: number
   title: string
   question: string | null
@@ -77,6 +82,7 @@ export interface RfiTemplate {
   sort: number
   // 058: a template can belong to one job, with its people named outright
   job_id?: string | null
+  enquiry_id?: string | null
   assignee_keys?: string[]
   cc_keys?: string[]
   manager_id?: string | null
@@ -99,9 +105,9 @@ export interface DirPerson {
   role: string
   email: string | null
 }
-export async function loadDirPeople(jobId: string): Promise<DirPerson[]> {
+export async function loadDirPeople(o: OwnerRef): Promise<DirPerson[]> {
   const [d, c, p] = await Promise.all([
-    supabase.from('job_directory').select('id, company_id, contact_id, role, client_direct').eq('job_id', jobId),
+    supabase.from('job_directory').select('id, company_id, contact_id, role, client_direct').eq(ownerCol(o), o.id),
     supabase.from('companies').select('id, name, email'),
     supabase.from('contacts').select('id, name, email'),
   ])
@@ -126,10 +132,12 @@ export async function addTrade(name: string) {
 }
 
 // ---------- templates ----------
-// the standard templates (Settings), plus this job's own when a job is given. Before script 058 only the standard ones exist.
-export async function loadTemplates(jobId?: string): Promise<RfiTemplate[]> {
+// the standard templates (Settings), plus this job's or enquiry's own when given. Before script 058 / 059 only the standard ones exist.
+export async function loadTemplates(o?: OwnerRef): Promise<RfiTemplate[]> {
   const base = () => supabase.from('rfi_templates').select('*').eq('archived', false)
-  let r = await (jobId ? base().or(`job_id.is.null,job_id.eq.${jobId}`) : base().is('job_id', null)).order('sort').order('name')
+  const std = 'and(job_id.is.null,enquiry_id.is.null)'
+  let r = await (o ? base().or(`${std},${o.kind === 'job' ? 'job_id' : 'enquiry_id'}.eq.${o.id}`) : base().is('job_id', null)).order('sort').order('name')
+  if (r.error && o) r = await base().or(`job_id.is.null,job_id.eq.${o.kind === 'job' ? o.id : '00000000-0000-0000-0000-000000000000'}`).order('sort').order('name') // before 059
   if (r.error) r = await base().order('sort').order('name') // before 058
   if (r.error) return []
   return r.data as RfiTemplate[]
@@ -182,7 +190,7 @@ export interface Filled {
 export function fillFromTemplate(t: RfiTemplate, dir: DirPerson[], team: TeamMember[], me: string | null): Filled {
   const missing: string[] = []
   // a project template names its people outright; those no longer on the job are dropped with a note
-  if (t.job_id || t.assignee_keys?.length || t.cc_keys?.length) {
+  if (t.job_id || t.enquiry_id || t.assignee_keys?.length || t.cc_keys?.length) {
     const valid = new Set([...dir.map((p) => `d:${p.id}`), ...team.map((m) => `p:${m.profile_id}`)])
     const toRef = (k: string): PersonRef => (k.startsWith('d:') ? { directory_id: k.slice(2) } : { profile_id: k.slice(2) })
     const keep = (keys: string[] = []) => keys.filter((k) => (valid.has(k) ? true : (missing.push('someone who has left the job'), false))).map(toRef)
@@ -226,8 +234,8 @@ export function fillFromTemplate(t: RfiTemplate, dir: DirPerson[], team: TeamMem
 }
 
 // ---------- loading ----------
-export async function loadRfis(jobId: string) {
-  const rfis = await ok<Rfi[]>(supabase.from('rfis').select('*').eq('job_id', jobId).order('number', { ascending: false }))
+export async function loadRfis(o: OwnerRef) {
+  const rfis = await ok<Rfi[]>(supabase.from('rfis').select('*').eq(ownerCol(o), o.id).order('number', { ascending: false }))
   const ids = rfis.map((r) => r.id)
   const people = ids.length ? await ok<RfiPerson[]>(supabase.from('rfi_people').select('*').in('rfi_id', ids)) : []
   return { rfis, people }
@@ -241,14 +249,15 @@ export async function loadRfi(id: string) {
   ])
   return { rfi, people, responses, files }
 }
-export const nextNumber = async (jobId: string) => {
-  const r = await supabase.from('rfis').select('number').eq('job_id', jobId).order('number', { ascending: false }).limit(1)
+export const nextNumber = async (o: OwnerRef) => {
+  const r = await supabase.from('rfis').select('number').eq(ownerCol(o), o.id).order('number', { ascending: false }).limit(1)
   return ((r.data?.[0]?.number as number | undefined) ?? 0) + 1
 }
 
 // ---------- creating and changing ----------
 export interface NewRfi {
-  job_id: string
+  job_id: string | null
+  enquiry_id: string | null
   number: number | null
   title: string
   question: string
@@ -280,7 +289,7 @@ export async function createRfi(n: NewRfi, files: File[]) {
   for (const f of files) await addRfiFile(rfi.id, f, null)
   return rfi
 }
-export async function updateRfi(id: string, patch: Partial<Omit<Rfi, 'id' | 'job_id' | 'created_at'>>) {
+export async function updateRfi(id: string, patch: Partial<Omit<Rfi, 'id' | 'job_id' | 'enquiry_id' | 'created_at'>>) {
   const r = await supabase.from('rfis').update(patch).eq('id', id).select('*').single()
   if (r.error) throw fail(r.error)
   return r.data as Rfi

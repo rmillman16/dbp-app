@@ -75,11 +75,12 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
   if (claim.error) return 0; // already sent this week (or script 057 not run)
   const { data: rfis } = await db
     .from("rfis")
-    .select("id, job_id, number, title, trade, due_date, created_at, manager_id, jobs(job_no, code, name, status)")
+    .select("id, job_id, enquiry_id, number, title, trade, due_date, created_at, manager_id, jobs(job_no, code, name, status), enquiries(enquiry_no, status)")
     .eq("status", "open")
     .order("created_at");
+  // a job's (not archived) or an estimate's (not lost)
   // deno-lint-ignore no-explicit-any
-  const open = (rfis ?? []).filter((r: any) => r.manager_id && r.jobs && r.jobs.status !== "archived");
+  const open = (rfis ?? []).filter((r: any) => r.manager_id && ((r.jobs && r.jobs.status !== "archived") || (r.enquiries && r.enquiries.status !== "lost")));
   if (!open.length) return 0;
   // deno-lint-ignore no-explicit-any
   const ids = [...new Set(open.map((r: any) => r.manager_id as string))];
@@ -97,8 +98,9 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
         const late = r.due_date && r.due_date < week;
         const days = Math.floor((now.getTime() - new Date(r.created_at).getTime()) / 86400000);
         const due = r.due_date ? r.due_date.split("-").reverse().join("/") : "–";
-        const link = `${appUrl}/jobs/${r.job_id}/rfis/${r.id}`;
-        return `<tr><td style="${cell}"><a href="${esc(link)}">${esc(r.jobs.job_no + " " + r.jobs.code)} RFI ${r.number}</a></td><td style="${cell}">${esc(r.title)}</td><td style="${cell}">${esc(r.trade ?? "")}</td><td style="${cell}${late ? ";color:#c00;font-weight:600" : ""}">${due}${late ? " (overdue)" : ""}</td><td style="${cell}">${days} days</td></tr>`;
+        const link = r.enquiry_id ? `${appUrl}/estimating/e/${r.enquiry_id}/rfis/${r.id}` : `${appUrl}/jobs/${r.job_id}/rfis/${r.id}`;
+        const label = r.enquiry_id ? "E" + String(r.enquiries.enquiry_no).padStart(3, "0") : r.jobs.job_no + " " + r.jobs.code;
+        return `<tr><td style="${cell}"><a href="${esc(link)}">${esc(label)} RFI ${r.number}</a></td><td style="${cell}">${esc(r.title)}</td><td style="${cell}">${esc(r.trade ?? "")}</td><td style="${cell}${late ? ";color:#c00;font-weight:600" : ""}">${due}${late ? " (overdue)" : ""}</td><td style="${cell}">${days} days</td></tr>`;
       })
       .join("");
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f1d2b"><p style="font-size:17px;font-weight:600">Your unanswered RFIs (${mine.length})</p><table style="border-collapse:collapse"><tr style="background:#eef2ff;text-align:left"><th style="${cell}">RFI</th><th style="${cell}">Title</th><th style="${cell}">Trade</th><th style="${cell}">Due</th><th style="${cell}">Open for</th></tr>${rows}</table><p style="font-size:12px;color:#777">Weekly list from the DBP app. Open an RFI to chase it or close it.</p></div>`;
