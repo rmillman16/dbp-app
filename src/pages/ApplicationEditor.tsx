@@ -430,7 +430,7 @@ function Num({ label, value, onChange }: { label: string; value: number | null |
   )
 }
 
-// The front sheet on screen: this application, Client assessment, previous application, movement.
+// The front sheet on screen: this application, Client assessment, previous application (no movement: that is for payment notices).
 export const FRONT_ROWS: [keyof FrontSheet, string, boolean?][] = [
   ['contractSum', 'Contract sum'],
   ['psum', 'Psum adjustment'],
@@ -459,7 +459,6 @@ function FrontSheetTable({ fs, client, prev, prevName }: { fs: FrontSheet; clien
           <th className="num">This application</th>
           {client && <th className="num">Client assessment</th>}
           {prev && <th className="num">{prevName}</th>}
-          {prev && <th className="num">Movement</th>}
         </tr>
       </thead>
       <tbody>
@@ -475,7 +474,6 @@ function FrontSheetTable({ fs, client, prev, prevName }: { fs: FrontSheet; clien
               <td className="num">{money(fs[k])}</td>
               {client && <td className="num">{finalAccount ? '' : money(client[k])}</td>}
               {prev && <td className="num">{money(prev[k])}</td>}
-              {prev && <td className="num">{finalAccount ? '' : money(fs[k] - prev[k])}</td>}
             </tr>
           )
         })}

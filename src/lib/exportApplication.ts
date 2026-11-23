@@ -1,7 +1,8 @@
 // Excel export of a client application, laid out as
 // reference/templates/2611 FISL - Micro - Application 2 R2 - 30.10.2026.xlsx:
 //   1. Anticipated Final Account (front sheet), with Client Assessment, previous
-//      application and movement columns filled from the app (not copied by hand)
+//      application column filled from the app (not copied by hand). No "movement in the month": that
+//      belongs on a payment notice to a subcontractor, not on an application to the client.
 //   2. the priced SoW (tab named after its revision, e.g. "R5") with dbp Application %/£,
 //      dbp comments and Client Assessment %/£
 //   3. VO Summary with % Claimed, £ Claimed and comments
@@ -11,7 +12,7 @@ import type { Application, ApplicationLine, Job, SowLine } from './types'
 import type { VoWithLines } from './variations'
 import type { FrontSheet } from './applications'
 import { appName } from './applications'
-import { download, excelDate, fill, newWorkbook, placeLogo, ref, safeName, setupPage } from './excel'
+import { download, excelDate, fill, fitWidths, newWorkbook, placeLogo, ref, safeName, setupPage } from './excel'
 import { STATUS_FILL } from './exportVariations'
 
 const ACC = '#,##0.00 ;[Red](#,##0.00)' // front sheet, as the template
@@ -45,19 +46,21 @@ export async function exportApplication(d: AppDoc) {
   const voTotals = buildVoSummary(voWs, d)
   buildFrontSheet(afa, d, `'${sowName}'!J${sowTotals.mainRow}`, voTotals)
 
-  for (const [ws, widths, last, orient, titles, onePage] of [
-    [afa, AFA_WIDTHS, 52, 'landscape', undefined, true],
-    [sowWs, SOW_WIDTHS, sowTotals.lastRow, 'landscape', '5:5', false],
-    [voWs, VO_WIDTHS, voTotals.lastRow, 'landscape', '11:11', false],
+  for (const [ws, base, last, orient, titles, onePage, fromRow] of [
+    [afa, AFA_WIDTHS, 52, 'landscape', undefined, true, 12],
+    [sowWs, SOW_WIDTHS, sowTotals.lastRow, 'landscape', '5:5', false, 5],
+    [voWs, VO_WIDTHS, voTotals.lastRow, 'landscape', '11:11', false, 11],
   ] as const) {
-    placeLogo(ws, logoId, [...widths], setupPage(ws, [...widths], last, orient, titles, onePage))
+    // wide enough for the figures and short text in each column (the layout's widths are the minimum)
+    const widths = fitWidths(ws, [...base], { fromRow, skipRows: ws === afa ? [52] : [] })
+    placeLogo(ws, logoId, widths, setupPage(ws, widths, last, orient, titles, onePage))
   }
 
   await download(wb, safeName(`${d.job.job_no} ${d.job.code} - ${d.job.name} - ${appName(d.app)}${d.app.valuation_date ? ` - ${d.app.valuation_date.split('-').reverse().join('.')}` : ''}`) + '.xlsx')
 }
 
 // ---------- 1. Anticipated Final Account ----------
-const AFA_WIDTHS = [5.45, 20.45, 25.45, 20.45, 5.45, 20.45, 5.45, 22.82, 5.45, 9.09, 20.45, 5.45, 20.45]
+const AFA_WIDTHS = [5.45, 20.45, 25.45, 20.45, 5.45, 20.45, 5.45, 22.82, 5.45, 9.09, 20.45, 5.45]
 
 function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: { projectedRef: string; claimedRef: string }) {
   const { job, app, fs, fsClient: cl, fsPrev: pv } = d
@@ -91,8 +94,6 @@ function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: 
   if (pv) {
     set('K11', 'Previous Application', { font: bold, alignment: { horizontal: 'center' } })
     set('K12', d.prevName ?? '', { alignment: { horizontal: 'center' } })
-    ws.mergeCells('M11:M12')
-    set('M11', 'Movement\nin the Month', { font: bold, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } })
     ws.getRow(11).height = 18
   }
 
@@ -133,10 +134,6 @@ function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: 
     if (pv) {
       const k = set(`K${r}`, pv[key], { numFmt: ACC, font: isTotal ? bold : font })
       k.border = { left: thin, right: thin, ...(isTotal ? { top: thin, bottom: double } : {}) }
-      if (applicationRow) {
-        const m = set(`M${r}`, { formula: `F${r}-K${r}`, result: (fs[key] as number) - (pv[key] as number) }, { numFmt: ACC, font: isTotal ? bold : font })
-        m.border = { left: thin, right: thin, ...(isTotal ? { top: thin, bottom: double } : {}) }
-      }
     }
   }
 

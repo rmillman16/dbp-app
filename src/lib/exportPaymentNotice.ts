@@ -8,7 +8,7 @@ import type { Cell, Worksheet } from 'exceljs'
 import type { Adjustment, Company, Job, Order, PaymentNotice, SubAppLine, SubApplication } from './types'
 import type { NoticeTotals } from './subcontracts'
 import { certAmount, isCertified, lineAmount } from './subcontracts'
-import { download, excelDate, newWorkbook, placeLogo, safeName, setupPage } from './excel'
+import { download, excelDate, fitWidths, newWorkbook, placeLogo, safeName, setupPage } from './excel'
 
 const ACC = '_(* #,##0.00_);[Red]_(* (#,##0.00);[Red]_(* "-"??_);_(@_)'
 const NUM = '#,##0.00'
@@ -53,7 +53,9 @@ export async function exportPaymentNotice(d: NoticeDoc) {
     [vars, GRID_W, varTotal, 'landscape'],
     [appWs, APP_W, appRows.last, 'portrait'],
   ] as const) {
-    placeLogo(ws, logoId, [...widths], setupPage(ws, [...widths], last, orient))
+    // wide enough for the figures in each column (no ####); the layout's widths are the minimum
+    const w = fitWidths(ws, [...widths], { numbersOnly: true })
+    placeLogo(ws, logoId, w, setupPage(ws, w, last, orient))
   }
 
   await download(wb, safeName(`${d.job.job_no}_${d.job.code}_${d.company.name}_Payment Notice ${d.pn.notice_no}`) + '.xlsx')

@@ -110,3 +110,39 @@ export async function newWorkbook() {
   const logoId = wb.addImage({ base64: await logoBase64(), extension: 'png' })
   return { wb, logoId }
 }
+
+// ---------- column widths that fit what is in them (24 Nov) ----------
+// The layout's widths are the minimum; a column is made wider when a number or short text in it would not fit (so no "####" and
+// no cut-off words). Long text (over 40 characters) is left to spill or wrap, and a wrapped cell only needs its longest word.
+function shownLength(c: Cell, numbersOnly = false): number {
+  if (c.isMerged) return 0
+  let v = c.value as unknown
+  if (v && typeof v === 'object' && 'result' in (v as object)) v = (v as { result?: unknown }).result
+  if (v && typeof v === 'object' && 'richText' in (v as object)) v = (v as { richText: { text: string }[] }).richText.map((t) => t.text).join('')
+  if (v == null || v === '') return 0
+  if (v instanceof Date) return 10
+  if (typeof v === 'number') {
+    const fmt = c.numFmt ?? ''
+    if (/%/.test(fmt)) return (v * 100).toFixed(/0\.0/.test(fmt) ? 1 : 0).length + 1
+    if (/d|y/.test(fmt) && !/#/.test(fmt) && v > 20000) return 10
+    return Math.abs(v).toLocaleString('en-GB', { minimumFractionDigits: /0\.00/.test(fmt) || fmt === '' ? 2 : 0, maximumFractionDigits: 2 }).length + (v < 0 ? 2 : 0) + 1
+  }
+  if (numbersOnly) return 0
+  const t = String(v)
+  if (c.alignment?.wrapText) return Math.max(...t.split(/\s+/).map((w) => w.length), 0)
+  const longest = Math.max(...t.split('\n').map((l) => l.length), 0)
+  return longest > 40 ? 0 : longest
+}
+export function fitWidths(ws: Worksheet, base: number[], opts: { fromRow?: number; skipRows?: number[]; max?: number; numbersOnly?: boolean } = {}) {
+  const { fromRow = 1, skipRows = [], max = 60, numbersOnly = false } = opts
+  const need = base.map(() => 0)
+  ws.eachRow({ includeEmpty: false }, (row, rn) => {
+    if (rn < fromRow || skipRows.includes(rn)) return
+    base.forEach((_, i) => {
+      const c = row.getCell(i + 1)
+      const bold = c.font?.bold ? 1.1 : 1
+      need[i] = Math.max(need[i], shownLength(c, numbersOnly) * bold)
+    })
+  })
+  return base.map((w, i) => (need[i] ? Math.min(max, Math.max(w, Math.ceil(need[i] * 1.12) + 2)) : w))
+}
