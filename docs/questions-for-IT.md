@@ -51,9 +51,12 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 - The app already installs to phones and tablets and works offline.
 - **Not Firebase Hosting:** Timeline and Minutes are on Firebase under the developer's Google account, which DBP doesn't control. Minutes has now been rebuilt inside this app.
 
-## 5. Code backup (no GitHub)
-Richard would rather not use GitHub. The code is kept in Git on his laptop and a single backup file is refreshed in OneDrive after every change (`OneDrive - du Boulay Projects\RM\Claude\dbp APP\dbp-app-backup.bundle`).
-- [ ] Is that OneDrive location acceptable / backed up by IT? Should a second copy go somewhere else (e.g. SharePoint, or a private Azure DevOps repo)?
+## 5. Code: private GitHub repository (Richard, 23 Nov)
+Richard has changed his mind on GitHub: the code is going into a **private GitHub repository** so colleagues can help develop the app. It no longer needs to be kept only on his laptop.
+- [ ] Ideally the repository sits in a **DBP-owned GitHub organisation** (free plan is fine), so the company owns the code rather than a personal account. Who should own it?
+- [ ] Colleagues need GitHub accounts (work email), added to the repository.
+- No secrets are in the repository: `.env.local` is excluded, and server keys live only in Supabase.
+- The OneDrive backup bundle can carry on as a second copy.
 
 ## 6. Timeline and Minutes merge (parked)
 - [ ] Access to the Minutes Firebase project (held by the developer) and fresh copies of both apps when work starts.
