@@ -142,10 +142,6 @@ export default function PeoplePicker({
                     <input value={p.newCompanyTrade ?? ''} onChange={(e) => set({ newCompanyTrade: e.target.value })} placeholder="e.g. Joinery" />
                   </label>
                   <label>
-                    Company email
-                    <input type="email" value={p.newCompanyEmail ?? ''} onChange={(e) => set({ newCompanyEmail: e.target.value })} />
-                  </label>
-                  <label>
                     Company phone
                     <input type="tel" value={p.newCompanyPhone ?? ''} onChange={(e) => set({ newCompanyPhone: e.target.value })} />
                   </label>
