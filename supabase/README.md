@@ -50,6 +50,7 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `044_dashboard_access.sql` | Company dashboard: ticked for Project manager and Commercial in Settings › Access | ✅ Run |
 | `045_minutes.sql` | Meeting minutes: meetings, attendees and points; an action with a staff owner goes on their bell (moved / closed as it changes; Done on the bell ticks it); My tasks; Job › Minutes in Settings › Access; archived jobs read-only | ⬜ Not yet |
 | `046_minutes_per_project.sql` | Minutes live in each job or estimate (run after 045): meetings for Estimating enquiries (follow Estimating access), moved to the job when won; estimate actions on the bell; My tasks and ticking done for estimates | ⬜ Not yet |
+| `047_om.sql` | O&M: tracker lines (sort, kept when a standard doc is removed), file sections per job (om_job), Job › O&M access, reminders to the job team per company and due date (bell + job TODO) | ⬜ Not yet |
 
 ## Edge Functions (server steps)
 Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge Functions (see `docs/questions-for-IT.md`).

@@ -11,6 +11,7 @@ import { downloadValuationCalendar, valuationDates } from '../lib/calendar'
 import { useJob } from './JobLayout'
 import { completeAction, dueStatus, formatDateSidebar, loadJobActions, meetingPath, plainMentions, projectNameOf, type OpenAction } from '../lib/minutes'
 import { useAccess } from '../lib/access'
+import JobTeam from '../components/JobTeam'
 
 export default function JobOverview() {
   const { job } = useJob()
@@ -18,7 +19,9 @@ export default function JobOverview() {
   const { can } = useAccess()
   const navigate = useNavigate()
   // the To do box (22 Nov): requisition questions and answers waiting on me for this job
-  const todo = items.filter((n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || (n.kind === 'off_hire_due' && needsAttention(n))))
+  const todo = items.filter(
+    (n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || ((n.kind === 'off_hire_due' || n.kind === 'om_due') && needsAttention(n))),
+  )
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
   const [calMsg, setCalMsg] = useState<string | null>(null)
   // and every open action from the job's minutes, whoever owns it (22 Nov, script 045)
@@ -185,6 +188,9 @@ export default function JobOverview() {
           </>
         )}
       </section>
+
+      {/* who's on the job: O&M reminders go to them (23 Nov, script 047) */}
+      <JobTeam job={job} />
 
       {/* the job's one SoW (Valuations, CVR and Cashflow all use it) */}
       <JobSowCard compact />

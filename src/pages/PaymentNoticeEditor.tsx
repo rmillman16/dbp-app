@@ -8,6 +8,7 @@ import { exportPaymentNotice } from '../lib/exportPaymentNotice'
 import { readApplicationPdf } from '../lib/readPdf'
 import type { Adjustment, Block, Company, Order, PaymentNotice, SubAppLine, SubApplication, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
+import OmOutstanding from '../components/OmOutstanding'
 
 const BLOCKS: [Block, string][] = [
   ['measured', 'Contract works (measured)'],
@@ -64,16 +65,20 @@ export default function PaymentNoticeEditor() {
   const dirty = () => setMsg(null)
   const setP = <K extends keyof PaymentNotice>(k: K, v: PaymentNotice[K]) => (dirty(), setPn({ ...pn, [k]: v }))
   const setA = <K extends keyof SubApplication>(k: K, v: SubApplication[K]) => (dirty(), setApp({ ...app, [k]: v }))
-  const setLine = (i: number, patch: Partial<SubAppLine>) =>
-    (dirty(),
+  const setLine = (i: number, patch: Partial<SubAppLine>) => (
+    dirty(),
     setLines((ls) =>
       ls.map((l, j) => {
         if (j !== i) return l
         const n = { ...l, ...patch }
         return { ...n, amount: lineAmount(n) }
       }),
-    ))
-  const addLines = (block: Block, add: SubAppLine[]) => (dirty(), setLines((ls) => [...ls.filter((l) => l.block !== block || l.description || l.value != null), ...add].map((l, i) => ({ ...l, sort: i }))))
+    )
+  )
+  const addLines = (block: Block, add: SubAppLine[]) => (
+    dirty(),
+    setLines((ls) => [...ls.filter((l) => l.block !== block || l.description || l.value != null), ...add].map((l, i) => ({ ...l, sort: i })))
+  )
 
   async function save() {
     if (!pn || !app || !totals) return
@@ -105,7 +110,17 @@ export default function PaymentNoticeEditor() {
     try {
       const r = await readApplicationPdf(file)
       setLines(r.lines.map((l, i) => ({ ...l, amount: lineAmount(l), sort: i })))
-      setApp((a) => (a ? { ...a, stated_gross: r.stated_gross ?? a.stated_gross, stated_previous: r.stated_previous ?? a.stated_previous, stated_due: r.stated_due ?? a.stated_due, app_date: r.app_date ?? a.app_date } : a))
+      setApp((a) =>
+        a
+          ? {
+              ...a,
+              stated_gross: r.stated_gross ?? a.stated_gross,
+              stated_previous: r.stated_previous ?? a.stated_previous,
+              stated_due: r.stated_due ?? a.stated_due,
+              app_date: r.app_date ?? a.app_date,
+            }
+          : a,
+      )
       setMsg(`Read ${r.lines.length} lines from ${file.name}. Check them against the PDF, then Save.${r.warnings.length ? ' Claude noted: ' + r.warnings.join(' ') : ''}`)
     } catch (e) {
       setMsg(null)
@@ -164,6 +179,7 @@ export default function PaymentNoticeEditor() {
               ))}
             </ul>
           )}
+          <OmOutstanding jobId={job.id} orderId={orderId!} />
         </section>
       </div>
 
@@ -211,7 +227,22 @@ export default function PaymentNoticeEditor() {
                   </button>
                   <button
                     className="small-button"
-                    onClick={() => addLines(block, [{ block, heading: idx.at(-1)?.[0].heading ?? null, item_ref: null, description: '', value: null, pct: null, amount: 0, their_amount: null, note: null, sort: 0 }])}
+                    onClick={() =>
+                      addLines(block, [
+                        {
+                          block,
+                          heading: idx.at(-1)?.[0].heading ?? null,
+                          item_ref: null,
+                          description: '',
+                          value: null,
+                          pct: null,
+                          amount: 0,
+                          their_amount: null,
+                          note: null,
+                          sort: 0,
+                        },
+                      ])
+                    }
                   >
                     + Line
                   </button>
@@ -273,7 +304,13 @@ export default function PaymentNoticeEditor() {
                             <input type="number" step="any" inputMode="decimal" value={l.value ?? ''} onChange={(e) => setLine(i, { value: numOrNull(e.target.value) })} />
                           </td>
                           <td className="c-unit" data-label="Their %">
-                            <input type="number" step="any" inputMode="decimal" value={pctText(l.pct)} onChange={(e) => setLine(i, { pct: e.target.value === '' ? null : Number(e.target.value) / 100 })} />
+                            <input
+                              type="number"
+                              step="any"
+                              inputMode="decimal"
+                              value={pctText(l.pct)}
+                              onChange={(e) => setLine(i, { pct: e.target.value === '' ? null : Number(e.target.value) / 100 })}
+                            />
                           </td>
                           <td className="c-rate" data-label="Their £">
                             <input
@@ -327,8 +364,17 @@ export default function PaymentNoticeEditor() {
               <option value="variations">Variations</option>
               <option value="materials">Materials on site</option>
             </select>
-            <input value={a.description} placeholder="Why" onChange={(e) => (dirty(), setAdjustments(adjustments.map((x, j) => (j === i ? { ...x, description: e.target.value } : x))))} />
-            <input type="number" step="any" value={a.amount} onChange={(e) => (dirty(), setAdjustments(adjustments.map((x, j) => (j === i ? { ...x, amount: Number(e.target.value || 0) } : x))))} />
+            <input
+              value={a.description}
+              placeholder="Why"
+              onChange={(e) => (dirty(), setAdjustments(adjustments.map((x, j) => (j === i ? { ...x, description: e.target.value } : x))))}
+            />
+            <input
+              type="number"
+              step="any"
+              value={a.amount}
+              onChange={(e) => (dirty(), setAdjustments(adjustments.map((x, j) => (j === i ? { ...x, amount: Number(e.target.value || 0) } : x))))}
+            />
             <button className="small-button" onClick={() => (dirty(), setAdjustments(adjustments.filter((_, j) => j !== i)))}>
               ✕
             </button>
@@ -421,7 +467,12 @@ export default function PaymentNoticeEditor() {
         )}
         <label>
           Notes printed on the notice
-          <textarea rows={3} value={pn.notes ?? ''} onChange={(e) => setP('notes', e.target.value || null)} placeholder="e.g. Previous: Payment Notice 1 = 10% deposit £14,425.80 less 5% retention, paid £13,704.51." />
+          <textarea
+            rows={3}
+            value={pn.notes ?? ''}
+            onChange={(e) => setP('notes', e.target.value || null)}
+            placeholder="e.g. Previous: Payment Notice 1 = 10% deposit £14,425.80 less 5% retention, paid £13,704.51."
+          />
         </label>
       </section>
 

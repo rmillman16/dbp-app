@@ -6,6 +6,7 @@ import { saveError } from '../lib/offline'
 import { createNotice, loadCompanies, loadOrder, loadOrders, orderLabel } from '../lib/subcontracts'
 import type { Company, Order, PaymentNotice, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
+import OmOutstanding from '../components/OmOutstanding'
 
 // Job › Payment notices: the job's subcontract orders (3. Orders / NN - Trade - Subcontractor).
 export default function SubcontractsTab() {
@@ -86,7 +87,15 @@ function QuickAddCompany({ onAdded, onCancel }: { onAdded: (c: Company) => void;
     setBusy(true)
     const ins = await supabase
       .from('companies')
-      .insert({ name: c.name.trim(), type: 'subcontractor', trade: c.trade.trim() || null, address: c.address.trim() || null, postcode: c.postcode.trim() || null, email: c.email.trim() || null, phone: c.phone.trim() || null })
+      .insert({
+        name: c.name.trim(),
+        type: 'subcontractor',
+        trade: c.trade.trim() || null,
+        address: c.address.trim() || null,
+        postcode: c.postcode.trim() || null,
+        email: c.email.trim() || null,
+        phone: c.phone.trim() || null,
+      })
       .select('*')
       .single()
     if (ins.error) {
@@ -94,7 +103,9 @@ function QuickAddCompany({ onAdded, onCancel }: { onAdded: (c: Company) => void;
       return setError(saveError(ins.error))
     }
     if (c.contact.trim()) {
-      const ct = await supabase.from('contacts').insert({ company_id: ins.data.id, name: c.contact.trim(), role: c.contactRole.trim() || null, phone: c.contactPhone.trim() || null, email: c.contactEmail.trim() || null })
+      const ct = await supabase
+        .from('contacts')
+        .insert({ company_id: ins.data.id, name: c.contact.trim(), role: c.contactRole.trim() || null, phone: c.contactPhone.trim() || null, email: c.contactEmail.trim() || null })
       if (ct.error) setError(`Company added, but the contact wasn't: ${saveError(ct.error)}`)
     }
     setBusy(false)
@@ -193,10 +204,7 @@ function NewOrder({ companies, orders, onCancel, onCompanyAdded }: { companies: 
       <div className="form-grid">
         <label className="span-2">
           Subcontractor
-          <select
-            value={f.company_id}
-            onChange={(e) => setF({ ...f, company_id: e.target.value, trade: f.trade || companies.find((c) => c.id === e.target.value)?.trade || '' })}
-          >
+          <select value={f.company_id} onChange={(e) => setF({ ...f, company_id: e.target.value, trade: f.trade || companies.find((c) => c.id === e.target.value)?.trade || '' })}>
             <option value="">Choose…</option>
             {subs.map((c) => (
               <option key={c.id} value={c.id}>
@@ -261,7 +269,10 @@ export function OrderPage() {
         setData(d)
         setOrder(d.order)
         setVars(d.vars)
-        loadCompanies().then((cs) => setCompany(cs.find((c) => c.id === d.order.company_id) ?? null), () => {})
+        loadCompanies().then(
+          (cs) => setCompany(cs.find((c) => c.id === d.order.company_id) ?? null),
+          () => {},
+        )
       },
       (e: Error) => setError(e.message),
     )
@@ -328,6 +339,7 @@ export function OrderPage() {
       </div>
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
+      <OmOutstanding jobId={job.id} orderId={order.id} />
 
       <section className="card">
         <div className="pane-head">

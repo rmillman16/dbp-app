@@ -106,6 +106,22 @@
       - Material Req - ADMIN columns: **kept as built** (Richard, 22 Nov: "what you have made is better" than the SharePoint list).
       - Microsoft sign-in (IT).
       - Notifying buyers of new requisitions: needs the Operations user type. Until then, they show as "New" in the Buyer's list.
+- **O&M module: built 23 Nov (script 047)**, as scoped on 20 Nov. Documents are **linked** in SharePoint, not uploaded (Richard, 22 Nov).
+  - **O&M tab** on each job:
+    - A tracker per package (the job's orders, plus client direct contractors added by the PM) and job-level project items.
+    - "Add standard documents" adds a trade's list from Settings.
+    - Each line has a status (Not requested → Requested → Received → Accepted / Rejected – resubmit; Not required), requested / due / received dates, a SharePoint link and a reviewer comment.
+    - Due dates default to 4 weeks before PC.
+    - **Draft chase email** per subcontractor (a draft only); afterwards it offers to mark the documents as requested.
+  - **File sections:** description of works (typed for now; Claude will draft it later, with IT), project directory (with an editor for the client team), residual risks register and the Project Handover Document (training and systems, keys, outstanding works, warranties).
+  - **Client O&M manual PDF:**
+    - Front page, contents with page numbers and links, section dividers, the generated sections, then documents by package.
+    - Bookmarks for each section and document.
+    - You pick the PDFs from the synced SharePoint O&Ms folder. The app matches them to tracker lines, you confirm, and then it merges them. Files are only read in the browser, never uploaded.
+  - **Job Team card** on the Overview (who's on the job, and their role).
+  - **Reminders:** O&Ms due / overdue go on the bell and the job TODO for everyone on the team (the admins if there's no team), one per company per due date. Not emailed yet; this can be added with a due-date filter like off-hire.
+  - **O&Ms outstanding** shows on payment notices and the order page. Nothing is blocked.
+  - Access: Job › O&M in Settings › Access (Project manager, Commercial, Site management). Commercial can also see what's outstanding.
 - **Job Overview reworked (23 Nov).**
   - **All pages are full width** (the 1280 px cap is gone).
   - On the Overview, from the top:

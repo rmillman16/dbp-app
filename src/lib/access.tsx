@@ -31,6 +31,7 @@ export type Section =
   | 'job_sampling'
   | 'job_eot'
   | 'job_minutes'
+  | 'job_om'
   | 'estimating'
   | 'contracts'
   | 'site'
@@ -46,6 +47,7 @@ export const SECTIONS: [Section, string, string][] = [
   ['job_procurement', 'Job › Procurement', ''],
   ['job_sampling', 'Job › Sampling', ''],
   ['job_eot', 'Job › EOT', ''],
+  ['job_om', 'Job › O&M', 'Each job’s O&M tracker, file sections and the client’s O&M manual PDF; O&M reminders'],
   ['job_minutes', 'Job › Minutes', 'Meeting minutes on each job (an estimate’s minutes follow Estimating). Everyone sees their own actions in My tasks'],
   ['estimating', 'Estimating', ''],
   ['contracts', 'Contracts', 'EOT clauses and wording'],

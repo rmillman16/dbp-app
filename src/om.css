@@ -1,0 +1,263 @@
+/* Job › O&M (src/pages/OmTab.tsx) and its pieces. Only what styles.css doesn't already have. */
+.om {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.om-actions {
+  margin-top: 0;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.om-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.om-filters input.filter {
+  margin-bottom: 0;
+}
+
+/* statuses (colour always paired with the words) */
+.om .proc-status.oms-requested,
+.om .sample-chip.oms-requested {
+  background: #fff4e0;
+  color: #8a5300;
+  border-color: #f0d49a;
+}
+.om .proc-status.oms-received,
+.om .sample-chip.oms-received {
+  background: #e8f2fb;
+  color: #0b5c94;
+  border-color: #b6d6ef;
+}
+.om .proc-status.oms-accepted,
+.om .sample-chip.oms-accepted {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border-color: #b9dcbb;
+}
+.om .proc-status.oms-rejected_resubmit,
+.om .sample-chip.oms-rejected_resubmit {
+  background: #fdecea;
+  color: #b52020;
+  border-color: #efb4b4;
+}
+.om .proc-status.oms-not_required,
+.om .sample-chip.oms-not_required {
+  background: #f4f5f8;
+  color: var(--muted);
+}
+.om .sample-chip.oms-not_requested {
+  background: #f4f5f8;
+}
+.om .sample-chip.off {
+  background: #fff;
+  color: var(--muted);
+  border-style: dashed;
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+
+/* the table */
+.om-table tr.om-group td {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+  padding: 8px;
+}
+.om-group-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+}
+.om-group-title .tag {
+  font-weight: 600;
+}
+.om-group-title .tag.om-all-in {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.om-group-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-weight: 400;
+}
+.om-group-actions select {
+  height: 30px;
+  padding: 2px 6px;
+  font-size: 13px;
+  max-width: 240px;
+}
+.om-group-actions .button {
+  text-decoration: none;
+}
+.om-doc {
+  min-width: 220px;
+}
+.om-doc .om-name {
+  width: 100%;
+  font-weight: 600;
+  color: var(--navy);
+}
+.om-late {
+  display: block;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.om .proc-inline .proc-date.om-date-late {
+  color: var(--red);
+  font-weight: 600;
+  border-color: #efb4b4;
+}
+.om-link {
+  min-width: 200px;
+}
+.om-link input {
+  width: 100%;
+}
+.om-link a {
+  display: inline-block;
+  margin-top: 2px;
+}
+.om-table td input:not([type='date']) {
+  width: 100%;
+}
+.om-del {
+  width: 1%;
+  text-align: center;
+}
+.om tr.om-not-required td {
+  color: var(--muted);
+}
+.om tr.om-not-required .om-name {
+  text-decoration: line-through;
+  color: var(--muted);
+  font-weight: 400;
+}
+.om tr.om-add td,
+.om tr.om-empty td {
+  border-bottom: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.om tr.om-add form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 520px;
+}
+.om tr.om-add input {
+  flex: 1;
+  height: 30px;
+  padding: 2px 8px;
+  font-size: 13px;
+}
+.om-foot {
+  margin: 10px 0 0;
+}
+
+/* add forms */
+.om-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-end;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: #f7f8fb;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.om-inline-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  min-width: 200px;
+  flex: 1 1 200px;
+}
+.om-inline-form .form-actions {
+  margin-top: 0;
+}
+
+/* file sections */
+.om-description {
+  width: 100%;
+  font: inherit;
+  line-height: 1.5;
+}
+.om-rows td {
+  vertical-align: top;
+}
+.om-rows input,
+.om-rows textarea {
+  width: 100%;
+}
+.om-rows textarea {
+  min-height: 30px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 6px;
+}
+.om-rows + .small-button {
+  margin-top: 8px;
+}
+.om-handover + .om-handover {
+  margin-top: 8px;
+}
+
+/* the PDF panel */
+.om-pdf h3 {
+  margin: 16px 0 6px;
+  color: var(--navy);
+}
+.om-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.om-matches {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 6px;
+}
+.om-matches select {
+  max-width: 320px;
+  height: 30px;
+  padding: 2px 6px;
+  font-size: 13px;
+}
+.om-matches tr.om-skip td {
+  color: var(--muted);
+}
+.om-missing {
+  margin-top: 10px;
+}
+.om-missing summary {
+  cursor: pointer;
+}
+.om-warnings {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: var(--amber);
+}
+
+/* payment notices: O&Ms outstanding */
+.om-outstanding summary {
+  cursor: pointer;
+}
+.om-outstanding ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
