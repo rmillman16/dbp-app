@@ -19,6 +19,7 @@ import { enquiryRef } from '../lib/quotations'
 import { Icon, Mentions, useToast } from '../components/MinutesBits'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
+import EnquiryHead from '../components/EnquiryHead'
 
 interface StaffProfile {
   id: string
@@ -58,19 +59,12 @@ export function MinutesEnquiry() {
   if (!e || !owner) return <p className="muted">Loading…</p>
   return (
     <>
-      <div className="job-head">
-        <div>
-          <Link to={`/estimating/e/${e.id}`} className="link-button small">
-            ← {enquiryRef(e)} · {e.name}
-          </Link>
-          <h1>Minutes</h1>
-        </div>
-        {e.job_id && (
-          <Link to={`/jobs/${e.job_id}/minutes`} className="button primary">
-            This enquiry is now a job: open its minutes →
-          </Link>
-        )}
-      </div>
+      <EnquiryHead e={e} />
+      {e.job_id && (
+        <p className="muted">
+          This enquiry was won; its meetings are now in the job's Minutes tab. <Link to={`/jobs/${e.job_id}/minutes`}>Open them →</Link>
+        </p>
+      )}
       {!e.job_id && <MinutesApp owner={owner} readOnly={false} />}
     </>
   )

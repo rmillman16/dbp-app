@@ -4,6 +4,7 @@ import { enquiryRef } from '../lib/quotations'
 import { RfiOwnerProvider, type RfiOwner } from '../lib/rfiOwner'
 import type { Enquiry } from '../lib/types'
 import { loadEnquiry } from './Estimating'
+import EnquiryHead from '../components/EnquiryHead'
 
 // Estimating › enquiry › RFIs (23 Nov, script 059): tender RFIs, the same screens as a job's. When the enquiry is won and
 // set up as a job, its RFIs become the job's.
@@ -19,20 +20,14 @@ export default function EnquiryRfis({ children }: { children: ReactNode }) {
   if (!e || !owner) return <p className="muted">Loading…</p>
   return (
     <>
-      <div className="job-head">
-        <div>
-          <Link to={`/estimating/e/${e.id}`} className="link-button small">
-            ← {enquiryRef(e)} · {e.name}
-          </Link>
-          <h1>Tender RFIs</h1>
-        </div>
-        {e.job_id && (
-          <Link to={`/jobs/${e.job_id}/rfis`} className="button primary">
-            This enquiry is now a job: open its RFIs →
-          </Link>
-        )}
-      </div>
-      {e.job_id ? <p className="muted">This enquiry was won; its RFIs are now in the job's RFIs tab.</p> : <RfiOwnerProvider value={owner}>{children}</RfiOwnerProvider>}
+      <EnquiryHead e={e} />
+      {e.job_id ? (
+        <p className="muted">
+          This enquiry was won; its RFIs are now in the job's RFIs tab. <Link to={`/jobs/${e.job_id}/rfis`}>Open them →</Link>
+        </p>
+      ) : (
+        <RfiOwnerProvider value={owner}>{children}</RfiOwnerProvider>
+      )}
     </>
   )
 }

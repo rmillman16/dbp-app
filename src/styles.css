@@ -1139,3 +1139,12 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tg-dl dt { font-size: .8rem; color: #666; }
 .tg-dl dd { margin: 0; white-space: pre-wrap; }
 @media (max-width: 700px) { .tg-dl { grid-template-columns: 1fr; } }
+
+/* enquiry page: sections across the top like a job, equal-size cards, quotations top right */
+.enq-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.enq-modules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: stretch; }
+.enq-modules > .card { display: flex; flex-direction: column; min-height: 210px; margin: 0; }
+.enq-modules > .card .pane-head { margin-bottom: 8px; }
+.enq-quotes { margin: 0; }
+.enq-layout .card { margin-top: 0; }
+@media (max-width: 1000px) { .enq-layout { grid-template-columns: 1fr; } }

@@ -9,8 +9,9 @@ import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryS
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
 import { loadProgramme, type ProgrammeTask, type SavedProgramme } from '../lib/programme'
-import { fireConfetti } from '../lib/confetti'
 import { TenderTracker } from './TenderEnquiry'
+import EnquiryHead from '../components/EnquiryHead'
+import { AWAITING, loadTracker } from '../lib/tender'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
 // works, new enquiries, tenders), each with its own quotations; when won, it's set up as
@@ -346,109 +347,90 @@ export function EnquiryPage() {
 
   return (
     <>
-      <div className="job-head">
-        <div>
-          <Link to="/estimating" className="link-button small">
-            ← Enquiries
-          </Link>
-          <h1>
-            {enquiryRef(e)} · {e.name}
-          </h1>
-          <div className="job-meta muted">
-            <span className={`tag enq-${e.status}`}>{ENQUIRY_STATUS_LABELS[e.status]}</span>
-            {e.client_name && <span>{e.client_name}</span>}
-            {e.due_date && <span>Due {ukDate(e.due_date)}</span>}
-          </div>
+      <EnquiryHead e={e} />
+
+      <div className="enq-layout">
+        <div className="enq-modules">
+          <section className="card">
+            <div className="pane-head">
+              <h2>Tender Details</h2>
+              <Link to={`/estimating/e/${e.id}/edit`} className="button">
+                Edit
+              </Link>
+            </div>
+            <dl className="details">
+              <dt>Site address</dt>
+              <dd>{e.site_address || '–'}</dd>
+              <dt>Client</dt>
+              <dd>{e.client_name || '–'}</dd>
+              <dt>Contact</dt>
+              <dd>
+                {e.client_contact || '–'}
+                {e.client_email && (
+                  <>
+                    {' · '}
+                    <a href={`mailto:${e.client_email}`}>{e.client_email}</a>
+                  </>
+                )}
+                {e.client_phone && (
+                  <>
+                    {' · '}
+                    <a href={`tel:${e.client_phone}`}>{e.client_phone}</a>
+                  </>
+                )}
+              </dd>
+              <dt>Received / due</dt>
+              <dd>
+                {ukDate(e.received_date) || '–'} / {ukDate(e.due_date) || '–'}
+              </dd>
+              <dt>Estimator</dt>
+              <dd>{e.estimator || '–'}</dd>
+              {(e.main_contract || e.sub_contract) && (
+                <>
+                  <dt>Contract</dt>
+                  <dd>{[e.main_contract, e.sub_contract].filter(Boolean).join(' / ')}</dd>
+                </>
+              )}
+              {e.notes && (
+                <>
+                  <dt>Notes</dt>
+                  <dd>{e.notes}</dd>
+                </>
+              )}
+            </dl>
+          </section>
+
+          <EnquiryProgrammeCard e={e} />
+
+          {/* tender meetings (23 Nov, script 046): the same Minutes screen as a job's; they move to the job when it's won */}
+          <section className="card">
+            <div className="pane-head">
+              <h2>Minutes</h2>
+              {e.job_id ? (
+                <Link to={`/jobs/${e.job_id}/minutes`} className="button">
+                  Open the job's minutes →
+                </Link>
+              ) : (
+                <Link to={`/estimating/e/${e.id}/minutes`} className="button primary">
+                  Open minutes
+                </Link>
+              )}
+            </div>
+            <p className="muted small">
+              {e.job_id
+                ? "This enquiry was won; its meetings are now in the job's Minutes tab."
+                : "Tender meetings, with actions on the owners' bells. They move to the job when the enquiry is won."}
+            </p>
+          </section>
+
+          {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
+          <EnquiryRfiCard e={e} />
+
+          {/* tender enquiries to contractors (script 067) */}
+          {!e.job_id && <EnquiryTenderCard e={e} />}
         </div>
-        <div className="button-row">
-          <Link to={`/estimating/e/${e.id}/edit`} className="button">
-            Edit enquiry
-          </Link>
-          {e.job_id ? (
-            <Link to={`/jobs/${e.job_id}`} className="button primary">
-              Open the job →
-            </Link>
-          ) : (
-            e.status !== 'lost' && (
-              <Link
-                to={`/jobs/new?enquiry=${e.id}`}
-                className="button primary"
-                title="Create the job from this enquiry and move its quotations into it"
-                onClick={(ev) => {
-                  // a win deserves confetti: let it fly for a moment, then on to setting up the job
-                  const ms = fireConfetti()
-                  if (ms) {
-                    ev.preventDefault()
-                    window.setTimeout(() => navigate(`/jobs/new?enquiry=${e.id}`), 1400)
-                  }
-                }}
-              >
-                Won: set up as job
-              </Link>
-            )
-          )}
-        </div>
-      </div>
 
-      <div className="overview-grid">
-        <section className="card">
-          <h2>Tender Details</h2>
-          <dl className="details">
-            <dt>Site address</dt>
-            <dd>{e.site_address || '–'}</dd>
-            <dt>Client</dt>
-            <dd>{e.client_name || '–'}</dd>
-            <dt>Contact</dt>
-            <dd>{e.client_contact || '–'}</dd>
-            <dt>Email</dt>
-            <dd>{e.client_email ? <a href={`mailto:${e.client_email}`}>{e.client_email}</a> : '–'}</dd>
-            <dt>Phone</dt>
-            <dd>{e.client_phone ? <a href={`tel:${e.client_phone}`}>{e.client_phone}</a> : '–'}</dd>
-            <dt>Received</dt>
-            <dd>{ukDate(e.received_date) || '–'}</dd>
-            <dt>Due</dt>
-            <dd>{ukDate(e.due_date) || '–'}</dd>
-            <dt>Estimator</dt>
-            <dd>{e.estimator || '–'}</dd>
-            {e.notes && (
-              <>
-                <dt>Notes</dt>
-                <dd>{e.notes}</dd>
-              </>
-            )}
-          </dl>
-        </section>
-
-        <EnquiryProgrammeCard e={e} />
-
-        {/* tender meetings (23 Nov, script 046): the same Minutes screen as a job's; they move to the job when it's won */}
-        <section className="card">
-          <div className="pane-head">
-            <h2>Minutes</h2>
-            {e.job_id ? (
-              <Link to={`/jobs/${e.job_id}/minutes`} className="button">
-                Open the job's minutes →
-              </Link>
-            ) : (
-              <Link to={`/estimating/e/${e.id}/minutes`} className="button primary">
-                Open minutes
-              </Link>
-            )}
-          </div>
-          <p className="muted small">
-            {e.job_id
-              ? "This enquiry was won; its meetings are now in the job's Minutes tab."
-              : "Tender meetings, with actions on the owners' bells. They move to the job when the enquiry is won."}
-          </p>
-        </section>
-
-        {/* tender RFIs (23 Nov, script 059): they move to the job when it's won */}
-        <EnquiryRfiCard e={e} />
-
-        {/* tender enquiries to contractors (script 067): sent from here, only for this enquiry */}
-        {!e.job_id && e.status !== 'lost' && <TenderTracker enquiryId={e.id} />}
-
-        <section className="card">
+        <section className="card enq-quotes">
           <div className="pane-head">
             <h2>Upstream Quotations</h2>
             {!e.job_id && (
@@ -478,6 +460,37 @@ export function EnquiryPage() {
   )
 }
 
+// tender enquiries to contractors at a glance (script 067)
+function EnquiryTenderCard({ e }: { e: Enquiry }) {
+  const [d, setD] = useState<Awaited<ReturnType<typeof loadTracker>> | null | 'none'>(null)
+  useEffect(() => {
+    loadTracker().then(setD, () => setD('none'))
+  }, [e.id])
+  const pk = d && d !== 'none' ? d.packages.filter((p) => p.enquiry_id === e.id) : []
+  const inv = d && d !== 'none' ? d.invites.filter((i) => pk.some((p) => p.id === i.package_id)) : []
+  return (
+    <section className="card">
+      <div className="pane-head">
+        <h2>Tender enquiries</h2>
+        <Link to={`/estimating/e/${e.id}/tender`} className="button primary">
+          Open tender enquiries
+        </Link>
+      </div>
+      {d === null ? (
+        <p className="muted small">Loading…</p>
+      ) : d === 'none' ? (
+        <p className="muted small">Send packages out to subcontractors and suppliers for pricing, and follow their replies. Needs script 067.</p>
+      ) : pk.length === 0 ? (
+        <p className="muted small">Nothing sent out yet. Send a package to subcontractors and suppliers for pricing, then follow their replies here.</p>
+      ) : (
+        <p>
+          <strong>{pk.length}</strong> package{pk.length === 1 ? '' : 's'} · <strong>{inv.length}</strong> invited · <strong>{inv.filter((i) => AWAITING.includes(i.status) || i.status === 'drafted').length}</strong> waiting ·{' '}
+          <strong>{inv.filter((i) => i.quote_amount != null).length}</strong> quote{inv.filter((i) => i.quote_amount != null).length === 1 ? '' : 's'} in
+        </p>
+      )}
+    </section>
+  )
+}
 // tender RFIs at a glance (23 Nov, script 059)
 function EnquiryRfiCard({ e }: { e: Enquiry }) {
   const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
@@ -566,20 +579,31 @@ export function EnquiryProgramme() {
   if (!e) return <p className="muted">Loading…</p>
   return (
     <>
-      <div className="job-head">
-        <div>
-          <Link to={`/estimating/e/${e.id}`} className="link-button small">
-            ← {enquiryRef(e)} · {e.name}
-          </Link>
-          <h1>Tender programme</h1>
-        </div>
-        {e.job_id && (
-          <Link to={`/jobs/${e.job_id}/programme`} className="button primary">
-            This enquiry is now a job: open its programme →
-          </Link>
-        )}
-      </div>
+      <EnquiryHead e={e} />
+      {e.job_id && (
+        <p className="muted">
+          This enquiry was won; its programme is now the job's. <Link to={`/jobs/${e.job_id}/programme`}>Open it →</Link>
+        </p>
+      )}
       {!e.job_id && <ProgrammeEditor owner={owner} ownerName={`${enquiryRef(e)} ${e.name}`} defaults={{ start: null, pc: null }} />}
+    </>
+  )
+}
+
+// Estimating › enquiry › Tender enquiries (script 067): the packages sent to subcontractors and suppliers, and where each has got to
+export function EnquiryTender() {
+  const { enquiryId } = useParams()
+  const [e, setE] = useState<Enquiry | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
+  }, [enquiryId])
+  if (error) return <p className="error">{error}</p>
+  if (!e) return <p className="muted">Loading…</p>
+  return (
+    <>
+      <EnquiryHead e={e} />
+      {e.job_id ? <p className="muted">This enquiry was won and is now a job, so tender enquiries are closed.</p> : <TenderTracker enquiryId={e.id} />}
     </>
   )
 }
