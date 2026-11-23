@@ -28,6 +28,8 @@ import ProcurementTab from './pages/ProcurementTab'
 import CvrTab from './pages/CvrTab'
 import CvrEditor from './pages/CvrEditor'
 import OmTab from './pages/OmTab'
+import RfiTab from './pages/RfiTab'
+import RfiPage from './pages/RfiPage'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme } from './pages/Estimating'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
@@ -144,6 +146,8 @@ export default function App() {
             <Route path="cvr" element={<CvrTab />} />
             <Route path="cvr/:cvrId" element={<CvrEditor />} />
             <Route path="om" element={<OmTab />} />
+            <Route path="rfis" element={<RfiTab />} />
+            <Route path="rfis/:rfiId" element={<RfiPage />} />
           </Route>
           <Route path="/help/programme" element={<ProgrammeHelp />} />
           <Route path="/tasks" element={<MyTasks />} />

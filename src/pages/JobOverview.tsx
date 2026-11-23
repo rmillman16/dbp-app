@@ -68,10 +68,7 @@ export default function JobOverview() {
 
       {/* space kept for the next two modules, side by side under TODO: RFIs left, Submittals right (23 Nov) */}
       <div className="span-all overview-pair">
-        <section className="card coming-card">
-          <h2>RFIs</h2>
-          <p className="muted small">Coming soon: requests for information, who they're with, response due dates and reminders.</p>
-        </section>
+        <RfiCard jobId={job.id} />
         <section className="card coming-card">
           <h2>Submittals</h2>
           <p className="muted small">Coming soon: what's been submitted to the client / design team, who it's with and when a response is due.</p>
@@ -206,6 +203,44 @@ export default function JobOverview() {
         </section>
       )}
     </div>
+  )
+}
+
+// RFIs at a glance (23 Nov, script 057): what's open, overdue and waiting to be closed
+function RfiCard({ jobId }: { jobId: string }) {
+  const { can } = useAccess()
+  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
+  useEffect(() => {
+    if (!can('job_rfis')) return
+    supabase
+      .from('rfis')
+      .select('status, due_date')
+      .eq('job_id', jobId)
+      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
+  }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!can('job_rfis')) return null
+  const today = todayIso()
+  const open = (rows ?? []).filter((r) => r.status === 'open')
+  const late = open.filter((r) => r.due_date && r.due_date < today).length
+  const answered = (rows ?? []).filter((r) => r.status === 'answered').length
+  return (
+    <section className="card coming-card">
+      <div className="pane-head">
+        <h2>RFIs</h2>
+        <Link to="rfis" className="link-button small">
+          Open →
+        </Link>
+      </div>
+      {rows === null ? (
+        <p className="muted small">RFIs need script 057 run in Supabase first.</p>
+      ) : rows.length === 0 ? (
+        <p className="muted small">No RFIs yet.</p>
+      ) : (
+        <p>
+          <strong>{open.length}</strong> open{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
+        </p>
+      )}
+    </section>
   )
 }
 

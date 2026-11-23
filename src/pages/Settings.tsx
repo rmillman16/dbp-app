@@ -9,6 +9,7 @@ import { nudgeEmails } from '../lib/notifications'
 import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type LoginStatus } from '../lib/users'
 import { Insurances, OmStandardDocuments } from './Sections'
 import StandardDocuments from '../components/StandardDocuments'
+import RfiTemplates from '../components/RfiTemplates'
 
 export default function Settings() {
   return (
@@ -18,6 +19,7 @@ export default function Settings() {
       <Insurances />
       <OmStandardDocuments />
       <StandardDocuments />
+      <RfiTemplates />
       <AccessRequests />
       <Users />
       <AccessGrid />

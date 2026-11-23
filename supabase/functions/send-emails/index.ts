@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -65,6 +65,56 @@ async function graphToken(tenant: string, client: string, secret: string) {
   return j.access_token as string;
 }
 
+// Mondays only, once a week (rfi_report_log keeps count): each RFI manager gets their unanswered RFIs as a table.
+// deno-lint-ignore no-explicit-any
+async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender: string, appUrl: string) {
+  const now = new Date();
+  if (now.getUTCDay() !== 1) return 0;
+  const week = now.toISOString().slice(0, 10);
+  const claim = await db.from("rfi_report_log").insert({ week_start: week });
+  if (claim.error) return 0; // already sent this week (or script 057 not run)
+  const { data: rfis } = await db
+    .from("rfis")
+    .select("id, job_id, number, title, trade, due_date, created_at, manager_id, jobs(job_no, code, name, status)")
+    .eq("status", "open")
+    .order("created_at");
+  // deno-lint-ignore no-explicit-any
+  const open = (rfis ?? []).filter((r: any) => r.manager_id && r.jobs && r.jobs.status !== "archived");
+  if (!open.length) return 0;
+  // deno-lint-ignore no-explicit-any
+  const ids = [...new Set(open.map((r: any) => r.manager_id as string))];
+  const { data: people } = await db.from("profiles").select("id, email, full_name, email_notifications").in("id", ids);
+  const token = await getToken();
+  const cell = "padding:4px 8px";
+  let sent = 0;
+  for (const p of people ?? []) {
+    if (!p.email || p.email_notifications === false) continue;
+    // deno-lint-ignore no-explicit-any
+    const mine = open.filter((r: any) => r.manager_id === p.id);
+    const rows = mine
+      // deno-lint-ignore no-explicit-any
+      .map((r: any) => {
+        const late = r.due_date && r.due_date < week;
+        const days = Math.floor((now.getTime() - new Date(r.created_at).getTime()) / 86400000);
+        const due = r.due_date ? r.due_date.split("-").reverse().join("/") : "–";
+        const link = `${appUrl}/jobs/${r.job_id}/rfis/${r.id}`;
+        return `<tr><td style="${cell}"><a href="${esc(link)}">${esc(r.jobs.job_no + " " + r.jobs.code)} RFI ${r.number}</a></td><td style="${cell}">${esc(r.title)}</td><td style="${cell}">${esc(r.trade ?? "")}</td><td style="${cell}${late ? ";color:#c00;font-weight:600" : ""}">${due}${late ? " (overdue)" : ""}</td><td style="${cell}">${days} days</td></tr>`;
+      })
+      .join("");
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#1f1d2b"><p style="font-size:17px;font-weight:600">Your unanswered RFIs (${mine.length})</p><table style="border-collapse:collapse"><tr style="background:#eef2ff;text-align:left"><th style="${cell}">RFI</th><th style="${cell}">Title</th><th style="${cell}">Trade</th><th style="${cell}">Due</th><th style="${cell}">Open for</th></tr>${rows}</table><p style="font-size:12px;color:#777">Weekly list from the DBP app. Open an RFI to chase it or close it.</p></div>`;
+    const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: { subject: `DBP app: your ${mine.length} unanswered RFI${mine.length === 1 ? "" : "s"}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: p.email } }] },
+        saveToSentItems: false,
+      }),
+    });
+    if (r.ok) sent++;
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -82,9 +132,28 @@ Deno.serve(async (req) => {
       if (!data?.user) return reply({ ok: false, detail: "Sign in first." }, 401);
     }
 
+    // RFI chasing (script 057): puts due chases on the bell and queues outside people's; runs even before email is set up
+    try {
+      await db.rpc("rfi_chase_tick");
+    } catch {
+      /* script 057 not run yet */
+    }
+
     const tenant = Deno.env.get("MS_TENANT_ID"), client = Deno.env.get("MS_CLIENT_ID"), secret = Deno.env.get("MS_CLIENT_SECRET");
     const sender = Deno.env.get("MAIL_SENDER"), appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     if (!tenant || !client || !secret || !sender || !appUrl) return reply({ ok: true, sent: 0, detail: "Email isn't set up yet (Microsoft 365 secrets missing): nothing sent." });
+
+    // one Microsoft sign-in, made only when something needs sending
+    let tokenCache: string | null = null;
+    const token0 = async () => (tokenCache ??= await graphToken(tenant, client, secret));
+
+    // Mondays: each RFI manager's list of unanswered RFIs, once a week
+    let reports = 0;
+    try {
+      reports = await weeklyRfiReport(db, token0, sender, appUrl);
+    } catch (e) {
+      console.warn("weekly RFI report:", e instanceof Error ? e.message : e);
+    }
 
     const since = new Date(Date.now() - 2 * 86400000).toISOString();
     const today = new Date().toISOString().slice(0, 10);
@@ -121,7 +190,7 @@ Deno.serve(async (req) => {
     const { data: people } = await db.from("profiles").select("id, email, email_notifications").in("id", ids);
     const who = new Map((people ?? []).map((p) => [p.id, p]));
 
-    const token = await graphToken(tenant, client, secret);
+    const token = await token0();
     let sent = 0;
     const failures: string[] = [];
     for (const n of ready) {
@@ -152,7 +221,7 @@ Deno.serve(async (req) => {
         failures.push(`${p.email}: ${r.status} ${t.slice(0, 200)}`);
       }
     }
-    return reply({ ok: failures.length === 0, sent, failures });
+    return reply({ ok: failures.length === 0, sent, reports, failures });
   } catch (e) {
     return reply({ ok: false, detail: e instanceof Error ? e.message : String(e) }, 500);
   }
