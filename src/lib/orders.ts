@@ -282,3 +282,93 @@ export const escHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp
 export async function markEmailed(orderId: string) {
   await supabase.from('orders').update({ emailed_at: new Date().toISOString() }).eq('id', orderId)
 }
+
+// ---------- subcontract variations: instruct them, and file what goes with them (script 056) ----------
+// Files are filed in a folder per variation inside the order's own folder: order/<order id>/variations/<ref>/…
+export interface VarFile {
+  id: string
+  variation_id: string
+  kind: 'quote' | 'email' | 'instruction' | 'other'
+  name: string
+  path: string
+  file_name: string
+  created_at: string
+}
+export const VAR_FILE_KINDS: [VarFile['kind'], string][] = [
+  ['quote', "Subcontractor's quote"],
+  ['email', 'Email / correspondence'],
+  ['other', 'Other'],
+]
+export async function loadVarFiles(orderId: string): Promise<VarFile[]> {
+  const r = await supabase.from('sub_variation_files').select('*, sub_variations!inner(order_id)').eq('sub_variations.order_id', orderId).order('created_at')
+  if (r.error) throw fail(r.error)
+  return (r.data as (VarFile & { sub_variations?: unknown })[]).map(({ sub_variations: _s, ...f }) => f as VarFile) // eslint-disable-line @typescript-eslint/no-unused-vars
+}
+const folderName = (ref: string | null) => (ref ?? 'variation').replace(/[^\w.\- ]+/g, '_').trim() || 'variation'
+export async function addVarFile(orderId: string, v: { id: string; ref: string | null }, file: File, kind: VarFile['kind'], name?: string) {
+  const path = await uploadFile(`order/${orderId}/variations/${folderName(v.ref)}`, file)
+  const r = await supabase
+    .from('sub_variation_files')
+    .insert({ variation_id: v.id, kind, name: (name ?? '').trim() || file.name, path, file_name: file.name })
+    .select('*')
+    .single()
+  if (r.error) {
+    await supabase.storage.from('orders').remove([path])
+    throw fail(r.error)
+  }
+  return r.data as VarFile
+}
+export async function removeVarFile(f: VarFile) {
+  const r = await supabase.from('sub_variation_files').delete().eq('id', f.id)
+  if (r.error) throw fail(r.error)
+  await supabase.storage.from('orders').remove([f.path])
+}
+// when variations are deleted from an order, their files go too
+export async function removeVarFilesOf(variationIds: string[]) {
+  if (!variationIds.length) return
+  const r = await supabase.from('sub_variation_files').select('path').in('variation_id', variationIds)
+  const paths = (r.data ?? []).map((x) => x.path as string)
+  if (paths.length) await supabase.storage.from('orders').remove(paths)
+}
+export async function markInstructed(id: string) {
+  const r = await supabase.from('sub_variations').update({ instructed: true, instructed_on: todayIso(), instruction_emailed_at: new Date().toISOString() }).eq('id', id)
+  if (r.error) throw fail(r.error)
+}
+
+// the instruction letter (Word, on the letterhead)
+export async function variationDocx(args: {
+  job: Job
+  order: Order
+  company: Company
+  contact: Contact | null
+  v: { ref: string | null; description: string | null; value: number | null }
+  revisedOrderValue: number | null
+  signer: Profile | null
+}) {
+  const { job, order, company, contact, v, revisedOrderValue, signer } = args
+  const address = [company.name, ...(company.address ?? '').split(/\n/).map((s) => s.trim()).filter(Boolean), company.postcode ?? ''].filter(Boolean)
+  const rows: string[][] = [
+    ['Order number', order.order_no ?? ''],
+    ['Project', `${job.job_no} ${job.code} – ${job.name}`],
+    ['Variation', `${v.ref ?? ''}${v.description ? ' – ' + v.description : ''}`],
+    ['Value of variation', `${money(v.value)} excluding VAT`],
+    ['Original order value', `${money(order.order_value)} excluding VAT`],
+    ...(revisedOrderValue != null ? [['Revised order value (with all instructed variations)', `${money(revisedOrderValue)} excluding VAT`]] : []),
+  ]
+  const blocks: Block[] = [
+    { p: ordinalDate(todayIso()), before: 1300, after: 240 },
+    { p: address.join('\n'), after: 240 },
+    ...(contact ? [{ p: [{ text: `Fao: ${contact.name}`, bold: true, underline: true }], after: 240 } as Block] : []),
+    { p: `Our ref: ${order.order_no ?? ''} / ${v.ref ?? ''}`, after: 240 },
+    { p: contact ? `Dear ${contact.name.split(' ')[0]},` : 'Dear Sir or Madam,', after: 200 },
+    { p: [{ text: `Re: - ${job.name} – Variation Instruction ${v.ref ?? ''} to Order ${order.order_no ?? ''}`, bold: true, underline: true }], after: 200 },
+    { p: `Further to your quotation, we hereby instruct you to carry out the following variation to the above order, on the terms of the order.`, after: 160 },
+    { table: { head: ['', ''], rows, widths: [70, 95] } },
+    { p: 'Please proceed, and confirm receipt and acceptance by return.', after: 160 },
+    { p: 'Yours sincerely,', before: 200, after: 960, keepNext: true },
+    { p: signer?.full_name || '[name]', keepNext: true, after: 0 },
+    ...(signer?.job_title ? [{ p: signer.job_title, keepNext: true, after: 0 } as Block] : []),
+    { p: 'On behalf of du Boulay Projects Limited', after: 0 },
+  ]
+  return letterDocx(blocks)
+}

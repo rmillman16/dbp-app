@@ -23,6 +23,7 @@ import {
   orderDocx,
   orderFileName,
   placeOrder,
+  removeVarFilesOf,
   removeAppendix,
   updateAppendix,
   type Appendix,
@@ -36,6 +37,7 @@ import type { Company, Order, PaymentNotice, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
 import MoneyInput from '../components/MoneyInput'
+import OrderVariations from '../components/OrderVariations'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -517,6 +519,7 @@ export function OrderPage() {
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const savedVars = useRef<SubVariation[]>([])
 
   useEffect(() => {
     loadOrder(orderId!).then(
@@ -524,6 +527,7 @@ export function OrderPage() {
         setData(d)
         setOrder(d.order)
         setVars(d.vars)
+        savedVars.current = d.vars
         loadCompanies().then(
           (cs) => setCompany(cs.find((c) => c.id === d.order.company_id) ?? null),
           () => {},
@@ -560,11 +564,6 @@ export function OrderPage() {
     const { id, ...rest } = order
     const steps = [
       () => supabase.from('orders').update(rest).eq('id', id),
-      () => supabase.from('sub_variations').delete().eq('order_id', id),
-      () =>
-        vars.filter((v) => v.ref || v.description).length
-          ? supabase.from('sub_variations').insert(vars.filter((v) => v.ref || v.description).map(({ id: _i, ...v }) => ({ ...v, order_id: id }))) // eslint-disable-line @typescript-eslint/no-unused-vars
-          : null,
     ]
     for (const s of steps) {
       const r = await s()
@@ -573,6 +572,37 @@ export function OrderPage() {
         setError(needs054(saveError(r.error)))
         return false
       }
+    }
+    // the variations: update the ones with an id, add the new, remove the rest (their files hang off the ids, so none are re-made)
+    try {
+      const keep = vars.filter((v) => v.ref || v.description)
+      const have = keep.filter((v) => v.id).map((v) => v.id as string)
+      const old = await supabase.from('sub_variations').select('id').eq('order_id', id)
+      const gone = ((old.data ?? []) as { id: string }[]).map((x) => x.id).filter((x) => !have.includes(x))
+      if (gone.length) {
+        await removeVarFilesOf(gone)
+        const d = await supabase.from('sub_variations').delete().in('id', gone)
+        if (d.error) throw d.error
+      }
+      const out: SubVariation[] = []
+      for (const v of keep) {
+        const { id: vid, order_id: _o, ...fields } = v // eslint-disable-line @typescript-eslint/no-unused-vars
+        if (vid) {
+          const u = await supabase.from('sub_variations').update(fields).eq('id', vid).select('*').single()
+          if (u.error) throw u.error
+          out.push(u.data as SubVariation)
+        } else {
+          const n = await supabase.from('sub_variations').insert({ ...fields, order_id: id }).select('*').single()
+          if (n.error) throw n.error
+          out.push(n.data as SubVariation)
+        }
+      }
+      savedVars.current = out
+      setVars(out)
+    } catch (e) {
+      setBusy(null)
+      setError(needs054(saveError(e)))
+      return false
     }
     setBusy(null)
     if (!quiet) setMsg('Saved.')
@@ -674,7 +704,6 @@ export function OrderPage() {
     }
   }
 
-  const setVar = (i: number, patch: Partial<SubVariation>) => (setMsg(null), setVars(vars.map((v, j) => (j === i ? { ...v, ...patch } : v))))
   const num = (v: string) => (v === '' ? null : Number(v))
 
   return (
@@ -825,47 +854,21 @@ export function OrderPage() {
         )}
       </section>
 
-      <section className="card">
-        <h2>Subcontractor's variations</h2>
-        <p className="muted small">DBP's list for this order. Each application's variations are checked against it (reference and value).</p>
-        <table className="table stack sub-vars">
-          <thead>
-            <tr>
-              <th>Ref</th>
-              <th>Description</th>
-              <th className="num">Value £</th>
-              <th>Instructed</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {vars.map((v, i) => (
-              <tr key={i}>
-                <td data-label="Ref">
-                  <input value={v.ref ?? ''} placeholder="VA1" onChange={(e) => setVar(i, { ref: e.target.value || null })} />
-                </td>
-                <td data-label="Description">
-                  <input value={v.description ?? ''} onChange={(e) => setVar(i, { description: e.target.value || null })} />
-                </td>
-                <td data-label="Value £">
-                  <MoneyInput value={v.value} onChange={(x) => setVar(i, { value: x })} />
-                </td>
-                <td data-label="Instructed">
-                  <input type="checkbox" checked={v.instructed} onChange={(e) => setVar(i, { instructed: e.target.checked })} />
-                </td>
-                <td>
-                  <button className="small-button" onClick={() => (setMsg(null), setVars(vars.filter((_, j) => j !== i)))}>
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <button className="small-button" onClick={() => setVars([...vars, { ref: null, description: null, value: null, instructed: false }])}>
-          + Add variation
-        </button>
-      </section>
+      <OrderVariations
+        job={job}
+        order={order}
+        company={company}
+        contact={contact}
+        toEmail={toEmail}
+        me={me}
+        vars={vars}
+        setVars={setVars}
+        ensureSaved={async () => ((await save(true)) ? savedVars.current : null)}
+        onDirty={() => setMsg(null)}
+        onMsg={setMsg}
+        onError={setError}
+        onOrderChanged={() => {}}
+      />
     </div>
   )
 }

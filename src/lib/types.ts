@@ -308,6 +308,8 @@ export interface SubVariation {
   description: string | null
   value: number | null
   instructed: boolean
+  instructed_on?: string | null // 056
+  instruction_emailed_at?: string | null
 }
 
 export type Block = 'measured' | 'materials' | 'variations'

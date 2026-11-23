@@ -923,3 +923,21 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .std-list li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--line); } .std-list li input:not([type]) { flex: 1 1 240px; }
 .std-add input:not([type]) { flex: 1 1 200px; }
 .money-input { text-align: right; }
+/* application lines: headings sit exactly over their columns (fixed widths, same padding, right-aligned figures) */
+@media (min-width: 641px) {
+  .pn-lines { table-layout: fixed; }
+  .pn-lines th { padding: 6px 5px; }
+  .pn-lines .c-ref input, .pn-lines .c-qty input, .pn-lines .c-rate input, .pn-lines .c-unit input { width: 100%; }
+  .pn-lines th:nth-child(1) { width: 72px; }
+  .pn-lines th:nth-child(3), .pn-lines th:nth-child(5), .pn-lines th:nth-child(7) { width: 132px; }
+  .pn-lines th:nth-child(4), .pn-lines th:nth-child(6) { width: 78px; }
+  .pn-lines th:nth-child(8) { width: 170px; }
+  .pn-lines th:nth-child(9) { width: 42px; }
+  .pn-lines .subtotal-row td { padding: 6px 5px; }
+}
+.var-card { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.var-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.var-ref { width: 80px; } .var-desc { flex: 1 1 220px; } .var-head .money-input { width: 140px; }
+.var-instructed { white-space: nowrap; }
+.var-files { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.var-file { display: inline-flex; gap: 2px; align-items: center; background: #f3f5fa; border-radius: 6px; padding: 0 4px; }
