@@ -38,6 +38,8 @@ import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
 import MoneyInput from '../components/MoneyInput'
 import OrderVariations from '../components/OrderVariations'
+import OrderFolder from '../components/OrderFolder'
+import { folderAccess, writeInto } from '../lib/orderFolder'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -609,6 +611,27 @@ export function OrderPage() {
     return true
   }
 
+  // the order and its appendices into the synced SharePoint folder, in the order's own subfolder
+  async function savePack() {
+    if (!order || !company) return
+    setError(null)
+    const root = await folderAccess(job.id)
+    if (!root) return setError('Link the synced "3. Orders" folder first, and allow access when the browser asks.')
+    setBusy('folder')
+    try {
+      const label = orderLabel(order, company)
+      const list = appendices ?? []
+      const docx = await orderDocx({ job, order, company, contact, packageLabel, appendices: list, signer: me })
+      const where = await writeInto(root, [label], orderFileName(job, order, company), docx)
+      for (const a of list) await writeInto(root, [label, 'Appendices'], a.file_name, await fileBlob(a.path))
+      setMsg(`Saved to SharePoint (${where}) with ${list.length} appendix${list.length === 1 ? '' : 'es'}. OneDrive will upload it.`)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function place() {
     if (!order) return
     if (!order.package_name) return setError('Choose the package first: placing the order marks it Ordered on the procurement schedule.')
@@ -825,6 +848,8 @@ export function OrderPage() {
           </p>
         )}
       </section>
+
+      <OrderFolder jobId={job.id} url={order.sharepoint_folder_url} onUrl={(v) => setO('sharepoint_folder_url', v)} folderLabel={orderLabel(order, company)} onSavePack={savePack} busy={!!busy} />
 
       <Appendices order={order} appendices={appendices} setAppendices={setAppendices} library={library} hasPaymentTerms={hasPaymentTerms} onError={setError} />
 

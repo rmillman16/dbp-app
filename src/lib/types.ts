@@ -299,6 +299,7 @@ export interface Order {
   placed_on?: string | null
   placed_by?: string | null
   emailed_at?: string | null
+  sharepoint_folder_url?: string | null // link to the order's folder in SharePoint
 }
 
 export interface SubVariation {
