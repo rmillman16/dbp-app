@@ -1009,3 +1009,11 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .rpt-site { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
 .new-company-box { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
 .clickable-card { cursor: pointer; } .clickable-card:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43, 34, 87, 0.12); }
+/* job overview, tidied (23 Nov): Job details top left, TODO the rest of that row; people and the SoW side by side below */
+.overview-top { display: grid; grid-template-columns: minmax(300px, 360px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.overview-bottom { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.overview-bottom > .span-all, .overview-top > .span-all { grid-column: auto; }
+.job-details-card .details dd { overflow-wrap: anywhere; }
+.job-team-embedded { margin-bottom: 8px; } .job-team-embedded .intro { margin-top: 0; }
+.module-card.coming-card { cursor: default; } .module-card.coming-card:hover { border-color: var(--line); }
+@media (max-width: 900px) { .overview-top, .overview-bottom { grid-template-columns: 1fr; } }

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
 import { useDirectoryRoles } from '../lib/roles'
-import { addDirectoryEntry, deleteDirectoryEntry, loadTeam, type DirectoryEntry, type TeamMember } from '../lib/om'
+import { addDirectoryEntry, deleteDirectoryEntry, type DirectoryEntry } from '../lib/om'
+import JobTeam from './JobTeam'
 import type { Company, CompanyType, Job } from '../lib/types'
 import SuggestInput from './SuggestInput'
 import { isExternalEmail } from '../lib/users'
@@ -18,7 +19,6 @@ export default function ProjectDirectory({ job, enquiryId }: { job?: Job; enquir
   const isJob = !!job
   const ownerId = (job?.id ?? enquiryId) as string
   const owner = { kind: (isJob ? 'job' : 'enquiry') as 'job' | 'enquiry', id: ownerId }
-  const [team, setTeam] = useState<TeamMember[]>([])
   const [entries, setEntries] = useState<DirectoryEntry[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -28,14 +28,12 @@ export default function ProjectDirectory({ job, enquiryId }: { job?: Job; enquir
   const [msg, setMsg] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const [t, d, c, p, o] = await Promise.all([
-      (isJob ? loadTeam(ownerId) : Promise.resolve([] as TeamMember[])).catch(() => [] as TeamMember[]),
+    const [d, c, p, o] = await Promise.all([
       supabase.from('job_directory').select('*').eq(isJob ? 'job_id' : 'enquiry_id', ownerId),
       supabase.from('companies').select('*').order('name'),
       supabase.from('contacts').select('*').order('name'),
       isJob ? supabase.from('orders').select('company_id, trade').eq('job_id', ownerId) : Promise.resolve({ data: [] as { company_id: string; trade: string | null }[], error: null }),
     ])
-    setTeam(t)
     setEntries((d.data ?? []).filter((e) => !(e as DirectoryEntry).client_direct) as DirectoryEntry[])
     setCompanies((c.data ?? []) as Company[])
     setContacts((p.data ?? []) as Contact[])
@@ -112,22 +110,15 @@ export default function ProjectDirectory({ job, enquiryId }: { job?: Job; enquir
         />
       )}
 
-      {isJob && <h3 className="sub-head">DBP</h3>}
-      {isJob && team.length === 0 ? (
-        <p className="muted small">Nobody on the job's team yet: add them under Team below.</p>
-      ) : !isJob ? null : (
-        <ul className="dir-people">
-          {team.map((t) => (
-            <li key={t.profile_id + t.role}>
-              <strong>{t.full_name ?? t.email}</strong> <span className="dir-role">{t.role}</span>
-              {t.email && <a href={`mailto:${t.email}`}>{t.email}</a>}
-              {isExternalEmail(t.email) && <span className="dir-ext" title="Not a @duboulay.co.uk email, so treated as external">External email</span>}
-            </li>
-          ))}
-        </ul>
+      {/* DBP's own people: the job's team, added and removed here (the job's reminders go to them) */}
+      {job && (
+        <>
+          <h3 className="sub-head">DBP team</h3>
+          <JobTeam job={job} embedded />
+        </>
       )}
 
-      <h3 className="sub-head">Client, consultants, subcontractors and suppliers</h3>
+      <h3 className="sub-head">{job ? 'Client, consultants, subcontractors and suppliers' : 'Client team and consultants'}</h3>
       {groups.length === 0 && <p className="muted small">Nobody added yet. Add a company, and as many of its people as work on this job.</p>}
       {groups.map(([companyId, rows]) => {
         const c = co.get(companyId)

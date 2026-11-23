@@ -11,7 +11,7 @@ import { createLogin, welcomeEmail } from '../lib/users'
 
 type Person = { id: string; full_name: string | null; email: string | null; job_title: string | null }
 
-export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
+export default function JobTeam({ job, embedded = false }: { job: Pick<Job, 'id'>; embedded?: boolean }) {
   const [team, setTeam] = useState<TeamMember[] | null>(null)
   const [people, setPeople] = useState<Person[]>([])
   const [who, setWho] = useState('')
@@ -59,10 +59,11 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
     else reload()
   }
 
+  const Wrap = embedded ? 'div' : 'section'
   return (
-    <section className="card">
-      <h2>Team</h2>
-      <p className="muted small intro">Who’s on this job. The job’s reminders (e.g. O&M documents due) go to everyone here.</p>
+    <Wrap className={embedded ? "job-team-embedded" : "card"}>
+      {!embedded && <h2>Team</h2>}
+      <p className="muted small intro">DBP people on this job. The job’s reminders (e.g. O&M documents due, report due) go to everyone here.</p>
       {err && <p className="error">{err}</p>}
       {!team ? (
         <p className="muted small">Loading…</p>
@@ -149,6 +150,6 @@ export default function JobTeam({ job }: { job: Pick<Job, 'id'> }) {
           </div>
         </div>
       )}
-    </section>
+    </Wrap>
   )
 }

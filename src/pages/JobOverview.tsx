@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { money, todayIso, ukDate } from '../lib/format'
-import { VO_STATUS_LABELS } from '../lib/types'
-import { needsAttention, useNotifications } from '../lib/notifications'
+import { addDaysIso, money, todayIso, ukDate } from '../lib/format'
+import { VO_STATUS_LABELS, type Job } from '../lib/types'
+import { useNotifications } from '../lib/notifications'
 import { loadJobVariations, projectedValue, type VoWithLines } from '../lib/variations'
 import NotificationList from '../components/NotificationList'
 import JobSowCard from '../components/JobSow'
@@ -11,38 +11,14 @@ import { downloadValuationCalendar, valuationDates } from '../lib/calendar'
 import { useJob } from './JobLayout'
 import { completeAction, dueStatus, formatDateSidebar, loadJobActions, meetingPath, plainMentions, projectNameOf, type OpenAction } from '../lib/minutes'
 import { useAccess } from '../lib/access'
-import JobTeam from '../components/JobTeam'
 import ProjectDirectory from '../components/ProjectDirectory'
 
+// Job Overview (23 Nov, tidied): Job details top left and TODO taking the rest of that row; the modules at a glance in one row
+// of tiles (each opens its tab); the variations; then people (the DBP team and the outside people in one card) and the SoW.
 export default function JobOverview() {
   const { job } = useJob()
-  const { attention, items, reload } = useNotifications()
-  const { can } = useAccess()
   const navigate = useNavigate()
-  // the To do box (22 Nov): requisition questions and answers waiting on me for this job
-  const todo = items.filter(
-    (n) => n.job_id === job.id && (/^requisition_(query|answer)$/.test(n.kind) || ((n.kind === 'off_hire_due' || n.kind === 'om_due' || n.kind === 'task') && needsAttention(n))),
-  )
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
-  const [calMsg, setCalMsg] = useState<string | null>(null)
-  // and every open action from the job's minutes, whoever owns it (22 Nov, script 045)
-  const [actions, setActions] = useState<OpenAction[]>([])
-  const [actionErr, setActionErr] = useState<string | null>(null)
-  useEffect(() => {
-    if (can('job_minutes')) loadJobActions(job.id).then(setActions)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [job.id])
-  async function tickAction(a: OpenAction) {
-    setActionErr(null)
-    try {
-      await completeAction(a.pointId, true)
-      setActions((l) => l.filter((x) => x.pointId !== a.pointId))
-      reload()
-    } catch (e) {
-      setActionErr((e as Error).message)
-    }
-  }
-
   useEffect(() => {
     loadJobVariations(job).then(setVos, () => setVos([]))
   }, [job])
@@ -50,36 +26,16 @@ export default function JobOverview() {
   const live = vos?.filter((v) => v.vo.status !== 'rejected') ?? []
   const projected = live.reduce((s, v) => s + projectedValue(v.vo, v.build), 0)
   const agreed = live.filter((v) => v.vo.status === 'agreed').reduce((s, v) => s + projectedValue(v.vo, v.build), 0)
-  // what needs attention now (future valuation reminders etc. stay under the bell's "upcoming")
-  const jobNotes = attention.filter((n) => n.job_id === job.id)
 
   return (
     <div className="overview-grid">
-      {/* TODO first and full width: likely the most useful bit (23 Nov) */}
-      <section className="card span-all todo-card">
-        <h2>TODO</h2>
-        {todo.length > 0 && <NotificationList items={todo} />}
-        {actions.length > 0 && <MinutesActions actions={actions} onDone={tickAction} />}
-        {actionErr && <p className="error">{actionErr}</p>}
-        {todo.length === 0 && actions.length === 0 && (
-          <p className="muted small">Nothing waiting. Open actions from the job's minutes, requisition questions and off-hire reminders show here.</p>
-        )}
-      </section>
-
-      {/* space kept for the next two modules, side by side under TODO: RFIs left, Submittals right (23 Nov) */}
-      <div className="span-all overview-pair">
-        <RfiCard jobId={job.id} />
-        <SubmittalsCard jobId={job.id} />
+      <div className="span-all overview-top">
+        <JobDetails job={job} />
+        <JobTodo job={job} />
       </div>
 
-      {/* space kept for snagging (23 Nov): coming soon */}
-      <section className="card coming-card span-all">
-        <div className="pane-head">
-          <h2>Snagging</h2>
-          <span className="soon">soon</span>
-        </div>
-        <p className="muted small">Coming soon: a snag list for each job with photos and locations, items assigned to subcontractors, due dates and chasing, and sign-off at handover.</p>
-      </section>
+      {/* the other modules at a glance: one row of tiles */}
+      <ModuleCards job={job} />
 
       {/* all the VOs */}
       <section className="card span-all">
@@ -143,180 +99,170 @@ export default function JobOverview() {
         )}
       </section>
 
-      {/* the other modules at a glance */}
-      <ModuleCards jobId={job.id} pcDate={job.pc_date} />
-
-      <section className="card">
-        <h2>Job details</h2>
-        <dl className="details">
-          <dt>Site address</dt>
-          <dd>{job.site_address || '–'}</dd>
-          <dt>Form of contract</dt>
-          <dd>{job.contract_form || '–'}</dd>
-          <dt>Contract sum</dt>
-          <dd>{money(job.contract_sum) || '–'}</dd>
-          <dt>Start on site</dt>
-          <dd>{ukDate(job.start_date) || '–'}</dd>
-          <dt>PC date</dt>
-          <dd>{ukDate(job.pc_date) || '–'}</dd>
-          <dt>OHP / prelims / retention</dt>
-          <dd>
-            {job.ohp_pct}% / {job.prelims_pct}% / {job.retention_pct}%
-          </dd>
-        </dl>
-      </section>
-
-      <section className="card">
-        <h2>Valuation dates</h2>
-        {job.status !== 'live' ? (
-          <p className="muted small">Monthly valuation reminders run while the job is Live.</p>
-        ) : (
-          <>
-            <p className="muted small">
-              Valuation starts one week before each month end{job.pc_date ? `, to PC (${ukDate(job.pc_date)})` : ', for the next 12 months (no PC date yet)'}. The reminder shows on
-              the bell in that last week.
-            </p>
-            <ul className="date-list">
-              {valuationDates(job)
-                .slice(0, 3)
-                .map((d) => (
-                  <li key={d.due}>
-                    <strong>{ukDate(d.due)}</strong> <span className="muted">· {d.month}</span>
-                  </li>
-                ))}
-            </ul>
-            <button onClick={() => setCalMsg(`${downloadValuationCalendar(job)} appointments downloaded: open the file to add them to Outlook.`)}>
-              Add valuation dates to my calendar
-            </button>
-            {calMsg && <p className="small">{calMsg}</p>}
-          </>
-        )}
-      </section>
-
-      {/* everyone on the job, inside and outside DBP (23 Nov): RFIs and submittals are addressed from this */}
-      <ProjectDirectory job={job} />
-
-      {/* who's on the job: O&M reminders go to them (23 Nov, script 047) */}
-      <JobTeam job={job} />
-
-      {/* the job's one SoW (Valuations, CVR and Cashflow all use it) */}
-      <JobSowCard compact />
-
-      {jobNotes.length > 0 && (
-        <section className="card span-all">
-          <h2>Notifications for this job</h2>
-          <NotificationList items={jobNotes} />
-        </section>
-      )}
+      {/* everyone on the job in one card: the DBP team, and the outside people by company */}
+      <div className="span-all overview-bottom">
+        <ProjectDirectory job={job} />
+        <JobSowCard compact />
+      </div>
     </div>
   )
 }
 
-// submittals at a glance (23 Nov, script 060): out for review, overdue, and those to revise
-function SubmittalsCard({ jobId }: { jobId: string }) {
-  const { can } = useAccess()
-  const navigate = useNavigate()
-  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
-  useEffect(() => {
-    if (!can('job_rfis')) return
-    supabase
-      .from('submittals')
-      .select('status, due_date')
-      .eq('job_id', jobId)
-      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
-  }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (!can('job_rfis')) return null
-  const today = todayIso()
-  const out = (rows ?? []).filter((r) => r.status === 'out')
-  const late = out.filter((r) => r.due_date && r.due_date < today).length
-  const revise = (rows ?? []).filter((r) => r.status === 'revise' || r.status === 'rejected').length
-  const approved = (rows ?? []).filter((r) => r.status === 'approved' || r.status === 'approved_noted').length
+// ---------- Job details (with the valuation dates), top left ----------
+function JobDetails({ job }: { job: Job }) {
+  const [calMsg, setCalMsg] = useState<string | null>(null)
   return (
-    <section className="card coming-card clickable-card" role="link" tabIndex={0} onClick={() => navigate('submittals')} onKeyDown={(e) => e.key === 'Enter' && navigate('submittals')}>
-      <div className="pane-head">
-        <h2>Submittals</h2>
-        <Link to="submittals" className="link-button small">
-          Open →
-        </Link>
-      </div>
-      {rows === null ? (
-        <p className="muted small">Submittals need script 060 run in Supabase first.</p>
-      ) : rows.length === 0 ? (
-        <p className="muted small">No submittals yet.</p>
+    <section className="card job-details-card">
+      <h2>Job details</h2>
+      <dl className="details">
+        <dt>Site address</dt>
+        <dd>{job.site_address || '–'}</dd>
+        <dt>Form of contract</dt>
+        <dd>{job.contract_form || '–'}</dd>
+        <dt>Contract sum</dt>
+        <dd>{money(job.contract_sum) || '–'}</dd>
+        <dt>Start on site</dt>
+        <dd>{ukDate(job.start_date) || '–'}</dd>
+        <dt>PC date</dt>
+        <dd>{ukDate(job.pc_date) || '–'}</dd>
+        <dt>OHP / prelims / retention</dt>
+        <dd>
+          {job.ohp_pct}% / {job.prelims_pct}% / {job.retention_pct}%
+        </dd>
+        {job.report_frequency_days ? (
+          <>
+            <dt>Progress report</dt>
+            <dd>every {job.report_frequency_days} days</dd>
+          </>
+        ) : null}
+      </dl>
+      <h3 className="sub-head">Next valuations</h3>
+      {job.status !== 'live' ? (
+        <p className="muted small">Monthly valuation reminders run while the job is Live.</p>
       ) : (
-        <p>
-          <strong>{out.length}</strong> out for review{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{revise}</strong> to revise · <strong>{approved}</strong> approved · {rows.length} in all
-        </p>
+        <>
+          <ul className="date-list">
+            {valuationDates(job)
+              .slice(0, 3)
+              .map((d) => (
+                <li key={d.due}>
+                  <strong>{ukDate(d.due)}</strong> <span className="muted">· {d.month}</span>
+                </li>
+              ))}
+          </ul>
+          <button type="button" className="small-button" onClick={() => setCalMsg(`${downloadValuationCalendar(job)} appointments downloaded: open the file to add them to Outlook.`)}>
+            Add valuation dates to my calendar
+          </button>
+          {calMsg && <p className="small">{calMsg}</p>}
+        </>
       )}
     </section>
   )
 }
 
-// RFIs at a glance (23 Nov, script 057): what's open, overdue and waiting to be closed
-function RfiCard({ jobId }: { jobId: string }) {
+// ---------- TODO: everything waiting on me for this job, in one list ----------
+// This is the bell's notifications for this job and the job's open minutes actions, together (there used to be a TODO box and a
+// separate "Notifications for this job" box showing the same list twice). Overdue first, then this week, then later.
+function JobTodo({ job }: { job: Job }) {
+  const { items, reload, error } = useNotifications()
   const { can } = useAccess()
-  const navigate = useNavigate()
-  const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
+  const [actions, setActions] = useState<OpenAction[]>([])
+  const [actionErr, setActionErr] = useState<string | null>(null)
+  const [showLater, setShowLater] = useState(false)
   useEffect(() => {
-    if (!can('job_rfis')) return
-    supabase
-      .from('rfis')
-      .select('status, due_date')
-      .eq('job_id', jobId)
-      .then(({ data, error }) => setRows(error ? null : ((data ?? []) as { status: string; due_date: string | null }[])))
-  }, [jobId]) // eslint-disable-line react-hooks/exhaustive-deps
-  if (!can('job_rfis')) return null
+    if (can('job_minutes')) loadJobActions(job.id).then(setActions, () => setActions([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [job.id])
+  async function tickAction(a: OpenAction) {
+    setActionErr(null)
+    try {
+      await completeAction(a.pointId, true)
+      setActions((l) => l.filter((x) => x.pointId !== a.pointId))
+      reload()
+    } catch (e) {
+      setActionErr((e as Error).message)
+    }
+  }
   const today = todayIso()
-  const open = (rows ?? []).filter((r) => r.status === 'open')
-  const late = open.filter((r) => r.due_date && r.due_date < today).length
-  const answered = (rows ?? []).filter((r) => r.status === 'answered').length
+  const week = addDaysIso(today, 7)
+  // minutes actions are listed below with their Done button, so their bell reminders aren't repeated here
+  const mine = useMemo(
+    () => items.filter((n) => n.job_id === job.id && n.kind !== 'minutes_action').sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')),
+    [items, job.id],
+  )
+  const overdue = mine.filter((n) => n.due_date && n.due_date < today)
+  const thisWeek = mine.filter((n) => !n.due_date || (n.due_date >= today && n.due_date <= week))
+  const later = mine.filter((n) => n.due_date && n.due_date > week)
+  const nothing = overdue.length + thisWeek.length === 0 && actions.length === 0
+
   return (
-    <section className="card coming-card clickable-card" role="link" tabIndex={0} onClick={() => navigate('rfis')} onKeyDown={(e) => e.key === 'Enter' && navigate('rfis')}>
+    <section className="card todo-card">
       <div className="pane-head">
-        <h2>RFIs</h2>
-        <Link to="rfis" className="link-button small">
-          Open →
-        </Link>
+        <h2>TODO</h2>
+        <span className="muted small">
+          {overdue.length + thisWeek.length + actions.length} waiting{overdue.length > 0 && <span className="late"> · ⚠ {overdue.length} overdue</span>}
+        </span>
       </div>
-      {rows === null ? (
-        <p className="muted small">RFIs need script 057 run in Supabase first.</p>
-      ) : rows.length === 0 ? (
-        <p className="muted small">No RFIs yet.</p>
-      ) : (
-        <p>
-          <strong>{open.length}</strong> open{late > 0 && <span className="late"> · ⚠ {late} overdue</span>} · <strong>{answered}</strong> answered, to close · {rows.length} in all
-        </p>
+      {error && <p className="error">{error}</p>}
+      {overdue.length > 0 && (
+        <>
+          <h3 className="todo-head overdue">⚠ Overdue ({overdue.length})</h3>
+          <NotificationList items={overdue} />
+        </>
+      )}
+      {thisWeek.length > 0 && (
+        <>
+          <h3 className="todo-head">This week ({thisWeek.length})</h3>
+          <NotificationList items={thisWeek} />
+        </>
+      )}
+      {actions.length > 0 && (
+        <>
+          <h3 className="todo-head">Actions from the minutes ({actions.length})</h3>
+          <MinutesActions actions={actions} onDone={tickAction} />
+        </>
+      )}
+      {actionErr && <p className="error">{actionErr}</p>}
+      {nothing && <p className="muted small">Nothing waiting on you for this job. Reminders, questions, chasers and open minutes actions show here.</p>}
+      {later.length > 0 && (
+        <>
+          <button type="button" className="link-button small" onClick={() => setShowLater(!showLater)}>
+            {showLater ? 'Hide' : 'Show'} later ({later.length})
+          </button>
+          {showLater && <NotificationList items={later} />}
+        </>
       )}
     </section>
   )
 }
 
-// the other modules at a glance (23 Nov): a few counts each, linking to the tab; a part you can't open is left out
-function ModuleCards({ jobId, pcDate }: { jobId: string; pcDate: string | null }) {
+// ---------- the modules at a glance: one row of tiles, each opens its tab; a part you can't open is left out ----------
+function ModuleCards({ job }: { job: Job }) {
   const { can } = useAccess()
+  const jobId = job.id
   const [m, setM] = useState<{
     finish: string | null
     proc: { total: number; ordered: number; late: number } | null
     samples: { total: number; approved: number; waiting: number } | null
     meetings: { count: number; last: string | null } | null
     reqs: { open: number; onHire: number } | null
+    rfis: { open: number; overdue: number; answered: number; total: number } | null
+    subs: { out: number; overdue: number; revise: number; total: number } | null
+    reports: { last: number | null; lastEnd: string | null; status: string | null } | null
   } | null>(null)
   useEffect(() => {
     const today = todayIso()
     const get = async <T,>(q: PromiseLike<{ data: T[] | null }>) => (await q).data ?? []
     Promise.all([
-      can('job_programme')
-        ? get<{ finish_date: string | null }>(supabase.from('programmes').select('finish_date').eq('job_id', jobId).order('imported_at', { ascending: false }).limit(1))
-        : [],
-      can('job_procurement')
-        ? get<{ status: string; latest_order_date: string | null }>(supabase.from('procurement_items').select('status, latest_order_date').eq('job_id', jobId))
-        : null,
+      can('job_programme') ? get<{ finish_date: string | null }>(supabase.from('programmes').select('finish_date').eq('job_id', jobId).order('imported_at', { ascending: false }).limit(1)) : [],
+      can('job_procurement') ? get<{ status: string; latest_order_date: string | null }>(supabase.from('procurement_items').select('status, latest_order_date').eq('job_id', jobId)) : null,
       can('job_sampling') ? get<{ status: string }>(supabase.from('samples').select('status').eq('job_id', jobId)) : null,
-      can('job_minutes')
-        ? get<{ meeting_date: string | null }>(supabase.from('meetings').select('meeting_date').eq('job_id', jobId).order('meeting_date', { ascending: false }))
-        : null,
+      can('job_minutes') ? get<{ meeting_date: string | null }>(supabase.from('meetings').select('meeting_date').eq('job_id', jobId).order('meeting_date', { ascending: false })) : null,
       get<{ kind: string; status: string }>(supabase.from('requisitions').select('kind, status').eq('job_id', jobId)),
-    ]).then(([prog, proc, samples, meetings, reqs]) => {
+      can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('rfis').select('status, due_date').eq('job_id', jobId)) : null,
+      can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('submittals').select('status, due_date').eq('job_id', jobId)) : null,
+      can('jobs') ? get<{ report_no: number; period_end: string | null; status: string }>(supabase.from('progress_reports').select('report_no, period_end, status').eq('job_id', jobId).order('report_no', { ascending: false }).limit(1)) : null,
+    ]).then(([prog, proc, samples, meetings, reqs, rfis, subs, reports]) => {
       const done = ['ordered', 'on_site', 'complete', 'covered', 'nothing_to_order']
       setM({
         finish: (prog as { finish_date: string | null }[])[0]?.finish_date ?? null,
@@ -335,12 +281,27 @@ function ModuleCards({ jobId, pcDate }: { jobId: string; pcDate: string | null }
           open: reqs.filter((r) => ['new', 'query', 'answered'].includes(r.status)).length,
           onHire: reqs.filter((r) => r.kind === 'hire' && ['ordered', 'delivered'].includes(r.status)).length,
         },
+        rfis: rfis && {
+          open: rfis.filter((r) => r.status === 'open').length,
+          overdue: rfis.filter((r) => r.status === 'open' && r.due_date && r.due_date < today).length,
+          answered: rfis.filter((r) => r.status === 'answered').length,
+          total: rfis.length,
+        },
+        subs: subs && {
+          out: subs.filter((s) => s.status === 'out').length,
+          overdue: subs.filter((s) => s.status === 'out' && s.due_date && s.due_date < today).length,
+          revise: subs.filter((s) => s.status === 'revise' || s.status === 'rejected').length,
+          total: subs.length,
+        },
+        reports: reports && { last: reports[0]?.report_no ?? null, lastEnd: reports[0]?.period_end ?? null, status: reports[0]?.status ?? null },
       })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId])
   if (!m) return null
-  const slip = m.finish && pcDate ? Math.round((Date.parse(m.finish) - Date.parse(pcDate)) / 86400000) : null
+  const slip = m.finish && job.pc_date ? Math.round((Date.parse(m.finish) - Date.parse(job.pc_date)) / 86400000) : null
+  const days = job.report_frequency_days
+  const nextReport = days && days > 0 ? addDaysIso(m.reports?.lastEnd ?? job.start_date ?? todayIso(), days) : null
   return (
     <div className="span-all module-cards">
       {can('job_programme') && (
@@ -349,12 +310,42 @@ function ModuleCards({ jobId, pcDate }: { jobId: string; pcDate: string | null }
           {m.finish ? (
             <>
               <strong>Finish {ukDate(m.finish)}</strong>
-              {slip != null && (
-                <span className={slip > 0 ? 'late small' : 'muted small'}>{slip > 0 ? `⚠ ${slip} days after PC` : slip < 0 ? `${-slip} days before PC` : 'on PC'}</span>
-              )}
+              {slip != null && <span className={slip > 0 ? 'late small' : 'muted small'}>{slip > 0 ? `⚠ ${slip} days after PC` : slip < 0 ? `${-slip} days before PC` : 'on PC'}</span>}
             </>
           ) : (
             <span className="muted small">No programme yet</span>
+          )}
+        </Link>
+      )}
+      {m.rfis && (
+        <Link to="rfis" className="card module-card">
+          <h3>RFIs</h3>
+          {m.rfis.total === 0 ? (
+            <span className="muted small">None yet</span>
+          ) : (
+            <>
+              <strong>{m.rfis.open} open</strong>
+              <span className={m.rfis.overdue > 0 ? 'late small' : 'muted small'}>
+                {m.rfis.overdue > 0 ? `⚠ ${m.rfis.overdue} overdue · ` : ''}
+                {m.rfis.answered} answered, to close
+              </span>
+            </>
+          )}
+        </Link>
+      )}
+      {m.subs && (
+        <Link to="submittals" className="card module-card">
+          <h3>Submittals</h3>
+          {m.subs.total === 0 ? (
+            <span className="muted small">None yet</span>
+          ) : (
+            <>
+              <strong>{m.subs.out} out for review</strong>
+              <span className={m.subs.overdue > 0 ? 'late small' : 'muted small'}>
+                {m.subs.overdue > 0 ? `⚠ ${m.subs.overdue} overdue · ` : ''}
+                {m.subs.revise} to revise
+              </span>
+            </>
           )}
         </Link>
       )}
@@ -385,11 +376,24 @@ function ModuleCards({ jobId, pcDate }: { jobId: string; pcDate: string | null }
           <span className="muted small">{m.meetings.last ? `last ${ukDate(m.meetings.last)}` : 'none yet'}</span>
         </Link>
       )}
+      {m.reports && (
+        <Link to="progress" className="card module-card">
+          <h3>Progress reports</h3>
+          <strong>{m.reports.last ? `Report ${m.reports.last}` : 'None yet'}</strong>
+          <span className={nextReport && nextReport < todayIso() ? 'late small' : 'muted small'}>{nextReport ? `next due ${ukDate(nextReport)}` : m.reports.status ? m.reports.status : 'no frequency set'}</span>
+        </Link>
+      )}
       <Link to="/site" className="card module-card">
         <h3>Requisitions</h3>
         <strong>{m.reqs?.open ?? 0} open</strong>
         <span className="muted small">{m.reqs?.onHire ?? 0} on hire</span>
       </Link>
+      <div className="card module-card coming-card" title="Coming soon">
+        <h3>
+          Snagging <span className="soon">soon</span>
+        </h3>
+        <span className="muted small">A snag list with photos, assigned to subcontractors</span>
+      </div>
     </div>
   )
 }
