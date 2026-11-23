@@ -350,3 +350,8 @@
   gap: 8px;
   white-space: nowrap;
 }
+/* removing a whole package: ✕ on the far right of its heading (23 Nov) */
+.om-group-line { width: 100%; }
+.om-group-x { margin-left: 4px; padding: 0 6px; font-size: 16px; line-height: 1; color: var(--muted); text-decoration: none; }
+.om-group-x:hover { color: var(--red); }
+.om-group-line .om-group-actions { margin-left: auto; }

@@ -147,6 +147,7 @@ export const PROJECT_ITEMS = [
   'Asbestos register',
   'As-built general arrangement drawings',
   'Maintenance instructions',
+  'Collateral warranties',
   'Client-specific requirements',
 ]
 
@@ -349,6 +350,7 @@ export const DEFAULT_GENERAL = [
   'Fire strategy',
   'As-built general arrangement drawings',
   'Maintenance instructions',
+  'Collateral warranties',
 ]
 export interface DraftPlan {
   g: OmGroup

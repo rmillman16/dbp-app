@@ -415,16 +415,18 @@ function GroupRows({
                   ✉ Draft chase email{to?.email ? '' : ' (no email)'}
                 </a>
               )}
-              {canRemove && (live.length > 0 || g.kind === 'client') && (
-                <button
-                  className="small-button"
-                  onClick={removeGroup}
-                  title={g.kind === 'job' ? 'Remove all the General items (not required on this job)' : 'Not required on this job'}
-                >
-                  {g.kind === 'job' ? 'Remove all' : 'Remove'}
-                </button>
-              )}
             </span>
+            {/* removing the whole package: an ✕ on the far right (23 Nov) */}
+            {canRemove && (live.length > 0 || g.kind === 'client') && (
+              <button
+                className="link-button om-group-x"
+                onClick={removeGroup}
+                title={g.kind === 'job' ? 'Remove all the General items (not required on this job)' : `Remove ${g.title} (not required on this job)`}
+                aria-label={g.kind === 'job' ? 'Remove all General items' : `Remove ${g.title}`}
+              >
+                ✕
+              </button>
+            )}
           </div>
         </td>
       </tr>
