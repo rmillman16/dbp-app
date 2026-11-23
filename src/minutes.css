@@ -1759,3 +1759,9 @@
 .mint .task-show-done { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
 .mint .task-show-done input { width: auto; padding: 0; }
 .mint .task-buttons button.primary { padding: 6px 14px; }
+/* task rows (23 Nov): the task | its buttons | delete in its own column, far right, centred */
+.mint.my-tasks .dash-task { display: grid; grid-template-columns: minmax(0, 1fr) auto 36px; gap: 12px; align-items: center; }
+.mint.my-tasks .task-buttons { display: inline-flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.mint.my-tasks .task-del { display: flex; align-items: center; justify-content: center; align-self: stretch; border-left: 1px solid var(--border); }
+.mint.my-tasks .task-del button.link-button { text-decoration: none; font-size: 16px; color: #948da8; }
+.mint.my-tasks .task-del button.link-button:hover { color: #c0392b; }

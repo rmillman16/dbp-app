@@ -223,21 +223,23 @@ export default function MyTasks() {
                   tabIndex={openMeeting ? 0 : undefined}
                   onClick={(e) => openMeeting && !(e.target as HTMLElement).closest('button') && openMeeting()}
                 >
-                  <div className="dash-task-text">{r.action ? <Mentions text={r.text} attendees={r.action.attendees} /> : r.text}</div>
-                  {r.notes && <div className="task-notes">{r.notes}</div>}
-                  <div className="dash-task-meta">
-                    {r.done ? <span className="chip">✓ Done {r.doneAt ? ukDate(r.doneAt.slice(0, 10)) : ''}</span> : dueChip(r.due)}
-                    <span className="chip">{r.forMe ? 'For me' : `For ${r.forName}`}</span>
-                    {r.fromName && <span className="chip">From {r.fromName}</span>}
-                    {r.action && (
-                      <span className="chip">
-                        Minutes: {M.projectNameOf(r.action)}
-                        {r.action.meetingDate ? ' · ' + M.formatDateSidebar(r.action.meetingDate) : ''}
-                      </span>
-                    )}
-                    {!r.action && jobLabel(r.jobId) && <span className="chip">{jobLabel(r.jobId)}</span>}
-                    {r.action?.urgent && <span className="chip flag-urgent">Urgent</span>}
-                    {!r.done && !r.forMe && r.due && r.due < today && <span className="chip">⚠ overdue</span>}
+                  <div className="task-main">
+                    <div className="dash-task-text">{r.action ? <Mentions text={r.text} attendees={r.action.attendees} /> : r.text}</div>
+                    {r.notes && <div className="task-notes">{r.notes}</div>}
+                    <div className="dash-task-meta">
+                      {r.done ? <span className="chip">✓ Done {r.doneAt ? ukDate(r.doneAt.slice(0, 10)) : ''}</span> : dueChip(r.due)}
+                      <span className="chip">{r.forMe ? 'For me' : `For ${r.forName}`}</span>
+                      {r.fromName && <span className="chip">From {r.fromName}</span>}
+                      {r.action && (
+                        <span className="chip">
+                          Minutes: {M.projectNameOf(r.action)}
+                          {r.action.meetingDate ? ' · ' + M.formatDateSidebar(r.action.meetingDate) : ''}
+                        </span>
+                      )}
+                      {!r.action && jobLabel(r.jobId) && <span className="chip">{jobLabel(r.jobId)}</span>}
+                      {r.action?.urgent && <span className="chip flag-urgent">Urgent</span>}
+                      {!r.done && !r.forMe && r.due && r.due < today && <span className="chip">⚠ overdue</span>}
+                    </div>
                   </div>
                   <span className="task-buttons app-controls">
                     {r.action && !r.action.jobArchived && (
@@ -255,6 +257,8 @@ export default function MyTasks() {
                         Open again
                       </button>
                     )}
+                  </span>
+                  <span className="task-del app-controls">
                     {r.task && r.setByMe && (
                       <button type="button" className="link-button" onClick={() => remove(r.task!)} aria-label="Delete task" title="Delete task">
                         ✕
