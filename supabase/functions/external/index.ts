@@ -84,8 +84,12 @@ const table = (kind: string) => (kind === "rfi" ? "rfi_people" : "submittal_peop
 const itemCol = (kind: string) => (kind === "rfi" ? "rfi_id" : "submittal_id");
 
 async function person(db: DB, kind: "rfi" | "submittal", personRow: string) {
-  const { data: p } = await db.from(table(kind)).select(`id, role, directory_id, ${itemCol(kind)}`).eq("id", personRow).maybeSingle();
-  if (!p || !p.directory_id) throw new Fail(404, "This link is no longer valid.");
+  const { data: p, error: perr } = await db.from(table(kind)).select(`id, role, directory_id, ${itemCol(kind)}`).eq("id", personRow).maybeSingle();
+  if (perr) {
+    console.error("external: person lookup failed:", perr.message);
+    throw new Fail(500, `The server couldn't check this link. (code 5: ${String(perr.message).slice(0, 120)})`);
+  }
+  if (!p || !p.directory_id) throw new Fail(404, "This link is no longer valid. (code 6: the person was removed from the item)");
   const { data: d } = await db.from("job_directory").select("contact_id, company_id").eq("id", p.directory_id).maybeSingle();
   const [c, co] = await Promise.all([
     d?.contact_id ? db.from("contacts").select("name, email").eq("id", d.contact_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -108,20 +112,26 @@ async function bySession(db: DB, session: string, kind: string, id: string): Pro
   return { email: s.email, kind: hit.kind, itemId: id, personRow: hit.personRow, role: p.role, name: p.name, company: p.company, linkId: null };
 }
 async function byToken(db: DB, token: string, ip: string): Promise<Ctx> {
+  // (the short codes in brackets say which check failed, to help find a problem; they reveal nothing about anyone's data)
   if (!TOKEN.test(token)) {
     await limit(db, "badtoken", ip, 30, 60);
-    throw new Fail(404, "This link isn't valid.");
+    throw new Fail(404, "This link isn't valid. (code 1: the link looks cut off or changed; copy the whole link)");
   }
   const hash = await sha256(token);
-  const { data: l } = await db.from("external_links").select("id, kind, item_id, person_id, email, expires_at, revoked_at, use_count").eq("token_hash", hash).maybeSingle();
+  const { data: l, error: lerr } = await db.from("external_links").select("id, kind, item_id, person_id, email, expires_at, revoked_at, use_count").eq("token_hash", hash).maybeSingle();
+  if (lerr) {
+    console.error("external: link lookup failed:", lerr.message);
+    throw new Fail(500, `The server couldn't check this link. (code 3: ${String(lerr.message).slice(0, 120)})`);
+  }
   if (!l) {
     await limit(db, "badtoken", ip, 30, 60);
-    throw new Fail(404, "This link isn't valid.");
+    console.warn("external: no link with that token (length " + token.length + ")");
+    throw new Fail(404, "This link isn't valid. (code 2: no such link: it may not have been copied in full)");
   }
   if (l.revoked_at) throw new Fail(410, "This link has been withdrawn. Please ask du Boulay Projects for a new one.");
   if (new Date(l.expires_at) < new Date()) throw new Fail(410, "This link has expired. Please ask du Boulay Projects for a new one.");
   const p = await person(db, l.kind, l.person_id);
-  if (p.itemId !== l.item_id) throw new Fail(404, "This link isn't valid.");
+  if (p.itemId !== l.item_id) throw new Fail(404, "This link isn't valid. (code 4: it points at a different item)");
   await db.from("external_links").update({ last_used_at: new Date().toISOString(), use_count: (l.use_count ?? 0) + 1 }).eq("id", l.id);
   return { email: l.email, kind: l.kind, itemId: l.item_id, personRow: l.person_id, role: p.role, name: p.name, company: p.company, linkId: l.id };
 }
