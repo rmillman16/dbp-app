@@ -50,7 +50,7 @@ export default function SubmittalsTab() {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [tpls, setTpls] = useState(false)
-  const [filter, setFilter] = useState<Filter>('out')
+  const [filter, setFilter] = useState<Filter>('all')
   const [trade, setTrade] = useState('')
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
