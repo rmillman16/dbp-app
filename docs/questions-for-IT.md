@@ -10,7 +10,13 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 - [ ] **Prepaid credits with auto-reload OFF** (suggest £10 to start) and a monthly spend limit, so it can never overspend. Note: this is separate from any Claude subscription; subscriptions don't cover API use.
 - [ ] Create an API key and add it in Supabase › Edge Functions › Secrets as `ANTHROPIC_API_KEY`.
 - [ ] Deploy the function: Supabase › Edge Functions › Deploy a new function › name `read-pricing-pdf` › paste the code from the file above › Deploy. (Or with the Supabase CLI: `supabase functions deploy read-pricing-pdf`.)
-- [ ] Data protection: PDFs may include names, prices and bank details. Check Anthropic's current commercial terms and data processing agreement (API data isn't used for model training; limited retention) against DBP policy.
+- [ ] **Also used by the tender enquiry generator (Richard, 23 Nov).** In Estimating › an enquiry › Tender enquiries, the estimator uploads the drawings for a package (PDFs or pictures) and the app drafts a **scope of works** from them, which the estimator edits and can attach to the contractor emails. It uses the **same API key** (`ANTHROPIC_API_KEY`), so no second account is needed.
+  - Deploy a second function: Supabase › Edge Functions › Deploy a new function › name `tender-scope` › paste `supabase/functions/tender-scope/index.ts` › Deploy, with **Verify JWT ON**.
+  - Optional secret `SCOPE_MODEL` (default `claude-opus-5-5`, the most capable model for reading drawings).
+  - The drawings are stored in the app's private `orders` storage bucket (tender/ folder) and sent to Anthropic only when the estimator presses the button.
+  - **Cost:** drawings use many more tokens than text PDFs: roughly 10p to £1 per package depending on the number of pages. Worth counting in the monthly limit above (e.g. £20).
+  - If there's no key or credit, the button says so and the scope can still be typed by hand.
+- [ ] Data protection: PDFs may include names, prices and bank details, and the tender drawings are client project information. Check Anthropic's current commercial terms and data processing agreement (API data isn't used for model training; limited retention) against DBP policy, and any confidentiality terms in the client's tender documents.
 - **Cost:** about 5–15p per typical 1–7 page PDF on the main model (Claude Opus 5.5, $4 / $20 per million tokens in / out). 50 documents a month ≈ £3–£7. A smaller model (Claude Haiku 5.5) is ~40× cheaper but may misread messy tables; to choose one, set the secret `ANTHROPIC_MODEL=claude-haiku-5-5`. Richard to decide after testing both on real PDFs.
 
 ## 2. Microsoft 365 app registration (Microsoft Graph)
