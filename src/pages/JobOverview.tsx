@@ -12,6 +12,7 @@ import { useJob } from './JobLayout'
 import { completeAction, dueStatus, formatDateSidebar, loadJobActions, meetingPath, plainMentions, projectNameOf, type OpenAction } from '../lib/minutes'
 import { useAccess } from '../lib/access'
 import JobTeam from '../components/JobTeam'
+import ProjectDirectory from '../components/ProjectDirectory'
 
 export default function JobOverview() {
   const { job } = useJob()
@@ -188,6 +189,9 @@ export default function JobOverview() {
           </>
         )}
       </section>
+
+      {/* everyone on the job, inside and outside DBP (23 Nov): RFIs and submittals are addressed from this */}
+      <ProjectDirectory job={job} />
 
       {/* who's on the job: O&M reminders go to them (23 Nov, script 047) */}
       <JobTeam job={job} />

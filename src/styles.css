@@ -941,3 +941,10 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .var-instructed { white-space: nowrap; }
 .var-files { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .var-file { display: inline-flex; gap: 2px; align-items: center; background: #f3f5fa; border-radius: 6px; padding: 0 4px; }
+/* Project directory (23 Nov) */
+.project-directory .dir-company { border-top: 1px solid var(--line); padding: 8px 0; }
+.dir-company-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; } .dir-company-head small { color: var(--muted); }
+.dir-people { list-style: none; margin: 4px 0; padding: 0; }
+.dir-people li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 3px 0 3px 14px; }
+.dir-role { background: #eef2ff; color: var(--navy); border-radius: 10px; padding: 1px 10px; font-size: 12px; font-weight: 600; }
+.check-row { display: block; padding: 3px 0; }
