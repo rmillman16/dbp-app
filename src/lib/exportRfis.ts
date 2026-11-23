@@ -88,7 +88,7 @@ const M = 36
 // the built-in font only shows Latin-1 and a few more
 const clean = (s: string) => s.replace(/[•]/g, '-').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/\t/g, ' ').replace(/[^\n\x20-\x7e\xa0-\xff]/g, '?')
 
-export async function exportRfisPdf(job: ReportOwner, rows: RegisterRow[], title = 'RFI register') {
+export async function buildRfisPdf(job: ReportOwner, rows: RegisterRow[], title = 'RFI register'): Promise<Uint8Array> {
   const PDFLib: PdfLib = await import('pdf-lib')
   const doc = await PDFLib.PDFDocument.create()
   doc.setTitle(`${job.ref} ${job.name}: ${title}`)
@@ -181,7 +181,7 @@ export async function exportRfisPdf(job: ReportOwner, rows: RegisterRow[], title
 
   const pages = doc.getPages()
   pages.forEach((p, i) => p.drawText(`Page ${i + 1} of ${pages.length}`, { x: W - M - 50, y: 18, size: 8, font, color: grey }))
-  downloadBlob(new Blob([(await doc.save()) as BlobPart], { type: 'application/pdf' }), `${fileBase(job, title)}.pdf`)
+  return await doc.save()
 }
 
 // ---------- the tender schedule (23 Nov): the queries to send the client as one Excel, with a Response column to fill in ----------
@@ -221,4 +221,8 @@ export async function tenderScheduleBlob(owner: ReportOwner, rows: RegisterRow[]
 export const tenderScheduleName = (owner: ReportOwner) => `${safeName(`${owner.ref} ${owner.name}`)} - tender queries (RFI schedule).xlsx`
 export async function exportTenderSchedule(owner: ReportOwner, rows: RegisterRow[]) {
   downloadBlob(await tenderScheduleBlob(owner, rows), tenderScheduleName(owner))
+}
+
+export async function exportRfisPdf(job: ReportOwner, rows: RegisterRow[], title = 'RFI register') {
+  downloadBlob(new Blob([(await buildRfisPdf(job, rows, title)) as BlobPart], { type: 'application/pdf' }), `${fileBase(job, title)}.pdf`)
 }

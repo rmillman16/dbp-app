@@ -1001,3 +1001,9 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .q-status.ext-revise { background: #fce4d6; color: #a04a00; } .q-status.ext-rejected { background: #f3e1e1; color: var(--red); }
 .ext-access { margin: 8px 0; } .ext-access li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 4px 0; }
 .ext-linkbox { width: 100%; font-family: Consolas, monospace; font-size: 12px; }
+/* Progress reports (23 Nov, 064) */
+.q-status.rpt-draft { background: #eee; color: #666; } .q-status.rpt-approved { background: #fff2cc; color: #8a5a00; } .q-status.rpt-issued { background: #e2f0d9; color: #2e7d32; }
+.rpt-sections { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 8px 0 12px; } .rpt-sections label { display: flex; gap: 6px; align-items: center; }
+.rpt-auto { background: #f6f8fb; border-left: 3px solid #b9c4e8; padding: 4px 10px; border-radius: 4px; margin: 6px 0; }
+.rpt-files { list-style: none; margin: 8px 0; padding: 0; } .rpt-files li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 5px 0; border-top: 1px solid var(--line); } .rpt-files li input { flex: 1 1 220px; }
+.rpt-site { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }

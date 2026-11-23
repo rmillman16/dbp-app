@@ -30,6 +30,8 @@ import CvrEditor from './pages/CvrEditor'
 import OmTab from './pages/OmTab'
 import RfiTab from './pages/RfiTab'
 import RfiPage from './pages/RfiPage'
+import ProgressReportsTab from './pages/ProgressReportsTab'
+import ProgressReportPage from './pages/ProgressReportPage'
 import SubmittalsTab from './pages/SubmittalsTab'
 import SubmittalPage from './pages/SubmittalPage'
 import EnquiryRfis from './pages/EnquiryRfis'
@@ -154,6 +156,8 @@ export default function App() {
             <Route path="cvr" element={<CvrTab />} />
             <Route path="cvr/:cvrId" element={<CvrEditor />} />
             <Route path="om" element={<OmTab />} />
+            <Route path="progress" element={<ProgressReportsTab />} />
+            <Route path="progress/:reportId" element={<ProgressReportPage />} />
             <Route path="rfis" element={<RfiTab />} />
             <Route path="submittals" element={<SubmittalsTab />} />
             <Route path="submittals/:submittalId" element={<SubmittalPage />} />

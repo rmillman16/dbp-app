@@ -84,7 +84,7 @@ const H = 595.28
 const M = 36
 const clean = (s: string) => s.replace(/[•]/g, '-').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/…/g, '...').replace(/\t/g, ' ').replace(/[^\n\x20-\x7e\xa0-\xff]/g, '?')
 
-export async function exportSubmittalsPdf(owner: ReportOwner, rows: SubmittalRow[], title = 'Submittal register') {
+export async function buildSubmittalsPdf(owner: ReportOwner, rows: SubmittalRow[], title = 'Submittal register'): Promise<Uint8Array> {
   const PDFLib: PdfLib = await import('pdf-lib')
   const doc = await PDFLib.PDFDocument.create()
   doc.setTitle(`${owner.ref} ${owner.name}: ${title}`)
@@ -162,5 +162,9 @@ export async function exportSubmittalsPdf(owner: ReportOwner, rows: SubmittalRow
   }
   const pages = doc.getPages()
   pages.forEach((p, i) => p.drawText(`Page ${i + 1} of ${pages.length}`, { x: W - M - 50, y: 18, size: 8, font, color: grey }))
-  downloadBlob(new Blob([(await doc.save()) as BlobPart], { type: 'application/pdf' }), `${fileBase(owner, title)}.pdf`)
+  return await doc.save()
+}
+
+export async function exportSubmittalsPdf(owner: ReportOwner, rows: SubmittalRow[], title = 'Submittal register') {
+  downloadBlob(new Blob([(await buildSubmittalsPdf(owner, rows, title)) as BlobPart], { type: 'application/pdf' }), `${fileBase(owner, title)}.pdf`)
 }

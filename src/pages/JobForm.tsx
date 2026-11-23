@@ -28,6 +28,7 @@ interface FormState {
   client_company_id: string
   weekly_prelims: string
   eot_notice_days: string
+  report_frequency_days: string
 }
 
 const EMPTY: FormState = {
@@ -47,6 +48,7 @@ const EMPTY: FormState = {
   client_company_id: '',
   weekly_prelims: '',
   eot_notice_days: '',
+  report_frequency_days: '',
 }
 
 function fromJob(j: Job): FormState {
@@ -68,6 +70,7 @@ function fromJob(j: Job): FormState {
     client_company_id: s(j.client_company_id),
     weekly_prelims: s(j.weekly_prelims),
     eot_notice_days: s(j.eot_notice_days),
+    report_frequency_days: s(j.report_frequency_days),
   }
 }
 
@@ -195,6 +198,7 @@ export default function JobForm() {
       client_company_id: form.client_company_id || null,
       weekly_prelims: blankToNull(form.weekly_prelims) == null ? null : Number(form.weekly_prelims),
       eot_notice_days: blankToNull(form.eot_notice_days) == null ? null : Number(form.eot_notice_days),
+      report_frequency_days: blankToNull(form.report_frequency_days) == null ? null : Number(form.report_frequency_days),
     }
 
     setBusy(true)
@@ -359,6 +363,11 @@ export default function JobForm() {
           Notice of delay due (days after an event)
           <input type="number" step="1" min="0" value={form.eot_notice_days} onChange={(e) => set('eot_notice_days', e.target.value)} />
           <span className="hint">As the contract requires; leave blank if none set.</span>
+        </label>
+        <label>
+          Progress report every (days)
+          <input type="number" step="1" min="0" value={form.report_frequency_days} onChange={(e) => set('report_frequency_days', e.target.value)} placeholder="e.g. 28" />
+          <span className="hint">The job's team is reminded on the bell when the next report is due. Blank = no reminder.</span>
         </label>
       </div>
 
