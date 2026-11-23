@@ -1008,3 +1008,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .rpt-files { list-style: none; margin: 8px 0; padding: 0; } .rpt-files li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 5px 0; border-top: 1px solid var(--line); } .rpt-files li input { flex: 1 1 220px; }
 .rpt-site { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
 .new-company-box { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; background: #fff; }
+.clickable-card { cursor: pointer; } .clickable-card:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43, 34, 87, 0.12); }

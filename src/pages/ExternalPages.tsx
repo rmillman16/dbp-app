@@ -275,7 +275,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
               <li key={r.id} className={'rfi-' + r.kind}>
                 <div className="rfi-thread-head">
                   <strong>{r.author}</strong>
-                  <span className="rfi-kind">{r.kind === 'follow_up' ? 'Follow-up question' : 'Reply'}</span>
+                  <span className="rfi-kind">{r.kind === 'follow_up' ? 'Reply from du Boulay Projects' : 'Reply'}</span>
                   <small>{ukDate(r.at)}</small>
                 </div>
                 <div className="rte-view" dangerouslySetInnerHTML={{ __html: cleanHtml(r.body) }} />

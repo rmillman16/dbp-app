@@ -27,7 +27,7 @@ export default function RfiTab() {
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const tender = owner.kind === 'enquiry' // tender RFIs: drafted, then issued to the client together as one Excel schedule
-  const [filter, setFilter] = useState<Filter>(tender ? 'draft' : 'open')
+  const [filter, setFilter] = useState<Filter>(tender ? 'draft' : 'all')
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [trade, setTrade] = useState('')
   const [who, setWho] = useState('')

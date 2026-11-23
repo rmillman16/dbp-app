@@ -51,6 +51,8 @@ export default function RfiPage() {
   const [busy, setBusy] = useState(false)
   // new reply
   const [kind, setKind] = useState<'reply' | 'follow_up' | 'note'>('reply')
+  // once an RFI has been answered, the natural next step is DBP's reply back to the assignee
+  const [kindSet, setKindSet] = useState(false)
   const [by, setBy] = useState('')
   const [body, setBody] = useState('')
   const [files, setFiles] = useState<File[]>([])
@@ -60,6 +62,12 @@ export default function RfiPage() {
   useEffect(() => {
     load()
   }, [rfiId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (d && !kindSet) {
+      setKind(d.rfi.status === 'answered' ? 'follow_up' : 'reply')
+      setKindSet(true)
+    }
+  }, [d, kindSet])
   // the variation raised from this RFI, if any (script 062)
   const [vo, setVo] = useState<{ id: string; vo_no: number; title: string; status: string } | null>(null)
   const voId = d?.rfi.variation_id ?? null
@@ -126,7 +134,7 @@ export default function RfiPage() {
       setBody('')
       setFiles([])
       setBy('')
-    }, kind === 'reply' ? 'Reply recorded: the RFI is now Answered. Review it, then close it.' : kind === 'follow_up' ? 'Follow-up sent back: the RFI is open again.' : 'Note added.')
+    }, kind === 'reply' ? 'Reply recorded: the RFI is now Answered. Review it, then close it.' : kind === 'follow_up' ? 'Reply sent: the RFI is open again, and the assignee has been told.' : 'Note added.')
     nudgeEmails()
   }
 
@@ -387,7 +395,7 @@ export default function RfiPage() {
             <li key={r.id} className={'rfi-' + r.kind}>
               <div className="rfi-thread-head">
                 <strong>{r.author_name || person(r.author_id) || 'DBP'}</strong>
-                <span className="rfi-kind">{r.kind === 'reply' ? 'Reply' : r.kind === 'follow_up' ? 'Follow-up question' : 'Internal note'}</span>
+                <span className="rfi-kind">{r.kind === 'reply' ? 'Reply' : r.kind === 'follow_up' ? 'Reply from DBP' : 'Internal note'}</span>
                 <small>{ukDate(r.created_at.slice(0, 10))}</small>
               </div>
               <div className="rte-view" dangerouslySetInnerHTML={{ __html: cleanHtml(r.body) }} />
@@ -399,8 +407,8 @@ export default function RfiPage() {
           <div className="rfi-reply">
             <div className="app-controls reply-kind">
               <select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)} aria-label="Type">
-                <option value="reply">Record a reply</option>
-                <option value="follow_up">Follow-up question (back to open)</option>
+                <option value="reply">Record their answer</option>
+                <option value="follow_up">Reply to the assignee (the RFI goes back to Open)</option>
                 <option value="note">Internal note</option>
               </select>
               {kind === 'reply' && (

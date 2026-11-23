@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due", "rfi_followup"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -181,8 +181,9 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
       const project = it.jobs?.name ?? "";
       const what = kind === "rfi" ? `RFI ${it.number}` : `Submittal ${it.number}`;
       const chase = o.kind === "chase";
+      const followUp = o.kind === "follow_up"; // DBP replied to the assignee's answer: it is open again
       const ask = kind === "rfi"
-        ? (p.role === "assignee" ? "has asked you a question" : "has copied you in on a question")
+        ? (followUp ? "has replied to your answer" : p.role === "assignee" ? "has asked you a question" : "has copied you in on a question")
         : (p.role === "reviewer" ? "has sent something for your review" : "has copied you in on a submittal");
       const due = it.due_date ? ` It is due by ${it.due_date.split("-").reverse().join("/")}.` : "";
       const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:560px">
@@ -197,7 +198,7 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
       const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: { subject: `${chase ? "Reminder: " : ""}${project}: ${what} – ${it.title}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+        body: JSON.stringify({ message: { subject: `${chase ? "Reminder: " : followUp ? "Reply: " : ""}${project}: ${what} – ${it.title}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
       });
       if (r.ok) { await done(); sent++; }
     }

@@ -215,6 +215,7 @@ export default function JobOverview() {
 // submittals at a glance (23 Nov, script 060): out for review, overdue, and those to revise
 function SubmittalsCard({ jobId }: { jobId: string }) {
   const { can } = useAccess()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
   useEffect(() => {
     if (!can('job_rfis')) return
@@ -231,7 +232,7 @@ function SubmittalsCard({ jobId }: { jobId: string }) {
   const revise = (rows ?? []).filter((r) => r.status === 'revise' || r.status === 'rejected').length
   const approved = (rows ?? []).filter((r) => r.status === 'approved' || r.status === 'approved_noted').length
   return (
-    <section className="card coming-card">
+    <section className="card coming-card clickable-card" role="link" tabIndex={0} onClick={() => navigate('submittals')} onKeyDown={(e) => e.key === 'Enter' && navigate('submittals')}>
       <div className="pane-head">
         <h2>Submittals</h2>
         <Link to="submittals" className="link-button small">
@@ -254,6 +255,7 @@ function SubmittalsCard({ jobId }: { jobId: string }) {
 // RFIs at a glance (23 Nov, script 057): what's open, overdue and waiting to be closed
 function RfiCard({ jobId }: { jobId: string }) {
   const { can } = useAccess()
+  const navigate = useNavigate()
   const [rows, setRows] = useState<{ status: string; due_date: string | null }[] | null>(null)
   useEffect(() => {
     if (!can('job_rfis')) return
@@ -269,7 +271,7 @@ function RfiCard({ jobId }: { jobId: string }) {
   const late = open.filter((r) => r.due_date && r.due_date < today).length
   const answered = (rows ?? []).filter((r) => r.status === 'answered').length
   return (
-    <section className="card coming-card">
+    <section className="card coming-card clickable-card" role="link" tabIndex={0} onClick={() => navigate('rfis')} onKeyDown={(e) => e.key === 'Enter' && navigate('rfis')}>
       <div className="pane-head">
         <h2>RFIs</h2>
         <Link to="rfis" className="link-button small">
