@@ -206,45 +206,59 @@ function ExternalHome() {
   )
 }
 
-// the items grouped by project: what is waiting for them first, the one a link was sent for marked
+// one table: what is waiting for them first, then by date required; rows coloured by that date
 function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
-  const byProject = new Map<string, ExtListItem[]>()
-  for (const i of items) byProject.set(i.project, [...(byProject.get(i.project) ?? []), i])
+  const navigate = useNavigate()
+  const rows = [...items].sort(
+    (a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || a.project.localeCompare(b.project) || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1),
+  )
+  const waiting = items.filter((i) => i.act).length
+  const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
   return (
-    <>
-      {[...byProject.entries()].map(([project, list]) => (
-        <section key={project} className="card">
-          <h2>{project}</h2>
-          <ul className="ext-list">
-            {list
-              .sort((a, b) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || (a.kind === b.kind ? a.number - b.number : a.kind < b.kind ? -1 : 1))
-              .map((i) => {
-                const tone = dueTone(i.due_date, i.state === 'with_you')
-                return (
-                  <li key={i.kind + i.id} className={`ext-item ${tone || (i.state === 'with_you' ? '' : 'quiet')}`}>
-                    <Link to={to(i)} className="ext-item-link">
-                      <div className="ext-item-top">
-                        <strong>
-                          {i.kind === 'rfi' ? 'RFI' : 'Submittal'} {i.number}: {i.title}
-                        </strong>
-                        <span className={`ext-due ${tone}`}>
-                          {i.due_date ? (i.kind === 'rfi' ? 'Reply by ' : 'Respond by ') + ukDate(i.due_date) + (tone === 'overdue' ? ' (overdue)' : '') : 'No date set'}
-                        </span>
-                      </div>
-                      {i.snippet && <p className="ext-snippet">{i.snippet}</p>}
-                      <div className="ext-item-meta">
-                        <span className={`q-status ext-${i.state ?? i.status}`}>{stateLabel(i.state, i.status)}</span>
-                        {i.trade && <span className="muted small">{i.trade}</span>}
-                        {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
-                      </div>
+    <div className="card ext-table-card">
+      <p className="ext-summary">
+        <strong>{waiting}</strong> waiting for you{late > 0 && <span className="ext-due overdue"> · {late} overdue</span>} · {items.length} in total
+      </p>
+      <div className="ext-table-wrap">
+        <table className="ext-table">
+          <thead>
+            <tr>
+              <th>Ref</th>
+              <th>Project</th>
+              <th>Subject</th>
+              <th>Trade</th>
+              <th>Required by</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((i) => {
+              const tone = dueTone(i.due_date, i.act)
+              return (
+                <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
+                  <td className="ext-ref">
+                    <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
+                      {i.kind === 'rfi' ? 'RFI' : 'Sub'} {i.number}
                     </Link>
-                  </li>
-                )
-              })}
-          </ul>
-        </section>
-      ))}
-    </>
+                  </td>
+                  <td>{i.project}</td>
+                  <td className="ext-subject">
+                    <strong>{i.title}</strong>
+                    {i.snippet && <span className="ext-snippet">{i.snippet}</span>}
+                    {focus && focus.kind === i.kind && focus.id === i.id && <span className="ext-act small">The one you were emailed about</span>}
+                  </td>
+                  <td>{i.trade ?? ''}</td>
+                  <td className={`ext-due ${tone}`}>{i.due_date ? ukDate(i.due_date) + (tone === 'overdue' ? ' (overdue)' : '') : '–'}</td>
+                  <td>
+                    <span className={`q-status ext-${i.state ?? i.status}`}>{stateLabel(i.state, i.status)}</span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
