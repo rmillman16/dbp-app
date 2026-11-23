@@ -75,6 +75,11 @@ export interface RfiTemplate {
   chase_days: number
   archived: boolean
   sort: number
+  // 058: a template can belong to one job, with its people named outright
+  job_id?: string | null
+  assignee_keys?: string[]
+  cc_keys?: string[]
+  manager_id?: string | null
 }
 
 const needs057 = (m: string) =>
@@ -121,10 +126,11 @@ export async function addTrade(name: string) {
 }
 
 // ---------- templates ----------
-export async function loadTemplates(all = false): Promise<RfiTemplate[]> {
-  let q = supabase.from('rfi_templates').select('*')
-  if (!all) q = q.eq('archived', false)
-  const r = await q.order('sort').order('name')
+// the standard templates (Settings), plus this job's own when a job is given. Before script 058 only the standard ones exist.
+export async function loadTemplates(jobId?: string): Promise<RfiTemplate[]> {
+  const base = () => supabase.from('rfi_templates').select('*').eq('archived', false)
+  let r = await (jobId ? base().or(`job_id.is.null,job_id.eq.${jobId}`) : base().is('job_id', null)).order('sort').order('name')
+  if (r.error) r = await base().order('sort').order('name') // before 058
   if (r.error) return []
   return r.data as RfiTemplate[]
 }
@@ -175,6 +181,23 @@ export interface Filled {
 }
 export function fillFromTemplate(t: RfiTemplate, dir: DirPerson[], team: TeamMember[], me: string | null): Filled {
   const missing: string[] = []
+  // a project template names its people outright; those no longer on the job are dropped with a note
+  if (t.job_id || t.assignee_keys?.length || t.cc_keys?.length) {
+    const valid = new Set([...dir.map((p) => `d:${p.id}`), ...team.map((m) => `p:${m.profile_id}`)])
+    const toRef = (k: string): PersonRef => (k.startsWith('d:') ? { directory_id: k.slice(2) } : { profile_id: k.slice(2) })
+    const keep = (keys: string[] = []) => keys.filter((k) => (valid.has(k) ? true : (missing.push('someone who has left the job'), false))).map(toRef)
+    return {
+      assignees: keep(t.assignee_keys),
+      cc: keep(t.cc_keys),
+      managerId: t.manager_id ?? me,
+      trade: t.trade ?? '',
+      title: t.title_prefix ?? '',
+      question: t.question ? `<p>${t.question.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)}</p>` : '',
+      dueDate: t.due_days != null ? addWorkingDays(todayIso(), t.due_days) : '',
+      chaseDays: t.chase_days,
+      missing,
+    }
+  }
   const pick = (roles: string[]): PersonRef[] => {
     const out: PersonRef[] = []
     for (const role of roles) {

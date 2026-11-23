@@ -4,11 +4,12 @@ import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { useAccess } from '../lib/access'
 import { useJob } from './JobLayout'
-import { CHASE_OPTIONS, STATUS_LABELS, addTrade, chaseLabel, createRfi, daysOpen, fillFromTemplate, isOverdue, loadRfis, nextNumber, type Rfi, type RfiPerson, type RfiStatus } from '../lib/rfis'
+import { CHASE_OPTIONS, STATUS_LABELS, addTrade, chaseLabel, createRfi, daysOpen, fillFromTemplate, isOverdue, loadRfis, nextNumber, saveTemplate, type Rfi, type RfiPerson, type RfiStatus } from '../lib/rfis'
 import { keyOf, refOf, useRfiContext } from '../lib/rfiContext'
 import { exportRfisExcel, exportRfisPdf } from '../lib/exportRfis'
 import { htmlToText } from '../lib/richText'
 import RichTextEditor from '../components/RichTextEditor'
+import JobRfiTemplates from '../components/JobRfiTemplates'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
 import { nudgeEmails } from '../lib/notifications'
@@ -28,6 +29,8 @@ export default function RfiTab() {
   const [who, setWho] = useState('')
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+  const [tpls, setTpls] = useState(false)
+  const { me: meNow } = useAccess()
   const today = todayIso()
 
   const load = () => loadRfis(job.id).then(setData, (e: Error) => (setError(e.message), setData({ rfis: [], people: [] })))
@@ -86,12 +89,16 @@ export default function RfiTab() {
           <button type="button" className="small-button" disabled={busy || !shownOpen().length} onClick={() => exportAs('unanswered')} title="A PDF of every RFI still unanswered">
             Unanswered report (PDF)
           </button>
+          <button type="button" className="small-button" onClick={() => setTpls(!tpls)} title="This project's templates: who each kind of RFI goes to">
+            Templates
+          </button>
           <button type="button" className="primary" onClick={() => setCreating(!creating)}>
             + New RFI
           </button>
         </span>
       </div>
       {error && <p className="error">{error}</p>}
+      {tpls && ctx.ready && <JobRfiTemplates jobId={job.id} ctx={ctx} me={meNow?.id ?? null} onClose={() => setTpls(false)} />}
       {creating && ctx.ready && (
         <CreateRfi
           ctx={ctx}
@@ -279,12 +286,59 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
         Template
         <select value={f.template_id} onChange={(e) => applyTemplate(e.target.value)}>
           <option value="">No template</option>
-          {ctx.templates.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
+          {ctx.templates.some((t) => t.job_id) && (
+            <optgroup label="This project">
+              {ctx.templates
+                .filter((t) => t.job_id)
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+            </optgroup>
+          )}
+          <optgroup label="Standard (people filled in by role)">
+            {ctx.templates
+              .filter((t) => !t.job_id)
+              .map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+          </optgroup>
         </select>
+        {assignees.length > 0 && (
+          <button
+            type="button"
+            className="small-button quick-add-btn"
+            onClick={async () => {
+              const name = prompt('Save these people as a template for this project. Name it:', f.trade ? `${f.trade} RFI` : '')
+              if (!name?.trim()) return
+              try {
+                await saveTemplate({
+                  name: name.trim(),
+                  job_id: job.id,
+                  trade: f.trade.trim() || null,
+                  manager_id: f.manager_id || null,
+                  assignee_keys: assignees,
+                  cc_keys: cc,
+                  assignee_roles: [],
+                  cc_roles: [],
+                  title_prefix: null,
+                  question: htmlToText(f.question) || null,
+                  due_days: null,
+                  chase_days: f.chase_days,
+                })
+                await ctx.reload()
+                setError(null)
+              } catch (x) {
+                setError(saveError(x))
+              }
+            }}
+          >
+            Save these people as a template for this project
+          </button>
+        )}
         {missing.length > 0 && <span className="hint warn">No one on this job is set as: {missing.join(', ')}. Add them in the Project directory, or pick people below.</span>}
       </label>
       <div className="form-grid">

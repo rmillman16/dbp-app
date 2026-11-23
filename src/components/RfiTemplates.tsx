@@ -48,8 +48,8 @@ export default function RfiTemplates() {
         </button>
       </div>
       <p className="muted small intro">
-        A template pre-fills a new RFI with the right people for that trade on whichever job it's used. People are chosen by <strong>role</strong>: the role they hold in the job's Project
-        directory (e.g. "Joinery subcontractor") or on its Team (e.g. "PM"). Everyone holding that role on the job is added.
+        These are the <strong>standard starting points</strong>. Who an RFI goes to differs on every project, so each job has its <strong>own templates</strong> (RFIs tab › Templates) with its own
+        named people. A job can copy one of these, and its roles (e.g. "Joinery subcontractor" in the Project directory, "PM" on the Team) are filled in with that job's people, which you then adjust.
       </p>
       {error && <p className="error">{error}</p>}
       {list === null && <p className="muted">Loading…</p>}

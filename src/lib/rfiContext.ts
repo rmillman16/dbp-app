@@ -31,7 +31,7 @@ export function useRfiContext(jobId: string) {
       loadTeam(jobId).catch(() => [] as TeamMember[]),
       cached('profiles-basic', () => must<{ id: string; full_name: string | null; email: string | null; job_title: string | null }[]>(supabase.from('profiles').select('id,full_name,email,job_title').order('full_name'))).catch(() => []),
       loadTrades(),
-      loadTemplates(),
+      loadTemplates(jobId),
     ]).then(([d, t, p, tr, tp]) => {
       setDir(d)
       setTeam(t)
