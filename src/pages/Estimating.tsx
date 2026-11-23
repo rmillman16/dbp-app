@@ -334,7 +334,7 @@ export function EnquiryPage() {
 
       <div className="overview-grid">
         <section className="card">
-          <h2>Details</h2>
+          <h2>Tender details</h2>
           <dl className="details">
             <dt>Site address</dt>
             <dd>{e.site_address || '–'}</dd>
