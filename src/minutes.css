@@ -1734,3 +1734,17 @@
 .mint .new-task .mention-list { position: absolute; top: calc(100% + 4px); left: 0; min-width: 240px; }
 .mint .new-task select, .mint .new-task input[type='date'] { padding: 8px 10px; border-color: #c9c9d3; }
 .mint .new-task .new-task-add { padding: 8px 16px; }
+
+/* the app's own controls inside the Minutes look, where asked for (23 Nov: "make it like every other button") */
+.mint .app-controls button {
+  font: inherit; cursor: pointer; border-radius: 6px; padding: 8px 16px;
+  border: 1px solid #c9c9d3; background: #fff; color: #1d1d24; line-height: normal;
+}
+.mint .app-controls button.primary { background: #1f1246; border-color: #1f1246; color: #fff; }
+.mint .app-controls button.primary:hover { background: #2d1d63; }
+.mint .app-controls button:disabled { opacity: 0.6; cursor: default; }
+.mint .app-controls button.link-button { border: none; background: none; padding: 0; color: #007abe; text-decoration: underline; border-radius: 0; }
+.mint .app-controls input, .mint .app-controls select, .mint .app-controls textarea {
+  font: inherit; font-weight: 400; color: #1d1d24; border: 1px solid #c9c9d3; border-radius: 6px; padding: 8px 10px; background: #fff;
+}
+.mint .app-controls input:focus, .mint .app-controls select:focus, .mint .app-controls textarea:focus { outline: 2px solid #007abe; outline-offset: -1px; border-color: #007abe; }

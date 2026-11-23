@@ -177,7 +177,7 @@ export default function MyTasks() {
                       {jobLabel(t.job_id) && <span className="chip">{jobLabel(t.job_id)}</span>}
                       {!t.done && t.due_date && t.due_date < today && <span className="chip">⚠ overdue</span>}
                     </div>
-                    <span className="task-buttons">
+                    <span className="task-buttons app-controls">
                       {t.done && (
                         <button className="link-button small" onClick={() => tick(t, false)}>
                           Open again
@@ -268,7 +268,7 @@ function NewTask({
     setBusy(false)
   }
   return (
-    <form className="new-task" onSubmit={submit}>
+    <form className="new-task app-controls" onSubmit={submit}>
       <span className="new-task-title">
         <input
           value={title}
