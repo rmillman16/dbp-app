@@ -92,6 +92,7 @@ export default function SubmittalPage() {
   }
   async function saveEdit() {
     if (!edit) return
+    if (!edit.due_date) return setError('The "return by" date is needed.')
     await run(async () => {
       await updateSubmittal(s.id, {
         title: edit.title.trim() || s.title,
@@ -284,8 +285,6 @@ export default function SubmittalPage() {
               <dd>{ctx.profileName(s.manager_id) || '–'}</dd>
               <dt>Return by</dt>
               <dd className={isLate(s, today) ? 'late' : ''}>{s.due_date ? ukDate(s.due_date) : '–'}</dd>
-              <dt>Needed on site</dt>
-              <dd>{s.required_by ? ukDate(s.required_by) : '–'}</dd>
               {s.submitted_at && (
                 <>
                   <dt>Out for review</dt>
@@ -351,12 +350,8 @@ export default function SubmittalPage() {
               <PeoplePicker onNew={ctx.addPerson} companies={ctx.companies} whos={ctx.whos} value={edit.cc} onChange={(v) => setEdit({ ...edit, cc: v })} placeholder="Select Cc" />
             </div>
             <label>
-              Return by
-              <input type="date" value={edit.due_date ?? ''} onChange={(e) => setEdit({ ...edit, due_date: e.target.value || null })} />
-            </label>
-            <label>
-              Needed on site
-              <input type="date" value={edit.required_by ?? ''} onChange={(e) => setEdit({ ...edit, required_by: e.target.value || null })} />
+              Return by *
+              <input type="date" required value={edit.due_date ?? ''} onChange={(e) => setEdit({ ...edit, due_date: e.target.value || null })} />
             </label>
             <label>
               Chase

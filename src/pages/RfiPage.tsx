@@ -108,6 +108,7 @@ export default function RfiPage() {
   }
   async function saveEdit() {
     if (!edit) return
+    if (!edit.due_date) return setError('The "due" date is needed.')
     await run(async () => {
       await updateRfi(rfi.id, {
         title: edit.title.trim() || rfi.title,
@@ -330,8 +331,8 @@ export default function RfiPage() {
               </select>
             </label>
             <label>
-              Due date
-              <input type="date" value={edit.due_date ?? ''} onChange={(e) => setEdit({ ...edit, due_date: e.target.value || null })} />
+              Due date *
+              <input type="date" required value={edit.due_date ?? ''} onChange={(e) => setEdit({ ...edit, due_date: e.target.value || null })} />
             </label>
 {!tender && (
 <>

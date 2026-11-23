@@ -296,6 +296,7 @@ function CreateSubmittal({
     if (!f.title.trim()) return setError('The title is needed.')
     if (out && !reviewers.length) return setError('Pick at least one reviewer to send it out for review (or save it as a draft).')
     if (!f.manager_id) return setError('Pick the DBP manager.')
+    if (!f.due_date) return setError('The "return by" date is needed.')
     setBusy(true)
     try {
       const s = await createSubmittal(
@@ -309,7 +310,7 @@ function CreateSubmittal({
           submitted_by: submitter[0] ? submitter[0].slice(2) : null,
           manager_id: f.manager_id,
           due_date: f.due_date || null,
-          required_by: f.required_by || null,
+          required_by: null,
           notify: f.notify,
           chase_days: f.chase_days,
           template_id: null,
@@ -416,12 +417,8 @@ function CreateSubmittal({
           </select>
         </label>
         <label>
-          Return by
-          <input type="date" value={f.due_date} onChange={(e) => set('due_date', e.target.value)} />
-        </label>
-        <label>
-          Needed on site
-          <input type="date" value={f.required_by} onChange={(e) => set('required_by', e.target.value)} />
+          Return by *
+          <input type="date" required value={f.due_date} onChange={(e) => set('due_date', e.target.value)} />
         </label>
         <div className="span-2 rfi-field">
           <span className="label">Cc</span>

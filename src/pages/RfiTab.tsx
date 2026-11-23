@@ -365,7 +365,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
     if (!htmlToText(f.question)) return setError('The question is needed.')
     if (!asDraft && !assignees.length) return setError('Pick at least one assignee (or save it as a draft).')
     if (!f.manager_id) return setError('Pick the RFI manager.')
-    if (!asDraft && !f.due_date) return setError('Set a "reply by" date (or save it as a draft).')
+    if (!f.due_date) return setError('The due date is needed.')
     setBusy(true)
     try {
       const r = await createRfi(
@@ -493,8 +493,8 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
           </select>
         </label>
         <label>
-          Due date
-          <input type="date" value={f.due_date} onChange={(e) => set('due_date', e.target.value)} />
+          Due date *
+          <input type="date" required value={f.due_date} onChange={(e) => set('due_date', e.target.value)} />
         </label>
         <label>
           Received from
