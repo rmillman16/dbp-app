@@ -53,11 +53,11 @@ Every change to the database is a numbered script in this folder. Run them **in 
 | `047_om.sql` | O&M: tracker lines (sort, kept when a standard doc is removed), file sections per job (om_job), Job › O&M access, reminders to the job team per company and due date (bell + job TODO) | ✅ Run |
 | `048_om_link_check.sql` | O&M: keeps whether each SharePoint link can be opened by anyone (green tick), checked by the check-link function | ✅ Run |
 | `049_om_item_names.sql` | O&M: add your own project items to the dropdown list (offered on every job) | ✅ Run |
-| `050_om_packages.sql` | O&M: items by SoW package (package_id), received = has a link (status follows the link), removing items / list entries for admins and Operations only, reminders per package | ⬜ Not yet |
-| `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ⬜ Not yet |
-| `052_tasks.sql` | Tasks: set a task for yourself or any DBP team member (optionally on a job, with a due date); it goes on their bell and the job's TODO; done tells whoever set it | ⬜ Not yet |
+| `050_om_packages.sql` | O&M: items by SoW package (package_id), received = has a link (status follows the link), removing items / list entries for admins and Operations only, reminders per package | ✅ Run |
+| `051_requisitions_my_sites.sql` | Requisitions for my sites: people on a job's Team see all its requisitions; only the requester or the buyer can post in the conversation | ✅ Run |
+| `052_tasks.sql` | Tasks: set a task for yourself or any DBP team member (optionally on a job, with a due date); it goes on their bell and the job's TODO; done tells whoever set it | ✅ Run |
 | `055_pqq_forms.sql` | Which PQQ / account form goes to whom: PQQ (subcontractor), PQQ B (sole trader), PQQ C (consultant), New Supplier account form; chosen per company, attached automatically (run after 054) | ⬜ Not yet |
-| `053_task_details.sql` | Task details, as in Microsoft To Do (run after 052): important (star), steps, My Day, remind me on a date (bell and email that day), repeat (the next one is set up when it's done, from the page or the bell), files on a task (storage "tasks"); bell links open the task | ⬜ Not yet |
+| `053_task_details.sql` | Task details, as in Microsoft To Do (run after 052): important (star), steps, My Day, remind me on a date (bell and email that day), repeat (the next one is set up when it's done, from the page or the bell), files on a task (storage "tasks"); bell links open the task | ✅ Run |
 | `054_orders_pqq.sql` | Orders (was Payment notices): order numbers 2611_FISL_001, package from the procurement schedule with delivery date, placing an order fills in the procurement schedule, appendices (any file) + a standard library in Settings, contractors' PQQ tracking (12 months, documents with expiry dates, sent log, reminders to whoever chases), DBP certifies each payment-notice line by % or £ (run after 053) | ✅ Run |
 
 ## Edge Functions (server steps)
