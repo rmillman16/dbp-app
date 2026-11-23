@@ -439,7 +439,7 @@ export default function ProgressReportPage() {
 
       <section className="card">
         <h2>Appendices</h2>
-        <p className="muted small">Numbered A, B, C… in this order and merged into the combined PDF, each behind a divider page. PDFs, JPGs and PNGs can go in.</p>
+        <p className="muted small">Numbered A, B, C… in this order and merged into the combined PDF, each titled on its first page. PDFs, JPGs and PNGs can go in.</p>
         <div className="rpt-sections">
           <label>
             <input type="checkbox" disabled={ro} checked={content.autoAppendices.rfis} onChange={(e) => setC({ autoAppendices: { ...content.autoAppendices, rfis: e.target.checked } })} /> RFI report (RFIs still unanswered, with replies)

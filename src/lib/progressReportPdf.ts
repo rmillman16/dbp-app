@@ -1,7 +1,7 @@
 // The progress report as one combined PDF (23 Nov), built in the browser with pdf-lib (nothing is uploaded): cover, contents,
 // summary page with status tiles and the key issues, the numbered sections (the numbering closes up when sections are
 // switched off), photos, then the appendices: the app's own RFI and submittal reports, and the PDFs / pictures the PM added,
-// each behind a divider page. Carlito (as the minutes and O&M exports) with Helvetica as the fall-back. A4.
+// the first page of each carrying its title. Carlito (as the minutes and O&M exports) with Helvetica as the fall-back. A4.
 import type { PDFDocument, PDFFont, PDFImage, PDFPage } from 'pdf-lib'
 import { todayIso, ukDate } from './format'
 import { buildRfisPdf, type RegisterRow } from './exportRfis'
@@ -487,19 +487,29 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
     try {
       const built = await ap.build()
       if (!built.doc && !built.image) continue
-      const d = newPage()
+      // no divider page: the appendix's own first page carries its title in a navy tab at the top edge
       const label = `Appendix ${letters[i] ?? i + 1}: ${ap.title}`
-      d.drawText(clean(`Appendix ${letters[i] ?? i + 1}`), { x: M, y: H / 2 + 20, size: 26, font: bold, color: hex(NAVY) })
-      wrap(ap.title, CW, 15, regular).forEach((ln, k) => d.drawText(ln, { x: M, y: H / 2 - 12 - k * 20, size: 15, font: regular, color: hex(INK) }))
-      toc.push({ label, page: d })
+      const tab = (p: PDFPage) => {
+        const t = clean(label).slice(0, 95)
+        const w = bold.widthOfTextAtSize(t, 10) + 20
+        p.drawRectangle({ x: M, y: H - 24, width: w, height: 20, color: hex(NAVY) })
+        p.drawRectangle({ x: M, y: H - 24, width: 4, height: 20, color: hex(BLUE) })
+        p.drawText(t, { x: M + 12, y: H - 18, size: 10, font: bold, color: rgb(1, 1, 1) })
+      }
+      let first: PDFPage
       if (built.doc) {
         const copied = await doc.copyPages(built.doc, built.doc.getPageIndices())
         copied.forEach((p) => doc.addPage(p))
-      } else if (built.image) {
+        first = copied[0]
+      } else {
         const p = doc.addPage([W, H])
-        const s = Math.min((W - 2 * M) / built.image.width, (H - 2 * M) / built.image.height)
-        p.drawImage(built.image, { x: M, y: H - M - built.image.height * s, width: built.image.width * s, height: built.image.height * s })
+        const img = built.image!
+        const s = Math.min((W - 2 * M) / img.width, (H - 2 * M - 30) / img.height)
+        p.drawImage(img, { x: M, y: H - M - 30 - img.height * s, width: img.width * s, height: img.height * s })
+        first = p
       }
+      tab(first)
+      toc.push({ label, page: first })
     } catch (e) {
       warnings.push(`${ap.title}: ${(e as Error).message}`)
     }
