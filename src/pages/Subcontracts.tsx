@@ -35,6 +35,7 @@ import { loadContacts, type Contact } from '../components/ContactsEditor'
 import type { Company, Order, PaymentNotice, SubVariation } from '../lib/types'
 import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
+import MoneyInput from '../components/MoneyInput'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -446,7 +447,10 @@ function NewOrder({
           </label>
         )}
         {input('order_no', 'Order no.', 'text', 'e.g. 2611_FISL_001')}
-        {input('order_value', 'Order value £ (excl. VAT)', 'number')}
+        <label>
+          Order value £ (excl. VAT)
+          <MoneyInput value={f.order_value ? Number(f.order_value) : null} onChange={(v) => setF((cur) => ({ ...cur, order_value: v == null ? '' : String(v) }))} />
+        </label>
         {input('order_date', 'Order date', 'date')}
         <label>
           Delivery / start on site
@@ -724,7 +728,7 @@ export function OrderPage() {
           </label>
           <label>
             Order value £
-            <input type="number" step="any" value={order.order_value ?? ''} onChange={(e) => setO('order_value', num(e.target.value))} />
+            <MoneyInput value={order.order_value} onChange={(v) => setO('order_value', v)} />
           </label>
           <label>
             Order date
@@ -823,7 +827,7 @@ export function OrderPage() {
                   <input value={v.description ?? ''} onChange={(e) => setVar(i, { description: e.target.value || null })} />
                 </td>
                 <td data-label="Value £">
-                  <input type="number" step="any" value={v.value ?? ''} onChange={(e) => setVar(i, { value: num(e.target.value) })} />
+                  <MoneyInput value={v.value} onChange={(x) => setVar(i, { value: x })} />
                 </td>
                 <td data-label="Instructed">
                   <input type="checkbox" checked={v.instructed} onChange={(e) => setVar(i, { instructed: e.target.checked })} />

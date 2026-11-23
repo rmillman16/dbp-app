@@ -922,3 +922,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .std-list { list-style: none; margin: 0; padding: 0; }
 .std-list li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px solid var(--line); } .std-list li input:not([type]) { flex: 1 1 240px; }
 .std-add input:not([type]) { flex: 1 1 200px; }
+.money-input { text-align: right; }
