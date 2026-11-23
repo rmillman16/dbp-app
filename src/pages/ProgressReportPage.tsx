@@ -95,6 +95,7 @@ export default function ProgressReportPage() {
     return () => clearTimeout(t)
   }, [content, sections, period.start, period.end]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [dragHs, setDragHs] = useState(false) // keep with the other hooks: above the early returns
   if (error && !report) return <p className="error">{error}</p>
   if (!report || !content) return <p className="muted">Loading…</p>
   const num = numbering(sections)
@@ -176,7 +177,6 @@ export default function ProgressReportPage() {
       setMsg(`Downloaded ${fileBase}.docx (text and tables; photos and appendices are in the PDF).`)
     })
   }
-  const [dragHs, setDragHs] = useState(false)
   async function upload(kind: 'photo' | 'appendix', list: File[], title = '') {
     await run('up' + kind, async () => {
       const added: ReportFile[] = []
