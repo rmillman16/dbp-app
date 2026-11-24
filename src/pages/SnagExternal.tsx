@@ -204,7 +204,8 @@ function SnagCard({ s, token, onChange }: { s: ExtSnag; token: string; onChange:
       {st === 'todo' && open && (
         <div className="snag-done-panel">
           <p>
-            <strong>It's done: add a photo as proof (optional)</strong>
+            <strong>Add a photo of the finished work</strong>
+            <span className="muted small"> (optional, but it helps us check it)</span>
           </p>
           <input ref={cam} type="file" accept="image/*" capture="environment" hidden onChange={take} />
           <input ref={gal} type="file" accept="image/*" multiple hidden onChange={take} />
@@ -217,18 +218,22 @@ function SnagCard({ s, token, onChange }: { s: ExtSnag; token: string; onChange:
             </button>
           </div>
           {pics.length > 0 && (
-            <p className="muted small">
-              {pics.length} photo{pics.length === 1 ? '' : 's'} ready{' '}
-              <button type="button" className="link-button small" onClick={() => setPics([])}>
-                remove
-              </button>
-            </p>
+            <div className="snag-picks">
+              {pics.map((f, i) => (
+                <span key={i}>
+                  <img src={URL.createObjectURL(f)} alt={f.name} />
+                  <button type="button" aria-label="Remove this photo" onClick={() => setPics((l) => l.filter((_, j) => j !== i))}>
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
           )}
           <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="A note (optional)" />
           {error && <p className="error">{error}</p>}
           <div className="snag-save">
             <button className="primary" disabled={busy} onClick={done}>
-              {busy ? 'Sending…' : 'Confirm: it is done'}
+              {busy ? 'Sending…' : pics.length ? Confirm: it is done ( photo) : 'Confirm: it is done, no photo'}
             </button>
             <button disabled={busy} onClick={() => (setOpen(false), setPics([]), setError(null))}>
               Cancel
