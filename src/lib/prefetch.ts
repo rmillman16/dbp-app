@@ -1,5 +1,5 @@
-// Pre-loads the app's other pages in the background so tabs open instantly, but only where that is cheap: on a desktop, or on a
-// phone/tablet whose connection is fast (4g, at least ~5 Mbit/s, data saver off). Where the browser can't say how fast the
+// Pre-loads the app's other pages in the background so tabs open instantly, but only where that is cheap: on any device whose
+// connection is fast (4g, at least ~5 Mbit/s, data saver off). Where the browser can't say how fast the
 // connection is (iPhones/Safari) a phone is treated as slow and the pages load only when opened.
 const loaders = import.meta.glob(['../pages/*.tsx', '!../pages/ExternalPages.tsx', '!../pages/SnagExternal.tsx', '!../pages/SignIn.tsx'])
 
@@ -11,7 +11,7 @@ export function goodForPrefetch(): boolean {
   const phone = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && !window.matchMedia('(pointer: fine)').matches)
   if (!c) return !phone
   if (c.effectiveType && c.effectiveType !== '4g') return false
-  return phone ? (c.downlink ?? 0) >= 5 : true
+  return c.downlink === undefined ? !phone : c.downlink >= 5
 }
 
 export function prefetchPages() {
