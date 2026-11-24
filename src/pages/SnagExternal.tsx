@@ -233,7 +233,7 @@ function SnagCard({ s, token, onChange }: { s: ExtSnag; token: string; onChange:
           {error && <p className="error">{error}</p>}
           <div className="snag-save">
             <button className="primary" disabled={busy} onClick={done}>
-              {busy ? 'Sending…' : pics.length ? Confirm: it is done ( photo) : 'Confirm: it is done, no photo'}
+              {busy ? 'Sending…' : pics.length ? `Confirm: it is done (${pics.length} photo${pics.length === 1 ? '' : 's'})` : 'Confirm: it is done, no photo'}
             </button>
             <button disabled={busy} onClick={() => (setOpen(false), setPics([]), setError(null))}>
               Cancel
