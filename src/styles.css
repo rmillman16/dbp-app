@@ -1352,11 +1352,16 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
   .bt-sheet td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--muted); }
 }
 
-/* column filters sit above each column (25 Nov) */
-.bt-sheet tr.bt-filters th { position: static; background: #d9efc0; padding: 2px; border-color: #9bc46a; }
-.bt-sheet tr.bt-filters input, .bt-sheet tr.bt-filters select { background: #fff; border: 1px solid #b7c9a0; font-size: 12px; font-weight: 400; padding: 2px 3px; text-align: left; }
-.bt-sheet tr.bt-filters input::placeholder { color: #8a9a78; }
+/* column filters: an arrow in each heading opens the filter, like an Excel table (25 Nov) */
+.bt-sheet th { position: sticky; }
+.bt-sheet th .hf-label { vertical-align: middle; }
+.hf-btn { margin-left: 3px; border: 1px solid transparent; background: rgba(255, 255, 255, 0.55); border-radius: 3px; width: 18px; height: 18px; padding: 0; line-height: 1; font-size: 11px; cursor: pointer; color: #1f3d0a; vertical-align: middle; }
+.hf-btn:hover { background: #fff; border-color: #5a8f2a; }
+.hf-on .hf-btn { background: var(--navy); color: #fff; }
+.hf-pop { position: absolute; z-index: 30; top: 100%; left: 0; min-width: 170px; max-width: 280px; background: #fff; border: 1px solid #8fae6a; border-radius: 6px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2); padding: 6px; text-align: left; display: flex; flex-direction: column; gap: 3px; font-weight: 400; }
+.hf-pop input { width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 6px; border: 1px solid #b7c9a0; border-radius: 4px; }
+.hf-pop button { text-align: left; background: none; border: 0; padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; color: #222; }
+.hf-pop button:hover { background: #eef5e4; } .hf-pop button.on { background: #dcecc6; font-weight: 700; }
 .bl-filed { flex-direction: column; align-items: stretch; }
 .bt-sheet .bl-attach.primary { display: block; width: 100%; background: var(--navy); color: #fff; border-radius: 5px; padding: 4px 6px; font-size: 12px; text-align: center; margin-top: 2px; }
 .bt-sheet .bl-attach.primary:hover { text-decoration: none; opacity: 0.9; color: #fff; }
-@media (max-width: 1000px) { .bt-sheet tr.bt-filters { display: none; } }

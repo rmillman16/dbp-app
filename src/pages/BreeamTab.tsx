@@ -109,6 +109,57 @@ function ScoreOverview({ score, cat, onPick }: { score: ReturnType<typeof scoreO
   )
 }
 
+// A column heading with an arrow, like an Excel table: click the arrow to filter that column (text, a number, or a list of choices).
+function HeadFilter({ label, value, onChange, options, hint }: { label: string; value: string | undefined; onChange: (v: string) => void; options?: readonly (readonly [string, string])[]; hint?: string }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLTableCellElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [open])
+  const on = !!value
+  return (
+    <th ref={box} className={on ? 'hf-on' : ''}>
+      <span className="hf-label">{label}</span>
+      <button type="button" className="hf-btn" aria-label={`Filter ${label}`} aria-expanded={open} onClick={() => setOpen(!open)} title={on ? `Filtered: ${options?.find(([k]) => k === value)?.[1] ?? value}` : 'Filter'}>
+        {on ? '▼' : '▾'}
+      </button>
+      {open && (
+        <div className="hf-pop" onKeyDown={(e) => e.key === 'Enter' && setOpen(false)}>
+          {options ? (
+            <>
+              <button type="button" className={!value ? 'on' : ''} onClick={() => (onChange(''), setOpen(false))}>
+                (All)
+              </button>
+              {options.map(([k, l]) => (
+                <button key={k} type="button" className={value === k ? 'on' : ''} onClick={() => (onChange(k), setOpen(false))}>
+                  {l}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <input autoFocus value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={hint ?? 'Contains…'} />
+              {on && (
+                <button type="button" onClick={() => (onChange(''), setOpen(false))}>
+                  Clear filter
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </th>
+  )
+}
+
 type Change = (i: BreeamItem, patch: Partial<BreeamItem>) => void
 
 // One credit as a table row, in the order of the assessor's tracker: ref, credit, available / targeted / achieved, criteria, evidence
@@ -470,68 +521,17 @@ export default function BreeamTab() {
               </colgroup>
               <thead>
                 <tr>
-                  <th>Ref</th>
-                  <th>Credit</th>
-                  <th>Credits Available</th>
-                  <th>Credits Targeted</th>
-                  <th>Credits Achieved</th>
-                  <th>Credit Criteria</th>
-                  <th>Evidence Required</th>
-                  <th>Action</th>
-                  <th>Status</th>
-                  <th>Comments</th>
-                  <th>Evidence filed</th>
-                  <th />
-                </tr>
-                <tr className="bt-filters">
-                  <th>
-                    <input value={cf.ref ?? ''} onChange={(e) => setF('ref', e.target.value)} placeholder="Filter" aria-label="Filter ref" />
-                  </th>
-                  <th>
-                    <input value={cf.title ?? ''} onChange={(e) => setF('title', e.target.value)} placeholder="Filter" aria-label="Filter credit" />
-                  </th>
-                  {(['avail', 'targ', 'ach'] as const).map((k) => (
-                    <th key={k}>
-                      <input value={cf[k] ?? ''} onChange={(e) => setF(k, e.target.value)} placeholder="≥" title="Starts with this number; - for blank" aria-label={`Filter ${k}`} />
-                    </th>
-                  ))}
-                  <th>
-                    <input value={cf.crit ?? ''} onChange={(e) => setF('crit', e.target.value)} placeholder="Filter" aria-label="Filter criteria" />
-                  </th>
-                  <th>
-                    <input value={cf.evid ?? ''} onChange={(e) => setF('evid', e.target.value)} placeholder="Filter" aria-label="Filter evidence required" />
-                  </th>
-                  <th>
-                    <select value={cf.action ?? ''} onChange={(e) => setF('action', e.target.value)} aria-label="Filter action">
-                      <option value="">All</option>
-                      <option value="__none__">Not assigned</option>
-                      {actions.map((a) => (
-                        <option key={a} value={a}>
-                          {a}
-                        </option>
-                      ))}
-                    </select>
-                  </th>
-                  <th>
-                    <select value={cf.status ?? ''} onChange={(e) => setF('status', e.target.value)} aria-label="Filter status">
-                      <option value="">All</option>
-                      {STATUSES.map(([k, l]) => (
-                        <option key={k} value={k}>
-                          {l}
-                        </option>
-                      ))}
-                    </select>
-                  </th>
-                  <th>
-                    <input value={cf.comm ?? ''} onChange={(e) => setF('comm', e.target.value)} placeholder="Filter" aria-label="Filter comments" />
-                  </th>
-                  <th>
-                    <select value={cf.filed ?? ''} onChange={(e) => setF('filed', e.target.value)} aria-label="Filter evidence filed">
-                      <option value="">All</option>
-                      <option value="yes">Has evidence</option>
-                      <option value="no">None filed</option>
-                    </select>
-                  </th>
+                  <HeadFilter label="Ref" value={cf.ref} onChange={(v) => setF('ref', v)} />
+                  <HeadFilter label="Credit" value={cf.title} onChange={(v) => setF('title', v)} />
+                  <HeadFilter label="Credits Available" value={cf.avail} onChange={(v) => setF('avail', v)} hint="Starts with this number; - for blank" />
+                  <HeadFilter label="Credits Targeted" value={cf.targ} onChange={(v) => setF('targ', v)} hint="Starts with this number; - for blank" />
+                  <HeadFilter label="Credits Achieved" value={cf.ach} onChange={(v) => setF('ach', v)} hint="Starts with this number; - for blank" />
+                  <HeadFilter label="Credit Criteria" value={cf.crit} onChange={(v) => setF('crit', v)} />
+                  <HeadFilter label="Evidence Required" value={cf.evid} onChange={(v) => setF('evid', v)} />
+                  <HeadFilter label="Action" value={cf.action} onChange={(v) => setF('action', v)} options={[['__none__', 'Not assigned'], ...actions.map((a): [string, string] => [a, a])]} />
+                  <HeadFilter label="Status" value={cf.status} onChange={(v) => setF('status', v)} options={STATUSES} />
+                  <HeadFilter label="Comments" value={cf.comm} onChange={(v) => setF('comm', v)} />
+                  <HeadFilter label="Evidence filed" value={cf.filed} onChange={(v) => setF('filed', v)} options={[['yes', 'Has evidence'], ['no', 'None filed']]} />
                   <th />
                 </tr>
               </thead>
