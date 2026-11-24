@@ -39,6 +39,7 @@ import TenderEnquiry from './pages/TenderEnquiry'
 import ExternalRoutes from './pages/ExternalPages'
 import SnagExternal from './pages/SnagExternal'
 import SnaggingTab from './pages/SnaggingTab'
+import BreeamTab from './pages/BreeamTab'
 import { SnagDetail, SnagNew } from './pages/SnagPage'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme, EnquiryReturn, EnquiryTender } from './pages/Estimating'
 import Settings from './pages/Settings'
@@ -168,6 +169,7 @@ export default function App() {
             <Route path="submittals" element={<SubmittalsTab />} />
             <Route path="submittals/:submittalId" element={<SubmittalPage />} />
             <Route path="rfis/:rfiId" element={<RfiPage />} />
+            <Route path="breeam" element={<BreeamTab />} />
             <Route path="snagging" element={<SnaggingTab />} />
             <Route path="snagging/new" element={<SnagNew />} />
             <Route path="snagging/:snagId" element={<SnagDetail />} />

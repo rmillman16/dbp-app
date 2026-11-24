@@ -10,7 +10,7 @@ import { cached, must } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 
 // Each module is a tab inside the job; new modules are added here.
-const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] = [
+const TABS: { to: string; label: string; soon?: boolean; section?: Section; breeam?: boolean }[] = [
   { to: '', label: 'Overview' },
   { to: 'programme', label: 'Programme', section: 'job_programme' },
   { to: 'minutes', label: 'Minutes', section: 'job_minutes' },
@@ -21,6 +21,7 @@ const TABS: { to: string; label: string; soon?: boolean; section?: Section }[] =
   { to: 'cashflow', label: 'Cashflow', section: 'job_commercial' },
   { to: 'procurement', label: 'Procurement', section: 'job_procurement' },
   { to: 'sampling', label: 'Sampling', section: 'job_sampling' },
+  { to: 'breeam', label: 'BREEAM', section: 'job_sampling', breeam: true },
   { to: 'eot', label: 'EOT', section: 'job_eot' },
   { to: 'cvr', label: 'CVR', section: 'job_commercial' },
   { to: 'submittals', label: 'Submittals', section: 'job_rfis' },
@@ -83,7 +84,7 @@ export default function JobLayout() {
   const section = pathname.split('/')[3] ?? ''
   const current = TABS.find((t) => t.to === section) ?? TABS[0]
   const tabs = (cls: string) =>
-    TABS.filter((t) => !t.section || can(t.section)).map((t) =>
+    TABS.filter((t) => (!t.section || can(t.section)) && (!t.breeam || job.breeam)).map((t) =>
       t.soon ? (
         <span key={t.label} className={`${cls} disabled`} title="Coming soon">
           {t.label}

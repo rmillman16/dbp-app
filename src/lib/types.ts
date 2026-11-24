@@ -27,6 +27,7 @@ export interface Job {
   client_company_id: string | null
   weekly_prelims: number | null // EOT prolongation rate per week
   eot_notice_days: number | null // notice of delay due this many days after an event (per contract)
+  breeam?: boolean // a BREEAM job: shows the BREEAM tracker (script 071)
   report_frequency_days?: number | null // progress report every N days (064 reminds the team)
   // EOT clauses of this job's contract: typed in on the EOT tab, no defaults (script 014)
   notice_clause: string | null

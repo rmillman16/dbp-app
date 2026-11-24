@@ -29,6 +29,7 @@ interface FormState {
   weekly_prelims: string
   eot_notice_days: string
   report_frequency_days: string
+  breeam: boolean
 }
 
 const EMPTY: FormState = {
@@ -49,6 +50,7 @@ const EMPTY: FormState = {
   weekly_prelims: '',
   eot_notice_days: '',
   report_frequency_days: '',
+  breeam: false,
 }
 
 function fromJob(j: Job): FormState {
@@ -71,6 +73,7 @@ function fromJob(j: Job): FormState {
     weekly_prelims: s(j.weekly_prelims),
     eot_notice_days: s(j.eot_notice_days),
     report_frequency_days: s(j.report_frequency_days),
+    breeam: !!j.breeam,
   }
 }
 
@@ -199,6 +202,7 @@ export default function JobForm() {
       weekly_prelims: blankToNull(form.weekly_prelims) == null ? null : Number(form.weekly_prelims),
       eot_notice_days: blankToNull(form.eot_notice_days) == null ? null : Number(form.eot_notice_days),
       report_frequency_days: blankToNull(form.report_frequency_days) == null ? null : Number(form.report_frequency_days),
+      breeam: form.breeam,
     }
 
     setBusy(true)
@@ -216,6 +220,7 @@ export default function JobForm() {
     setBusy(false)
 
     if (result.error) {
+      if (/breeam/i.test(result.error.message)) return setError('BREEAM needs script 071 run in Supabase first (supabase/README.md).')
       setError(result.error.code === '23505' ? `Job ${row.job_no} ${row.code} already exists.` : saveError(result.error))
       return
     }
@@ -370,6 +375,9 @@ export default function JobForm() {
           <span className="hint">The job's team is reminded on the bell when the next report is due. Blank = no reminder.</span>
         </label>
       </div>
+      <label className="rfi-notify">
+        <input type="checkbox" checked={form.breeam} onChange={(e) => setForm((f) => ({ ...f, breeam: e.target.checked }))} /> BREEAM assessed job: adds a BREEAM tracker to the job
+      </label>
 
       {overCar && (
         <p className="warning">

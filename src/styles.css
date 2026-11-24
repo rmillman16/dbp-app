@@ -1268,3 +1268,23 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .notif-group { list-style: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; background: #fff; }
 .notif-group summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; gap: 6px; }
 .notif-group .notif-list { margin-top: 6px; }
+
+/* BREEAM tracker (24 Nov) */
+.breeam-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.breeam-stat { flex: 1 1 110px; display: flex; flex-direction: column; align-items: center; padding: 8px 6px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; }
+.breeam-stat strong { font-size: 20px; color: var(--navy); }
+.breeam-stat span { font-size: 12px; color: var(--muted); }
+.breeam-stat.credits { cursor: default; background: #f4f4f8; }
+.breeam-stat.on { border-color: var(--navy); }
+.breeam-group h3 { margin: 0 0 8px; }
+.breeam-add { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.breeam-add label { display: flex; flex-direction: column; gap: 3px; font-weight: 600; font-size: 13px; }
+.breeam-add .grow { flex: 1 1 260px; }
+.breeam-table input, .breeam-table textarea, .breeam-table select { width: 100%; font-size: 14px; min-width: 0; }
+.breeam-table textarea { resize: vertical; min-height: 38px; }
+.breeam-table td { vertical-align: top; }
+.breeam-table .b-ref { min-width: 70px; } .breeam-table .b-num { min-width: 64px; }
+.breeam-table td:nth-child(2) { min-width: 240px; } .breeam-table td:nth-child(8) { min-width: 200px; } .breeam-table td:nth-child(5) { min-width: 130px; } .breeam-table td:nth-child(6) { min-width: 150px; } .breeam-table td:nth-child(7) { min-width: 130px; }
+.b-status { font-weight: 600; }
+.b-status.completed { background: #e2f0d9; } .b-status.in_progress { background: #fff2cc; } .b-status.not_complete { background: #fdecea; } .b-status.by_others { background: #e3f1fa; } .b-status.no_action { background: #ededed; }
+.breeam-stat.completed.on { background: #e2f0d9; } .breeam-stat.in_progress.on { background: #fff2cc; } .breeam-stat.not_complete.on { background: #fdecea; } .breeam-stat.by_others.on { background: #e3f1fa; } .breeam-stat.no_action.on { background: #ededed; }
