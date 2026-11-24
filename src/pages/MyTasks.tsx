@@ -250,11 +250,24 @@ export default function MyTasks() {
             </div>
             <select value={jobFilter} onChange={(e) => setJobFilter(e.target.value)} aria-label="Job">
               <option value="">All jobs</option>
-              {jobIds.map((id) => (
-                <option key={id} value={id}>
-                  {jobLabel(id) ?? 'A job'}
-                </option>
-              ))}
+              <optgroup label="My jobs and jobs with tasks">
+                {jobIds.map((id) => (
+                  <option key={id} value={id}>
+                    {jobLabel(id) ?? 'A job'}
+                  </option>
+                ))}
+              </optgroup>
+              {jobs.some((j) => !jobIds.includes(j.id)) && (
+                <optgroup label="Other jobs">
+                  {jobs
+                    .filter((j) => !jobIds.includes(j.id))
+                    .map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.label}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
               <option value="none">No job</option>
             </select>
             <label className="task-show-done">
