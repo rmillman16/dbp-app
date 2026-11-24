@@ -369,6 +369,62 @@ async function listItems(db: DB, acc: { kind: "rfi" | "submittal"; itemId: strin
   return items;
 }
 
+// The snag lists for this email address (24 Nov): one row per job and company, with a private snag link (valid 30 days, made now;
+// only its hash is kept) that opens that company's snags on that job on the snag page (/s/<token>, the snag-external function).
+// Listed with the RFIs and submittals, so everything for the person is in one place. Needs script 070 (snags); without it, none.
+async function snagRows(db: DB, email: string) {
+  const e = email.trim().toLowerCase();
+  const [c, co] = await Promise.all([db.from("contacts").select("id, email").ilike("email", e), db.from("companies").select("id, email").ilike("email", e)]);
+  const cIds = (c.data ?? []).filter((x: { email: string }) => x.email?.trim().toLowerCase() === e).map((x: { id: string }) => x.id);
+  const coIds = (co.data ?? []).filter((x: { email: string }) => x.email?.trim().toLowerCase() === e).map((x: { id: string }) => x.id);
+  const filters: string[] = [];
+  if (cIds.length) filters.push(`contact_id.in.(${cIds.join(",")})`);
+  if (coIds.length) filters.push(`and(contact_id.is.null,company_id.in.(${coIds.join(",")}))`);
+  if (!filters.length) return [];
+  const { data: dir } = await db.from("job_directory").select("id, job_id, company_id").or(filters.join(",")).not("job_id", "is", null);
+  if (!dir?.length) return [];
+  const byDir = new Map<string, { job_id: string; company_id: string | null }>(dir.map((d: { id: string; job_id: string; company_id: string | null }) => [d.id, d]));
+  const { data: snags, error } = await db.from("snags").select("id, job_id, status, marked_done_at, assignee_id, jobs(name, job_no, code, status, hub_url)").in("assignee_id", [...byDir.keys()]);
+  if (error || !snags?.length) return [];
+  // deno-lint-ignore no-explicit-any
+  const groups = new Map<string, { job: any; job_id: string; company_id: string; todo: number; done: number; complete: number }>();
+  // deno-lint-ignore no-explicit-any
+  for (const s of snags as any[]) {
+    const d = byDir.get(s.assignee_id);
+    if (!d?.company_id || !s.jobs || s.jobs.status === "archived") continue;
+    const k = `${s.job_id}:${d.company_id}`;
+    const g = groups.get(k) ?? { job: s.jobs, job_id: s.job_id, company_id: d.company_id, todo: 0, done: 0, complete: 0 };
+    if (s.status === "complete") g.complete++;
+    else if (s.marked_done_at) g.done++;
+    else g.todo++;
+    groups.set(k, g);
+  }
+  const out = [];
+  for (const g of groups.values()) {
+    const tok = [...crypto.getRandomValues(new Uint8Array(32))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const ins = await db.from("snag_links").insert({ job_id: g.job_id, company_id: g.company_id, token_hash: await sha256(tok), created_by: null, expires_at: new Date(Date.now() + 30 * 86400000).toISOString() });
+    if (ins.error) continue;
+    out.push({
+      kind: "snag",
+      id: `${g.job_id}:${g.company_id}`,
+      ref: `${g.job.job_no}_${g.job.code}_SNAGS`,
+      number: 0,
+      title: "Snag list",
+      status: g.todo ? "open" : "closed",
+      due_date: null,
+      project: g.job.name ?? "",
+      hub_url: g.job.hub_url ?? null,
+      snippet: `${g.todo} to do · ${g.done} done and waiting to be checked · ${g.complete} complete`,
+      trade: null,
+      files: 0,
+      state: g.todo ? "with_you" : g.done ? "with_dbp" : "done",
+      act: g.todo > 0,
+      snag_token: tok,
+    });
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply({ ok: false, error: "Not found." }, 404);
@@ -423,14 +479,14 @@ Deno.serve(async (req) => {
       if (!TOKEN.test(sess)) throw new Fail(401, "Please sign in again.");
       const { data: s } = await db.from("external_sessions").select("email, expires_at").eq("token_hash", await sha256(sess)).maybeSingle();
       if (!s || new Date(s.expires_at) < new Date()) throw new Fail(401, "Your sign-in has expired. Please sign in again.");
-      return reply({ ok: true, email: s.email, items: await listItems(db, await findAccess(db, s.email)) });
+      return reply({ ok: true, email: s.email, items: [...(await listItems(db, await findAccess(db, s.email))), ...(await snagRows(db, s.email).catch(() => []))] });
     }
     if (action === "list_link") {
       // everything for the person a private link was made for
       const c = await byToken(db, String(b.token ?? ""), ip);
       await log(c, "list");
       const acc = c.email ? await findAccess(db, c.email) : [{ kind: c.kind, itemId: c.itemId, personRow: c.personRow, role: c.role }];
-      return reply({ ok: true, email: c.email, name: c.name, focus: { kind: c.kind, id: c.itemId }, items: await listItems(db, acc) });
+      return reply({ ok: true, email: c.email, name: c.name, focus: { kind: c.kind, id: c.itemId }, items: [...(await listItems(db, acc)), ...(c.email ? await snagRows(db, c.email).catch(() => []) : [])] });
     }
 
     // ----- one item: by private link or by sign-in -----

@@ -212,20 +212,22 @@ function ExternalHome() {
 }
 
 // one table: what is waiting for them first, then by date required; rows coloured by that date
-function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
+function ItemList({ items, to: toItem, focus }: { items: ExtListItem[]; to: (i: ExtListItem) => string; focus?: { kind: string; id: string } }) {
   const navigate = useNavigate()
+  // a snag row opens the snag page (/s/<token>) for that company's snags on the job
+  const to = (i: ExtListItem) => (i.kind === 'snag' ? `/s/${i.snag_token}` : toItem(i))
   const waiting = items.filter((i) => i.act).length
   const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
   // RFIs and submittals apart, and each split by project (a client or contractor can be on several jobs)
   const sortRows = (a: ExtListItem, b: ExtListItem) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || b.number - a.number
-  const sections = (['rfi', 'submittal'] as const)
+  const sections = (['rfi', 'submittal', 'snag'] as const)
     .map((kind) => {
       const mine = items.filter((i) => i.kind === kind)
       const projects = [...new Set(mine.map((i) => i.project))]
         .map((p) => ({ project: p, rows: mine.filter((i) => i.project === p).sort(sortRows) }))
         // the project with most waiting for them first
         .sort((a, b) => b.rows.filter((r) => r.act).length - a.rows.filter((r) => r.act).length || a.project.localeCompare(b.project))
-      return { kind, label: kind === 'rfi' ? 'RFIs' : 'Submittals', count: mine.length, waiting: mine.filter((i) => i.act).length, projects }
+      return { kind, label: kind === 'rfi' ? 'RFIs' : kind === 'submittal' ? 'Submittals' : 'Snags', count: mine.length, waiting: mine.filter((i) => i.act).length, projects }
     })
     .filter((s) => s.count > 0)
   return (
@@ -258,7 +260,7 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
                       <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
                         <td className="ext-ref">
                           <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
-                            {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : 'Sub'} ${i.number}`}
+                            {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : i.kind === 'snag' ? 'Snags' : 'Sub'} ${i.number}`}
                           </Link>
                         </td>
                         <td className="ext-subject">

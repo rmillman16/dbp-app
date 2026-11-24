@@ -3,7 +3,7 @@
 // - Enter on a dropdown (once you have tabbed to it) opens it, rather than doing nothing or submitting the form
 // - Tab in a date box moves to the next field, rather than stopping on the day, then the month, then the year (the arrow keys
 //   still move between those)
-// Left alone: the outside snag page (/s/, made for phones) and the Minutes editor, which has its own keys.
+// Left alone: the Minutes editor, which has its own keys.
 function open(el: HTMLInputElement | HTMLSelectElement) {
   try {
     ;(el as HTMLInputElement).showPicker?.()
@@ -20,7 +20,7 @@ function step(from: HTMLElement, root: HTMLElement, back: boolean) {
   return i < 0 ? null : (all[i + (back ? -1 : 1)] ?? null)
 }
 
-const skip = (t: HTMLElement) => location.pathname.startsWith('/s/') || !!t.closest('.mint')
+const skip = (t: HTMLElement) => !!t.closest('.mint')
 
 export function installFormKeys() {
   document.addEventListener('click', (e) => {
