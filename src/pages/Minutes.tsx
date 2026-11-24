@@ -1028,7 +1028,9 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
   function handleRefTyping(point: M.Point, ta: HTMLTextAreaElement) {
     const caret = ta.selectionStart
     const match = ta.value.slice(0, caret).match(/(?:^|\s)\/([^\s/]*(?:\s[^\s/]*){0,2})$/)
-    if (!match || !recordsRef.current.length) return refPickRef.current ? setRefPick(null) : undefined
+    if (!match) return refPickRef.current ? setRefPick(null) : undefined
+    // nothing loaded yet (or added since the page opened): look again
+    if (!recordsRef.current.length && owner.jobId) M.loadLinkRecords(owner.jobId).then(setRecords, () => {})
     const words = match[1].toLowerCase().split(/\s+/).filter(Boolean)
     const candidates = recordsRef.current
       .filter((r) => words.every((w) => `${r.label} ${r.title}`.toLowerCase().includes(w)))
@@ -1895,7 +1897,9 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
               </button>
             ))
           ) : (
-            <div className="md-empty">No matching RFI, submittal, snag or variation</div>
+            <div className="md-empty">
+              {!owner.jobId ? 'Links work in a job’s minutes, not an estimate’s' : records.length ? 'No matching RFI, submittal, snag or variation' : 'This job has no RFIs, submittals, snags or variations yet'}
+            </div>
           )}
         </div>
       )}
