@@ -129,9 +129,77 @@ export const failCount = (i: Pick<Inspection, 'items'>) => i.items.filter((x) =>
 // open actions: something to do and not closed
 export const actionsOpen = (i: Pick<Inspection, 'actions' | 'actions_closed_on'>) => !!i.actions?.trim() && !i.actions_closed_on
 
+// ---------- accident and incident reports (script 082) ----------
+export type AccidentKind = 'accident' | 'near_miss' | 'dangerous_occurrence' | 'ill_health' | 'damage' | 'environmental'
+export const ACCIDENT_KINDS: [AccidentKind, string][] = [
+  ['accident', 'Accident (someone injured)'],
+  ['near_miss', 'Near miss'],
+  ['dangerous_occurrence', 'Dangerous occurrence'],
+  ['ill_health', 'Work-related ill health'],
+  ['damage', 'Property or plant damage'],
+  ['environmental', 'Environmental incident'],
+]
+export type Severity = 'none' | 'first_aid' | 'medical' | 'lost_time' | 'major' | 'fatal'
+export const SEVERITIES: [Severity, string][] = [
+  ['none', 'No injury'],
+  ['first_aid', 'First aid only'],
+  ['medical', 'Medical treatment'],
+  ['lost_time', 'Over 7 days off work'],
+  ['major', 'Major / specified injury'],
+  ['fatal', 'Fatal'],
+]
+export const PERSON_TYPES: [string, string][] = [
+  ['employee', 'DBP employee'],
+  ['subcontractor', 'Subcontractor / operative'],
+  ['visitor', 'Visitor'],
+  ['public', 'Member of the public'],
+]
+export type Riddor = 'no' | 'check' | 'yes'
+export const RIDDOR: [Riddor, string][] = [
+  ['no', 'Not reportable'],
+  ['check', 'Not sure: check'],
+  ['yes', 'Reportable'],
+]
+export interface AccidentReport {
+  id: string
+  job_id: string
+  number: number
+  incident_on: string
+  incident_time: string | null
+  location: string | null
+  kind: AccidentKind
+  person_name: string | null
+  person_type: string | null
+  person_company: string | null
+  person_role: string | null
+  person_phone: string | null
+  severity: Severity
+  injury: string | null
+  treatment: string | null
+  hospital: boolean
+  days_lost: number | null
+  description: string | null
+  witnesses: string | null
+  immediate_cause: string | null
+  root_cause: string | null
+  immediate_action: string | null
+  riddor: Riddor
+  riddor_ref: string | null
+  riddor_on: string | null
+  corrective: string | null
+  corrective_owner: string | null
+  corrective_due: string | null
+  corrective_closed_on: string | null
+  reported_by: string | null
+  investigated_by: string | null
+  status: 'open' | 'closed'
+  created_at: string
+}
+export const accidentRef = (n: number) => `A${String(n).padStart(3, '0')}`
+
 // ---------- loading and saving ----------
-type Table = 'site_diaries' | 'delivery_notes' | 'hs_inspections'
-const dateCol: Record<Table, string> = { site_diaries: 'diary_date', delivery_notes: 'delivered_on', hs_inspections: 'inspected_on' }
+type Table = 'site_diaries' | 'delivery_notes' | 'hs_inspections' | 'accident_reports'
+const dateCol: Record<Table, string> = { site_diaries: 'diary_date', delivery_notes: 'delivered_on', hs_inspections: 'inspected_on', accident_reports: 'incident_on' }
 
 export async function loadRows<T>(table: Table, jobId: string): Promise<T[]> {
   const r = await supabase.from(table).select('*').eq('job_id', jobId).order(dateCol[table], { ascending: false }).order('created_at', { ascending: false })
@@ -158,7 +226,7 @@ export async function deleteRow(table: Table, id: string, kind: HsFile['record_k
 export interface HsFile {
   id: string
   job_id: string
-  record_kind: 'diary' | 'delivery' | 'inspection'
+  record_kind: 'diary' | 'delivery' | 'inspection' | 'accident'
   record_id: string
   name: string
   path: string

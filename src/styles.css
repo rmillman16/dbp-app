@@ -1498,3 +1498,5 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .hs-note, .hs-own-q { width: 100%; margin-top: 6px; }
 .hs-own-q { margin-top: 0; flex: 1; min-width: 200px; }
 .hs-doc { display: inline-block; padding: 8px 10px; background: #eef3fa; border-radius: 6px; font-size: 12px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+
+.hs-riddor { margin: 8px 0; padding: 10px 14px; background: #fff4e5; border-left: 4px solid #e08a00; border-radius: 6px; }

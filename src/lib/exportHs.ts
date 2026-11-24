@@ -1,6 +1,6 @@
 // Excel exports of the H&S records (24 Nov): whatever the list shows, one row each, with the dates as real dates.
 import { download, excelDate, fill, newWorkbook, safeName } from './excel'
-import { CONDITIONS, INSPECTION_RESULTS, failCount, type DeliveryNote, type Inspection, type SiteDiary } from './hs'
+import { ACCIDENT_KINDS, CONDITIONS, INSPECTION_RESULTS, PERSON_TYPES, RIDDOR, SEVERITIES, accidentRef, failCount, type AccidentReport, type DeliveryNote, type Inspection, type SiteDiary } from './hs'
 import type { Job } from './types'
 
 type Cell = string | number | Date | null
@@ -53,4 +53,16 @@ export const exportInspections = (job: Job, rows: Inspection[]) =>
     'H&S inspections',
     [['Date', 12], ['Type', 24], ['Area', 20], ['Inspector', 20], ['Result', 24], ['Items failed', 10], ['Failed items', 44], ['Actions', 44], ['Actions due', 12], ['Actions closed', 12], ['Notes', 30]],
     rows.map((r) => [d(r.inspected_on), r.kind, r.area, r.inspector, INSPECTION_RESULTS.find(([k]) => k === r.result)?.[1] ?? r.result, failCount(r), r.items.filter((x) => x.result === 'fail').map((x) => `${x.q}${x.note ? `: ${x.note}` : ''}`).join('\n'), r.actions, d(r.actions_due), d(r.actions_closed_on), r.notes]),
+  )
+
+export const exportAccidents = (job: Job, rows: AccidentReport[]) =>
+  sheet(
+    job,
+    'Accident reports',
+    [['No.', 8], ['Date', 12], ['Time', 8], ['Type', 22], ['Where', 20], ['Person', 22], ['Who', 18], ['Company', 22], ['Trade', 16], ['Seriousness', 22], ['Injury', 34], ['Treatment', 30], ['Hospital', 9], ['Days off', 9], ['What happened', 50], ['Immediate cause', 30], ['Root cause', 30], ['Immediate action', 30], ['RIDDOR', 16], ['RIDDOR reported', 12], ['HSE ref', 14], ['Corrective actions', 40], ['Owner', 16], ['Do by', 12], ['Done on', 12], ['Reported by', 16], ['Investigated by', 16], ['Status', 9]],
+    rows.map((r) => [
+      accidentRef(r.number), d(r.incident_on), r.incident_time, ACCIDENT_KINDS.find(([k]) => k === r.kind)?.[1] ?? r.kind, r.location, r.person_name, PERSON_TYPES.find(([k]) => k === r.person_type)?.[1] ?? r.person_type, r.person_company, r.person_role,
+      SEVERITIES.find(([k]) => k === r.severity)?.[1] ?? r.severity, r.injury, r.treatment, r.hospital ? 'Yes' : '', r.days_lost, r.description, r.immediate_cause, r.root_cause, r.immediate_action,
+      RIDDOR.find(([k]) => k === r.riddor)?.[1] ?? r.riddor, d(r.riddor_on), r.riddor_ref, r.corrective, r.corrective_owner, d(r.corrective_due), d(r.corrective_closed_on), r.reported_by, r.investigated_by, r.status === 'open' ? 'Open' : 'Closed',
+    ]),
   )

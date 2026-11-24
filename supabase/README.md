@@ -123,3 +123,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `079_snag_send_back.sql` | Sending a snag back: reason, how many times, and the earlier proof photos kept as "previous" (run after 078; then redeploy `snag-external`, Verify JWT off) | Not run yet |
 | `080_usage_tracking.sql` | Settings › Usage: page views by area / tab / person / day (admins read them; everyone adds their own) (run after 079) | Not run yet |
 | `081_health_safety_and_access.sql` | Job › H&S (site diaries, delivery notes, H&S inspections, photos) and the new parts of the access grid: Job › Snagging, H&S, BREEAM, Progress reports, Project checklist, seeded from the parts they used to ride on (run after 080) | Not run yet |
+| `082_accident_reports.sql` | Job › H&S › Accidents: the standard accident / incident report (numbered A001…, RIDDOR, corrective actions, photos; only admins can delete) (run after 081) | Not run yet |

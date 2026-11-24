@@ -1,15 +1,17 @@
-﻿import { useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useJob } from './JobLayout'
 import SiteDiaries from '../components/hs/SiteDiaries'
 import DeliveryNotes from '../components/hs/DeliveryNotes'
 import Inspections from '../components/hs/Inspections'
+import Accidents from '../components/hs/Accidents'
 
 // Job › H&S (24 Nov, script 081): site diaries, delivery notes and H&S inspections for the job. An archived job is read-only.
 const VIEWS = [
   ['diaries', 'Site diaries'],
   ['deliveries', 'Delivery notes'],
   ['inspections', 'H&S inspections'],
+  ['accidents', 'Accidents'],
 ] as const
 type View = (typeof VIEWS)[number][0]
 
@@ -35,6 +37,7 @@ export default function HsTab() {
       {view === 'diaries' && <SiteDiaries job={job} readOnly={readOnly} />}
       {view === 'deliveries' && <DeliveryNotes job={job} readOnly={readOnly} />}
       {view === 'inspections' && <Inspections job={job} readOnly={readOnly} />}
+      {view === 'accidents' && <Accidents job={job} readOnly={readOnly} />}
     </div>
   )
 }
