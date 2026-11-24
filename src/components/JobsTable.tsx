@@ -78,7 +78,19 @@ export default function JobsTable({ title = 'Jobs' }: { title?: string }) {
       {jobs === null && !error && <p className="muted">Loading…</p>}
       {jobs && shown.length === 0 && <p className="muted">{jobs.length === 0 ? 'No jobs yet. Add the first one.' : 'No jobs match.'}</p>}
       {shown.length > 0 && (
-        <table className="table stack">
+        <table className="table stack jobs-table">
+          <colgroup>
+            <col className="jc-job" />
+            <col className="jc-name" />
+            <col className="jc-client" />
+            <col className="jc-pm" />
+            <col className="jc-status" />
+            <col className="jc-date" />
+            <col className="jc-date" />
+            <col className="jc-sum" />
+            <col className="jc-vo" />
+            <col className="jc-link" />
+          </colgroup>
           <thead>
             <tr>
               <th>Job</th>

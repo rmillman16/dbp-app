@@ -1365,3 +1365,25 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .bl-filed { flex-direction: column; align-items: stretch; }
 .bt-sheet .bl-attach.primary { display: block; width: 100%; background: var(--navy); color: #fff; border-radius: 5px; padding: 4px 6px; font-size: 12px; text-align: center; margin-top: 2px; }
 .bt-sheet .bl-attach.primary:hover { text-decoration: none; opacity: 0.9; color: #fff; }
+
+/* no-connection page */
+.no-conn { text-align: center; }
+.no-conn-icon { font-size: 40px; margin-bottom: 4px; }
+.no-conn-actions { display: flex; gap: 10px; justify-content: center; margin: 14px 0 8px; }
+
+/* all-jobs table: fixed column widths so the columns line up and long names wrap instead of pushing the rest around */
+@media (min-width: 801px) {
+  .jobs-table { table-layout: fixed; }
+  .jobs-table th, .jobs-table td { overflow-wrap: anywhere; }
+  .jobs-table th.col-grow { width: auto; }
+  .jobs-table .jc-job { width: 9%; }
+  .jobs-table .jc-name { width: 25%; }
+  .jobs-table .jc-client { width: 14%; }
+  .jobs-table .jc-pm { width: 12%; }
+  .jobs-table .jc-status { width: 8%; }
+  .jobs-table .jc-date { width: 8%; }
+  .jobs-table .jc-sum { width: 9%; }
+  .jobs-table .jc-vo { width: 4%; }
+  .jobs-table .jc-link { width: 7%; }
+  .jobs-table td.nowrap { white-space: normal; }
+}

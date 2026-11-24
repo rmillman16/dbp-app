@@ -5,6 +5,7 @@ import { configError, supabase } from './lib/supabase'
 import Layout from './components/Layout'
 import { AccessProvider } from './lib/access'
 import { prefetchPages } from './lib/prefetch'
+import ConnectionBoundary from './components/NoConnection'
 import { RequireAccess as A } from './components/NoAccess'
 import JobsTable from './components/JobsTable'
 import SignIn from './pages/SignIn'
@@ -124,6 +125,7 @@ export default function App() {
   return (
     <AccessProvider>
       <Layout email={email}>
+        <ConnectionBoundary key={pathname}>
         <Suspense fallback={<p className="muted">Loading…</p>}>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -365,6 +367,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </Suspense>
+        </ConnectionBoundary>
       </Layout>
     </AccessProvider>
   )
