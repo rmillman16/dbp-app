@@ -10,7 +10,6 @@ import { fullRef, quoteTotal } from './quotations'
 
 const NAVY = '1F1246'
 const BLUE = '007ABE'
-const PALE_BLUE = '8CC4EA'
 const TINT = 'EAF2FA'
 const RULE = 'C9DCEC'
 const GREY = '6B6B78'
@@ -52,26 +51,13 @@ export async function exportQuotationWord(d: QuoteDoc) {
     text.split(/(\*\*[^*]+\*\*)/).filter(Boolean).map((t) => (t.startsWith('**') ? run(t.slice(2, -2), { ...o, bold: true, color: NAVY }) : run(t, o)))
 
   // ---------- building blocks ----------
+  // the progress report's heading: navy text with a blue rule under it (no band)
   const sectionBar = (no: string, title: string, keepNext = false) =>
-    new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({
-              shading: { type: ShadingType.CLEAR, fill: NAVY, color: 'auto' },
-              borders: { ...noBorders, left: { style: BorderStyle.SINGLE, size: 36, color: BLUE } },
-              margins: { top: 100, bottom: 100, left: 220, right: 200 },
-              children: [
-                new Paragraph({
-                  keepNext,
-                  children: [run(no, { bold: true, color: PALE_BLUE, size: 22 }), run('   ' + title.toUpperCase(), { bold: true, color: 'FFFFFF', size: 22, characterSpacing: 30 })],
-                }),
-              ],
-            }),
-          ],
-        }),
-      ],
+    new Paragraph({
+      keepNext,
+      spacing: { before: 120, after: 120 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: BLUE, space: 3 } },
+      children: [run(no ? `${no}  ${title}` : title, { bold: true, color: NAVY, size: 30 })],
     })
   const gap = (after = 160, keepNext = false) => new Paragraph({ children: [], spacing: { after }, keepNext })
   const subHeading = (text: string) =>
@@ -119,25 +105,13 @@ export async function exportQuotationWord(d: QuoteDoc) {
 
   // ---------- page 1 ----------
   const logo = new Uint8Array(await (await fetch('/dbp-logo.png')).arrayBuffer())
-  const banner = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            shading: { type: ShadingType.CLEAR, fill: NAVY, color: 'auto' },
-            borders: { ...noBorders, bottom: { style: BorderStyle.SINGLE, size: 48, color: BLUE } },
-            margins: { top: 360, bottom: 360, left: 440, right: 300 },
-            children: [
-              new Paragraph({ children: [run('QUOTATION', { bold: true, color: 'FFFFFF', size: 44, characterSpacing: 80 })], spacing: { after: 60 } }),
-              new Paragraph({ children: [run(q.subject, { color: PALE_BLUE, size: 26 })], spacing: { after: 120 } }),
-              new Paragraph({ children: [run(project, { bold: true, color: 'FFFFFF', size: 21 }), run(siteOneLine ? `   |   ${siteOneLine}` : '', { color: 'FFFFFF', size: 21 })] }),
-            ],
-          }),
-        ],
-      }),
-    ],
-  })
+  // title block as the progress report's cover: big navy title, blue subject, ink project name, grey address
+  const banner = [
+    new Paragraph({ children: [run('Quotation', { bold: true, color: NAVY, size: 56 })], spacing: { before: 120, after: 80 } }),
+    new Paragraph({ children: [run(q.subject, { color: BLUE, size: 30 })], spacing: { after: 100 } }),
+    new Paragraph({ children: [run(project, { bold: true, color: '1D1D24', size: 36 })], spacing: { after: 60 } }),
+    ...(siteOneLine ? [new Paragraph({ children: [run(siteOneLine, { color: GREY, size: 22 })], spacing: { after: 60 } })] : []),
+  ]
 
   const detailRows: [string, string][] = [
     ['Project', project],
@@ -175,7 +149,7 @@ export async function exportQuotationWord(d: QuoteDoc) {
     new TableCell({ borders: { ...noBorders, bottom: rowBorder }, margins: { top: 90, bottom: 90, left: 120, right: 120 }, verticalAlign: VerticalAlign.CENTER, children, ...o })
   const p = (text: string, align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT, o: Partial<IRunOptions> = {}) => new Paragraph({ alignment: align, children: [run(text, o)] })
   const head = (text: string, align: (typeof AlignmentType)[keyof typeof AlignmentType] = AlignmentType.LEFT) =>
-    new TableCell({ shading: { type: ShadingType.CLEAR, fill: NAVY, color: 'auto' }, borders: noBorders, margins: { top: 90, bottom: 90, left: 120, right: 120 }, children: [p(text, align, { bold: true, color: 'FFFFFF' })] })
+    new TableCell({ shading: { type: ShadingType.CLEAR, fill: TINT, color: 'auto' }, borders: noBorders, margins: { top: 90, bottom: 90, left: 120, right: 120 }, children: [p(text, align, { bold: true, color: NAVY })] })
   const W = [15, 85, 13, 17, 24, 26].map((w) => Math.round(w * MM)) // item, description, qty, unit, rate, total (mm)
   const pricing = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -204,8 +178,8 @@ export async function exportQuotationWord(d: QuoteDoc) {
       }),
       new TableRow({
         children: [
-          new TableCell({ columnSpan: 5, shading: { type: ShadingType.CLEAR, fill: BLUE, color: 'auto' }, borders: noBorders, margins: { top: 110, bottom: 110, right: 160 }, children: [p('TOTAL (EXCLUDING VAT)', AlignmentType.RIGHT, { bold: true, color: 'FFFFFF' })] }),
-          new TableCell({ shading: { type: ShadingType.CLEAR, fill: NAVY, color: 'auto' }, borders: noBorders, margins: { top: 110, bottom: 110, right: 120 }, children: [p(gbp(total), AlignmentType.RIGHT, { bold: true, color: 'FFFFFF' })] }),
+          new TableCell({ columnSpan: 5, shading: { type: ShadingType.CLEAR, fill: TINT, color: 'auto' }, borders: { ...noBorders, top: { style: BorderStyle.SINGLE, size: 12, color: BLUE } }, margins: { top: 110, bottom: 110, right: 160 }, children: [p('TOTAL (EXCLUDING VAT)', AlignmentType.RIGHT, { bold: true, color: NAVY })] }),
+          new TableCell({ shading: { type: ShadingType.CLEAR, fill: TINT, color: 'auto' }, borders: { ...noBorders, top: { style: BorderStyle.SINGLE, size: 12, color: BLUE } }, margins: { top: 110, bottom: 110, right: 120 }, children: [p(gbp(total), AlignmentType.RIGHT, { bold: true, color: NAVY })] }),
         ],
       }),
     ],
@@ -230,8 +204,8 @@ export async function exportQuotationWord(d: QuoteDoc) {
 
   // ---------- assemble ----------
   const body: (DocParagraph | DocTable)[] = [
-    banner,
-    gap(240),
+    ...banner,
+    gap(200),
     details,
     gap(240),
     opening,
@@ -274,9 +248,8 @@ export async function exportQuotationWord(d: QuoteDoc) {
         border: { top: { style: BorderStyle.SINGLE, size: 12, color: BLUE, space: 6 } },
         tabStops: [{ type: TabStopType.RIGHT, position: Math.round(170 * MM) }],
         children: [
-          run('du Boulay Projects', { bold: true, color: NAVY, size: 16 }),
-          // "Quotation – MICRO by the fix, Unit 3B 60 Sloane Avenue": project and the first two parts of the address
-          run(`   |   Quotation – ${project}${siteOneLine ? `, ${siteOneLine.split(',').slice(0, 2).map((s) => s.trim()).join(' ')}` : ''}`, { color: GREY, size: 16 }),
+          run('du Boulay Projects Limited', { color: GREY, size: 16 }),
+          run(`   |   Quotation – ${project}`, { color: GREY, size: 16 }),
           new TextRun({ children: ['\tPage ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], font: FONT, size: 16, color: GREY }),
         ],
       }),

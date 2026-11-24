@@ -230,6 +230,15 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
     }
   }
 
+  async function exportPdf() {
+    if (!q) return
+    try {
+      const { exportQuotationPdf } = await import('../lib/exportQuotationPdf')
+      await exportQuotationPdf({ job, owner: job ?? enquiry, q, lines: priced, clauses, acceptanceWording: acceptance, terms })
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
   async function exportWord() {
     if (!q) return
     try {
@@ -270,6 +279,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
         </div>
         <div className="button-row">
           <button onClick={exportWord}>Export Word</button>
+          <button onClick={exportPdf}>Export PDF</button>
           <button className="primary" onClick={save} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
           </button>
@@ -505,6 +515,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
           {busy ? 'Saving…' : 'Save'}
         </button>
         <button onClick={exportWord}>Export Word</button>
+          <button onClick={exportPdf}>Export PDF</button>
       </div>
     </div>
   )
