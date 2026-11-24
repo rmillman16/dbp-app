@@ -46,7 +46,7 @@ export default function ProjectChecklist({ job }: { job: Job }) {
   const [items, setItems] = useState<Item[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState<string | null>(null)
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     let live = true
@@ -118,7 +118,7 @@ export default function ProjectChecklist({ job }: { job: Job }) {
             </>
           )}
           <button type="button" className="link-button small" onClick={() => setOpen(!open)}>
-            {open ? 'Hide' : 'Show'}
+            {open ? 'Hide checklist' : 'Show checklist'}
           </button>
         </div>
       </div>

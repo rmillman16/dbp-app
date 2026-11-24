@@ -39,7 +39,7 @@ export interface PrintOptions {
 
 // Milestone diamonds at this fraction of the bar height (as in the interactive chart)
 const MILESTONE_SCALE = 0.65
-const FONT = `Manrope,'Segoe UI',system-ui,sans-serif`
+const FONT = `Aptos,'Segoe UI',system-ui,sans-serif`
 
 export const PP = {
   mm: 96 / 25.4,

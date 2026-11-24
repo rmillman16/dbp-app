@@ -261,7 +261,7 @@ export async function emlDraft(args: { to: string[]; cc?: string[]; subject: str
     'Content-Type: text/html; charset="utf-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    await base64(new Blob([`<html><body style="font-family:Calibri,Arial,sans-serif;font-size:11pt">${args.html}</body></html>`], { type: 'text/html' })),
+    await base64(new Blob([`<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${args.html}</body></html>`], { type: 'text/html' })),
   ]
   for (const a of args.attachments) {
     const name = encodeWord(a.name)

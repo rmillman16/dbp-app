@@ -92,7 +92,22 @@ export function safeName(s: string) {
   return s.replace(/[\\/:*?"<>|]/g, '').trim()
 }
 
+// The DBP standard font (24 Nov): every cell in every workbook comes out in Aptos. Cells left on the default (Calibri) or set to
+// Arial / Calibri by a layout are switched; Aptos Narrow (the CVR's own) is kept.
+export const STANDARD_FONT = 'Aptos'
+function standardFont(wb: Workbook) {
+  wb.eachSheet((ws) => {
+    ws.eachRow({ includeEmpty: true }, (row) => {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const f = cell.font
+        if (!f || !f.name || /^(calibri|arial|aptos)$/i.test(f.name)) cell.font = { ...f, name: STANDARD_FONT }
+      })
+    })
+  })
+}
+
 export async function download(wb: Workbook, filename: string) {
+  standardFont(wb)
   const buf = await wb.xlsx.writeBuffer()
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const a = document.createElement('a')

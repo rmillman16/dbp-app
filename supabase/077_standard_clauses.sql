@@ -1,0 +1,46 @@
+-- =====================================================================
+-- 077 · Standard clarifications and exclusions library (24 Nov)
+-- Fills Templates › Clause library from DBP's draft Schedule of Works templates (the Clarifications and Exclusions tabs of the
+-- "dbp Schedule of Works" and "Micro by The Fix" workbooks), so they can be ticked onto any quotation (03 Qualifications &
+-- exclusions) and edited for that quotation. Groups: "Clarification - project", "Clarification - commercial", "Exclusion".
+-- They are DBP's own draft wording, added as "OK to use on quotations" so they show on quotations straight away: untick
+-- "Legally reviewed" on any that still need checking. Safe to run more than once: a clause already there (same group and title) is
+-- left alone, so edits you make are kept.
+-- =====================================================================
+insert into tc_clauses (title, category, body, approved)
+select v.title, v.category, v.body, true
+from (values
+  ('VAT', 'Clarification - project', 'The tender sum is exclusive of VAT, which will be applied at the prevailing rate.'),
+  ('Basis of tender', 'Clarification - project', 'The tender is based on the information issued at the time of submission. No allowance is made for subsequent design development, coordination changes, or revised information unless instructed under the contract.'),
+  ('Existing conditions', 'Clarification - project', 'The tender is based on a non-intrusive inspection. No allowance is made for latent defects, concealed conditions, unidentified services, or discrepancies between drawings and site conditions. Any such matters will be treated as a variation.'),
+  ('Services and connections', 'Clarification - project', 'Existing landlord and incoming services are assumed to be operational, adequate, and suitable for connection. No allowance is made for upgrading, alteration, or replacement unless stated.'),
+  ('Structure', 'Clarification - project', 'Existing structure is assumed adequate to receive proposed loads, and to allow fixing into the structural elements where required. No allowance is made for structural investigation, design, or strengthening works unless identified in the tender documents.'),
+  ('Demolition and asbestos', 'Clarification - project', 'All demolition works are based on non-hazardous conditions. The Employer will provide a Demolition and Refurbishment Asbestos Survey and report before any works begin. No allowance is included for asbestos investigation, removal, or encapsulation unless stated.'),
+  ('Working hours and access', 'Clarification - project', 'Works are based on unrestricted access during normal working hours. No allowance is made for out of hours working, weekend working, restricted access, phased possession, or multiple mobilisations unless stated. Any required working outside the noted hours may attract additional costs.'),
+  ('Programme and disruption', 'Clarification - project', 'The tender assumes continuous and uninterrupted access to work areas in a logical sequence. Any instruction to suspend, resequence, or restrict the works will entitle adjustment to programme and cost in accordance with the contract conditions.'),
+  ('Noisy and disruptive works', 'Clarification - project', 'Noisy or disruptive works that may affect members of the public or surrounding businesses will be kept to a minimum, notwithstanding the work required under the contract. If we are asked to stop disruptive works for a period, this may be to the detriment of the programme. We will advise all parties if this will cause a delay and, if required, submit a formal extension of time request.'),
+  ('Temporary works and protection', 'Clarification - project', 'No allowance is made for temporary works, propping, protection of existing finishes, or enabling works unless expressly included in the tender documents.'),
+  ('Making good', 'Clarification - project', 'Making good is limited to areas directly disturbed by our works. No allowance is made for general reinstatement outside our trade interfaces.'),
+  ('Coordination', 'Clarification - project', 'The tender assumes a reasonably coordinated design pack. No allowance is made for design coordination issues, service clashes, sequencing issues, or rework arising from incomplete or conflicting information.'),
+  ('Fire stopping and penetrations', 'Clarification - project', 'Fire stopping is based on penetrations identified at tender stage. Locations and sizes remain unverified. Any additional penetrations, service changes, reuse of existing openings, or deviations from tender information will be treated as a variation.'),
+  ('Building control and statutory approvals', 'Clarification - project', 'We have assumed all necessary planning approvals have been obtained. Planning, building control fees, and statutory approvals are excluded unless expressly included in the tender documents.'),
+  ('Utilities', 'Clarification - project', 'No allowance is made for gas, power, or water required for construction, commissioning, or testing unless stated.'),
+  ('BIM and BREEAM', 'Clarification - project', 'No allowance is included for BIM deliverables, BREEAM assessments, or associated compliance requirements unless stated.'),
+  ('O&M information', 'Clarification - project', 'Operation and maintenance information will be provided by subcontractors for their scope only. We assume client direct contractors will issue their O&Ms direct. Any client-specific formatting or additional compilation requirements are excluded unless stated.'),
+  ('Survey and validation', 'Clarification - project', 'Our proposal has been prepared on a non-intrusive survey and may be subject to alteration following a full site survey and validation of existing services.'),
+  ('Variations', 'Clarification - commercial', 'Variations will be valued in accordance with the contract conditions. Unless otherwise agreed, an uplift of 17.5 percent applies to variation works for overheads and profit.'),
+  ('Statutory and external change', 'Clarification - commercial', 'No allowance is made for changes in legislation, statutory requirements, material shortages, inflationary pressures, pandemics, political events, or force majeure type risks beyond the tender validity period.'),
+  ('Contract conditions', 'Clarification - commercial', 'This submission is based on standard JCT contract conditions. Any amendments to risk profile, payment terms, or contractual obligations may require review and adjustment to the tender sum.'),
+  ('Pre-contract clarifications', 'Clarification - commercial', 'Prior to contract execution, we reserve the right to seek clarification and agreement of contract conditions and scope to ensure alignment with the tender submission.'),
+  ('Preliminaries and programme duration', 'Clarification - commercial', 'Preliminaries have been priced on the basis of recovery over the assumed contract duration. Any extension of time beyond the stated period will require adjustment to preliminaries in accordance with the contract.'),
+  ('Supply chain and advance payments', 'Clarification - commercial', 'Certain specialist materials may require advance payment to suppliers (for example lighting, tiles, stone, joinery and mechanical items). Where such requirements arise, payment mechanisms will need to align with employer payment provisions, with deposits back to back with the client.'),
+  ('Payment terms', 'Clarification - commercial', 'Standard industry payment terms are assumed. We are willing to discuss improved commercial terms, including a commercial discount for preferential payment terms, subject to agreement of revised payment provisions.'),
+  ('Fixed price period', 'Clarification - commercial', 'The tender is fixed for a period of 8 weeks from the date of submission. Thereafter, the offer may be subject to review.'),
+  ('Access restrictions and disruption', 'Clarification - commercial', 'No allowance is made for disruption, restricted access, out of sequence working, or multiple remobilisations unless identified at tender stage. Any such constraints will affect programme and cost in accordance with the contract.'),
+  ('Project mobilisation payment', 'Clarification - commercial', 'Our tender is based on receipt of an agreed advance mobilisation payment upon contract award. This payment enables immediate mobilisation, securing manufacturing slots, early engagement of the supply chain and the placement of orders for long lead and specialist materials. It forms part of the commercial basis of our tender and will be recovered through subsequent interim valuations in accordance with an agreed payment schedule.'),
+  ('BIM or BREEAM', 'Exclusion', 'We have not made any allowance for working with or producing BIM models or BREEAM accreditations.'),
+  ('Night and out of hours works', 'Exclusion', 'Night works and out of hours or weekend working.'),
+  ('Works not in the schedule', 'Exclusion', 'Any works not explicitly stated within our schedule of works.'),
+  ('Bonds', 'Exclusion', 'Performance bonds, advance payment bonds or any other type of bond.')
+) as v(title, category, body)
+where not exists (select 1 from tc_clauses c where c.title = v.title and c.category = v.category);

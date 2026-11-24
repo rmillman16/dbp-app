@@ -117,4 +117,5 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
    This sends off-hire reminders on their day; everything else also goes straight away when it happens.
 | `074_defects_job.sql` | An overarching "0 DEFECTS" job so material / hire requisitions can be raised for defect work on an old job or one before the app (run after 073) | Not run yet |
 | `075_requisition_order_files.sql` | Order documents on requisitions: the buyer attaches a receipt / order confirmation, emailed to the requester when set to Ordered (run after 074; then redeploy `send-emails`) | Not run yet |
-| `076_job_checklist.sql` | Project checklist on the job Overview: H&S and compliance items (F10, construction phase plan, principal designer / contractor, building control, insurances…) (run after 075) | Not run yet |
+| `076_job_checklist.sql` | Project checklist on the job Overview: H&S and compliance items (F10, construction phase plan, principal designer / contractor, building control, insurances…) (run after 075) | Run 24 Nov |
+| `077_standard_clauses.sql` | Standard clarifications and exclusions library, filled from the draft Schedule of Works templates (Templates › Clause library; tick them onto quotations) (run after 076) | Not run yet |

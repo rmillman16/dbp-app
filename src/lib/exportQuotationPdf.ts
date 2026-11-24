@@ -17,7 +17,7 @@ const INK = '#1d1d24'
 const MUTED = '#6b6b78'
 const LINE = '#d9d9e0'
 const SHADE = '#eef3fa'
-const FONTS = ['/minutes/fonts/Carlito-Regular.ttf', '/minutes/fonts/Carlito-Bold.ttf', '/minutes/fonts/Carlito-Italic.ttf']
+import { loadPdfFonts } from './pdfFonts'
 
 const SPECIAL = new Map<number, string>([[0x2013, '-'], [0x2014, '-'], [0x2018, "'"], [0x2019, "'"], [0x201c, '"'], [0x201d, '"'], [0x2026, '...'], [0x2022, '-'], [0x20ac, 'EUR'], [0x2192, '->'], [0x25aa, '-']])
 function winAnsi(s: string) {
@@ -54,7 +54,7 @@ export async function buildQuotationPdf(d: QuoteDoc): Promise<Uint8Array> {
   let regular: PDFFont, bold: PDFFont, italic: PDFFont
   let clean = (s: string) => s.replace(/\t/g, ' ')
   try {
-    const [{ default: fontkit }, bytes] = await Promise.all([import('@pdf-lib/fontkit'), Promise.all(FONTS.map((u) => fetch(u).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(u))))))])
+    const [{ default: fontkit }, bytes] = await Promise.all([import('@pdf-lib/fontkit'), loadPdfFonts()])
     doc.registerFontkit(fontkit)
     ;[regular, bold, italic] = await Promise.all(bytes.map((b) => doc.embedFont(new Uint8Array(b), { subset: false })))
   } catch {
@@ -140,20 +140,6 @@ export async function buildQuotationPdf(d: QuoteDoc): Promise<Uint8Array> {
     page.drawLine({ start: { x: M, y: y - 13 }, end: { x: M + 48, y: y - 13 }, thickness: 2, color: hex(BLUE) })
     y -= 24
   }
-  const kv = (rows: [string, string][]) => {
-    for (const [k, v] of rows.filter(([, v]) => v && v.trim())) {
-      const lines = wrap(v, CW - 130, 10, regular)
-      ensure(lines.length * 14 + 3)
-      y -= 14
-      page.drawText(clean(k), { x: M, y, size: 10, font: bold, color: hex(MUTED) })
-      lines.forEach((ln, i) => {
-        if (i) y -= 14
-        page.drawText(ln, { x: M + 130, y, size: 10, font: regular, color: hex(INK) })
-      })
-      y -= 4
-    }
-    y -= 8
-  }
   const groups = (gs: TextGroup[], def: 'numbered' | 'bullets') => {
     for (const g of gs) {
       if (g.heading) h2(g.heading)
@@ -212,13 +198,28 @@ export async function buildQuotationPdf(d: QuoteDoc): Promise<Uint8Array> {
     y -= 15
   }
   y -= 16
-  kv([
-    ['Client', [q.client_name, q.client_contact].filter(Boolean).join(' - ')],
-    ['Prepared by', q.prepared_by ?? 'du Boulay Projects'],
-    ['Quotation date', longDate(q.issued_date)],
-    ['Quotation ref', ref],
-    ['Valid until', longDate(q.valid_until)],
-  ])
+  {
+    // the details in a pale panel with a blue edge
+    const rows = ([
+      ['Client', [q.client_name, q.client_contact].filter(Boolean).join(' - ')],
+      ['Prepared by', q.prepared_by ?? 'du Boulay Projects'],
+      ['Quotation date', longDate(q.issued_date)],
+      ['Quotation ref', ref],
+      ['Valid until', longDate(q.valid_until)],
+    ] as [string, string][]).filter(([, v]) => v && v.trim())
+    const laid = rows.map(([k, v]) => ({ k, lines: wrap(v, CW - 150, 10, regular) }))
+    const ph = laid.reduce((s, r) => s + r.lines.length * 14 + 5, 0) + 16
+    ensure(ph + 10)
+    page.drawRectangle({ x: M, y: y - ph, width: CW, height: ph, color: hex(SHADE) })
+    page.drawRectangle({ x: M, y: y - ph, width: 3.5, height: ph, color: hex(BLUE) })
+    let yy = y - 14
+    for (const r of laid) {
+      page.drawText(clean(r.k), { x: M + 16, y: yy, size: 10, font: bold, color: hex(NAVY) })
+      r.lines.forEach((ln, i) => page.drawText(ln, { x: M + 130, y: yy - i * 14, size: 10, font: regular, color: hex(INK) }))
+      yy -= r.lines.length * 14 + 5
+    }
+    y -= ph + 14
+  }
   text(`du Boulay Projects is pleased to submit our quotation of ${gbp(total)} + VAT for ${q.summary?.trim() || 'the works'} set out below.`, { gap: 6 })
 
   // ---------- 01 scope ----------
@@ -256,6 +257,7 @@ export async function buildQuotationPdf(d: QuoteDoc): Promise<Uint8Array> {
         head()
       }
       const top = y
+      if (i % 2) page.drawRectangle({ x: M, y: y - h, width: CW, height: h, color: hex('#f7f9fc') })
       mid(l.item || String(i + 1), xs[0], ws[0], top - 12, regular, 9)
       lines.forEach((ln, k) => page.drawText(ln, { x: xs[1] + 3, y: top - 12 - k * 11, size: 9, font: k === 0 && l.heading ? regular : regular, color: hex(INK) }))
       mid(l.qty == null ? '' : String(l.qty), xs[2], ws[2], top - 12, regular, 9)

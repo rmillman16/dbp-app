@@ -138,6 +138,6 @@ export async function buildReportDocx(a: { job: Job; report: ProgressReport; aut
     body(c.hs.notes)
   }
   void AlignmentType
-  const doc = new Document({ creator: 'du Boulay Projects', title: `${job.job_no} ${job.code} Progress report ${report.report_no}`, sections: [{ children: kids }] })
+  const doc = new Document({ creator: 'du Boulay Projects', title: `${job.job_no} ${job.code} Progress report ${report.report_no}`, styles: { default: { document: { run: { font: 'Aptos', size: 21 } }, heading1: { run: { font: 'Aptos', color: '1F1246', bold: true, size: 30 } }, heading2: { run: { font: 'Aptos', color: '1F1246', bold: true, size: 24 } } } }, sections: [{ children: kids }] })
   return Packer.toBlob(doc)
 }

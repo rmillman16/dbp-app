@@ -21,7 +21,7 @@ const INK = '#1d1d24'
 const MUTED = '#6b6b78'
 const LINE = '#d9d9e0'
 const SHADE = '#eef3fa'
-const FONTS = ['/minutes/fonts/Carlito-Regular.ttf', '/minutes/fonts/Carlito-Bold.ttf', '/minutes/fonts/Carlito-Italic.ttf']
+import { loadPdfFonts } from './pdfFonts'
 
 const SPECIAL = new Map<number, string>([[0x2013, '-'], [0x2014, '-'], [0x2018, "'"], [0x2019, "'"], [0x201c, '"'], [0x201d, '"'], [0x2026, '...'], [0x2022, '-'], [0x20ac, 'EUR'], [0x2192, '->'], [0x2713, ''], [0x26a0, '!']])
 function winAnsi(s: string) {
@@ -66,7 +66,7 @@ export async function buildReportPdf(a: ReportPdfArgs): Promise<{ bytes: Uint8Ar
   let regular: PDFFont, bold: PDFFont, italic: PDFFont
   let clean = (s: string) => s.replace(/\t/g, ' ')
   try {
-    const [{ default: fontkit }, bytes] = await Promise.all([import('@pdf-lib/fontkit'), Promise.all(FONTS.map((u) => fetch(u).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(u))))))])
+    const [{ default: fontkit }, bytes] = await Promise.all([import('@pdf-lib/fontkit'), loadPdfFonts()])
     doc.registerFontkit(fontkit)
     ;[regular, bold, italic] = await Promise.all(bytes.map((b) => doc.embedFont(new Uint8Array(b), { subset: false })))
     clean = (s) => s.replace(/\t/g, ' ').replace(/[⚠✓✔]/g, '')

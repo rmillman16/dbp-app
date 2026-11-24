@@ -38,8 +38,6 @@ export default function JobOverview() {
       {/* the other modules at a glance: one row of tiles */}
       <ModuleCards job={job} />
 
-      {/* H&S and compliance checklist: F10 etc (script 076) */}
-      <ProjectChecklist job={job} />
 
       {/* all the VOs */}
       <section className="card span-all">
@@ -108,6 +106,9 @@ export default function JobOverview() {
         <ProjectDirectory job={job} />
         <JobSowCard compact />
       </div>
+
+      {/* H&S and compliance checklist: F10 etc (script 076), at the bottom and closed until opened */}
+      <ProjectChecklist job={job} />
     </div>
   )
 }

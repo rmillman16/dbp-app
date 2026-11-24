@@ -13,7 +13,7 @@ const BLUE = '007ABE'
 const TINT = 'EAF2FA'
 const RULE = 'C9DCEC'
 const GREY = '6B6B78'
-const FONT = 'Arial'
+const FONT = 'Aptos'
 
 const MM = 56.6929 // twips per mm
 const num2 = new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })

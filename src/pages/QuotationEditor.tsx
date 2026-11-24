@@ -449,23 +449,42 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
           <p className="muted small">No legally reviewed clauses in the library yet (Templates › Clause library).</p>
         ) : (
           <div className="clause-picks">
-            {library.map((c) => {
-              const picked = clauses.find((x) => x.clause_id === c.id)
+            {[...new Set(library.map((c) => c.category || 'Other'))].map((cat) => {
+              const inCat = library.filter((c) => (c.category || 'Other') === cat)
+              const allOn = inCat.every((c) => clauses.some((x) => x.clause_id === c.id))
               return (
-                <div key={c.id} className={`clause-pick ${picked ? 'on' : ''}`}>
-                  <label className="check">
-                    <span>
-                      <input type="checkbox" checked={!!picked} onChange={() => toggleClause(c)} /> {c.title}
-                      {c.category && <span className="muted small"> · {c.category}</span>}
-                    </span>
-                  </label>
-                  {picked && (
-                    <textarea
-                      rows={4}
-                      value={picked.body}
-                      onChange={(e) => (setSaved(false), setClauses((cs) => cs.map((x) => (x.clause_id === c.id ? { ...x, body: e.target.value } : x))))}
-                    />
-                  )}
+                <div key={cat} className="clause-group">
+                  <div className="clause-group-head">
+                    <strong>{cat}</strong>
+                    <button
+                      type="button"
+                      className="link-button small"
+                      onClick={() =>
+                        allOn ? inCat.forEach((c) => toggleClause(c)) : inCat.filter((c) => !clauses.some((x) => x.clause_id === c.id)).forEach((c) => toggleClause(c))
+                      }
+                    >
+                      {allOn ? 'Untick all' : 'Tick all'}
+                    </button>
+                  </div>
+                  {inCat.map((c) => {
+                    const picked = clauses.find((x) => x.clause_id === c.id)
+                    return (
+                      <div key={c.id} className={`clause-pick ${picked ? 'on' : ''}`}>
+                        <label className="check">
+                          <span>
+                            <input type="checkbox" checked={!!picked} onChange={() => toggleClause(c)} /> {c.title}
+                          </span>
+                        </label>
+                        {picked && (
+                          <textarea
+                            rows={4}
+                            value={picked.body}
+                            onChange={(e) => (setSaved(false), setClauses((cs) => cs.map((x) => (x.clause_id === c.id ? { ...x, body: e.target.value } : x))))}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )
             })}
