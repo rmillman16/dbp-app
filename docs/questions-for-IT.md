@@ -39,6 +39,7 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 ## 3. Supabase plan before go-live
 - [ ] Upgrade the Supabase project to **Pro** (about $25 / month) for daily backups of the data. The free plan has no automatic backups; until then an admin runs Settings › **Export all data** weekly.
 - [ ] Confirm the project's region is London (UK data residency).
+- [ ] **Photo storage (snagging, 24 Nov):** site staff and trades add snag photos from their phones. They are scaled down to about 1600 px before upload (roughly 300 KB each), so 10,000 photos is about 3 GB. The Pro plan includes 100 GB of file storage; worth knowing before go-live.
 - [ ] Decide who else holds owner access to the Supabase project (currently Richard).
 
 ## 4. Hosting and the web address
