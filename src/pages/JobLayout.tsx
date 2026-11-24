@@ -85,14 +85,14 @@ export default function JobLayout() {
   const section = pathname.split('/')[3] ?? ''
   const current = TABS.find((t) => t.to === section) ?? TABS[0]
   const tabs = (cls: string) =>
-    TABS.filter((t) => (!t.section || can(t.section)) && (!t.breeam || job.breeam)).map((t) =>
+    TABS.filter((t) => !t.breeam || job.breeam).map((t) =>
       t.soon ? (
         <span key={t.label} className={`${cls} disabled`} title="Coming soon">
           {t.label}
           {cls !== 'tab' && <span className="soon">soon</span>}
         </span>
       ) : (
-        <NavLink key={t.label} to={t.to} end={t.to === ''} className={cls}>
+        <NavLink key={t.label} to={t.to} end={t.to === ''} className={cls + (t.section && !can(t.section) ? ' locked' : '')} title={t.section && !can(t.section) ? 'You don’t have access to this yet: open it to request access' : undefined}>
           {t.label}
         </NavLink>
       ),

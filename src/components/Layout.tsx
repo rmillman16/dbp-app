@@ -62,7 +62,8 @@ export default function Layout({ email, children }: { email: string; children: R
   // count the page for Settings › Usage
   useEffect(() => trackPage(pathname), [pathname])
 
-  const navItems = NAV.filter((n) => (!n.admin || isAdmin) && (!n.section || can(n.section))).map((n) =>
+  // areas you can't open stay in the menu, greyed with a padlock: clicking one explains and lets you request access (from IT)
+  const navItems = NAV.filter((n) => !n.admin || isAdmin).map((n) =>
     n.soon ? (
       <span key={n.to} className="nav-item disabled" title="Coming soon">
         <NavIcon d={n.icon} />
@@ -70,7 +71,7 @@ export default function Layout({ email, children }: { email: string; children: R
         <span className="soon">soon</span>
       </span>
     ) : (
-      <NavLink key={n.to} to={n.to} end={n.to === '/'} className="nav-item">
+      <NavLink key={n.to} to={n.to} end={n.to === '/'} className={'nav-item' + (n.section && !can(n.section) ? ' locked' : '')} title={n.section && !can(n.section) ? 'You don’t have access to this yet: open it to request access' : undefined}>
         <NavIcon d={n.icon} />
         {n.label}
       </NavLink>

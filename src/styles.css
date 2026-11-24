@@ -1500,3 +1500,8 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .hs-doc { display: inline-block; padding: 8px 10px; background: #eef3fa; border-radius: 6px; font-size: 12px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
 
 .hs-riddor { margin: 8px 0; padding: 10px 14px; background: #fff4e5; border-left: 4px solid #e08a00; border-radius: 6px; }
+
+/* areas you don't have access to: still listed, greyed, with a padlock; opening one lets you request access (24 Nov) */
+.locked { opacity: 0.5; }
+.locked::after { content: '\1F512'; font-size: 0.7em; margin-left: 6px; vertical-align: middle; }
+.locked:hover { opacity: 0.8; }
