@@ -142,29 +142,6 @@ function LineRow({ i, evidence, actions, change, onAttach, onUnfile, onDelete }:
       </td>
       <td data-label="Evidence required">
         <textarea defaultValue={i.evidence ?? ''} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
-        <div className="bl-files">
-          {evidence.map((ev) => (
-            <span key={ev.id} className="bl-file" title={`Filed in ${ev.folder ?? ''} by ${ev.added_by_name ?? ''} on ${new Date(ev.created_at).toLocaleDateString('en-GB')}`}>
-              📎 {ev.file_name}
-              <button type="button" aria-label="Remove from the list (the file stays in SharePoint)" onClick={() => onUnfile(ev)}>
-                ✕
-              </button>
-            </span>
-          ))}
-          <input ref={pick} type="file" multiple hidden onChange={(e) => (e.target.files?.length && onAttach(i, e.target.files), (e.target.value = ''))} />
-          <button
-            type="button"
-            className="bl-attach"
-            title="Attach evidence: filed into the job's SharePoint folder"
-            onClick={async () => {
-              // the browser's folder-permission prompt must come straight from a click, so it is asked for here first
-              if (await folderAccess(i.job_id, 'breeam')) pick.current?.click()
-              else alert('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button at the top), and allow access when the browser asks.')
-            }}
-          >
-            📎 Attach
-          </button>
-        </div>
       </td>
       <td data-label="Action">
         <select
@@ -196,6 +173,31 @@ function LineRow({ i, evidence, actions, change, onAttach, onUnfile, onDelete }:
       <td data-label="Comments">
         <textarea defaultValue={i.comments ?? ''} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
       </td>
+      <td data-label="Evidence filed">
+        <div className="bl-files bl-filed">
+          {evidence.map((ev) => (
+            <span key={ev.id} className="bl-file" title={`Filed in ${ev.folder ?? ''} by ${ev.added_by_name ?? ''} on ${new Date(ev.created_at).toLocaleDateString('en-GB')}`}>
+              📎 {ev.file_name}
+              <button type="button" aria-label="Remove from the list (the file stays in SharePoint)" onClick={() => onUnfile(ev)}>
+                ✕
+              </button>
+            </span>
+          ))}
+          <input ref={pick} type="file" multiple hidden onChange={(e) => (e.target.files?.length && onAttach(i, e.target.files), (e.target.value = ''))} />
+          <button
+            type="button"
+            className="bl-attach primary"
+            title="Attach evidence: filed into the job's SharePoint folder"
+            onClick={async () => {
+              // the browser's folder-permission prompt must come straight from a click, so it is asked for here first
+              if (await folderAccess(i.job_id, 'breeam')) pick.current?.click()
+              else alert('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button at the top), and allow access when the browser asks.')
+            }}
+          >
+            📎 Attach evidence
+          </button>
+        </div>
+      </td>
       <td className="bt-del">
         <button className="small-button" title="Remove this line" onClick={onDelete}>
           ✕
@@ -213,6 +215,8 @@ export default function BreeamTab() {
   const [filter, setFilter] = useState<BreeamStatus | 'all' | 'open'>('all')
   const [cat, setCat] = useState('')
   const [q, setQ] = useState('')
+  const [cf, setCf] = useState<Record<string, string>>({}) // the filter above each column
+  const setF = (k: string, v: string) => setCf((o) => ({ ...o, [k]: v }))
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ ref: '', category: '', title: '' })
@@ -251,6 +255,13 @@ export default function BreeamTab() {
       const t = `${i.ref ?? ''} ${i.title} ${i.responsible ?? ''} ${i.comments ?? ''}`.toLowerCase()
       if (!q.toLowerCase().split(/\s+/).every((w) => t.includes(w))) return false
     }
+    const has = (v: string | null | undefined, w: string | undefined) => !w?.trim() || (v ?? '').toLowerCase().includes(w.trim().toLowerCase())
+    const numIs = (v: number | null, w: string | undefined) => !w?.trim() || (w.trim() === '-' ? v == null : v != null && String(v).startsWith(w.trim()))
+    if (!has(i.ref, cf.ref) || !has(i.title, cf.title) || !has(i.criteria, cf.crit) || !has(i.evidence, cf.evid) || !has(i.comments, cf.comm)) return false
+    if (!numIs(i.credits_available, cf.avail) || !numIs(i.credits_targeted, cf.targ) || !numIs(i.credits_achieved, cf.ach)) return false
+    if (cf.action && (cf.action === '__none__' ? !!i.responsible : i.responsible !== cf.action)) return false
+    if (cf.status && i.status !== cf.status) return false
+    if (cf.filed === 'yes' ? !evidence.some((e) => e.item_id === i.id) : cf.filed === 'no' && evidence.some((e) => e.item_id === i.id)) return false
     return true
   })
   const groups = categories.map((c) => ({ c, rows: shown.filter((i) => (i.category || 'Other') === c) })).filter((g) => g.rows.length)
@@ -454,6 +465,7 @@ export default function BreeamTab() {
                 <col className="c-action" />
                 <col className="c-status" />
                 <col className="c-comm" />
+                <col className="c-filed" />
                 <col className="c-del" />
               </colgroup>
               <thead>
@@ -468,6 +480,58 @@ export default function BreeamTab() {
                   <th>Action</th>
                   <th>Status</th>
                   <th>Comments</th>
+                  <th>Evidence filed</th>
+                  <th />
+                </tr>
+                <tr className="bt-filters">
+                  <th>
+                    <input value={cf.ref ?? ''} onChange={(e) => setF('ref', e.target.value)} placeholder="Filter" aria-label="Filter ref" />
+                  </th>
+                  <th>
+                    <input value={cf.title ?? ''} onChange={(e) => setF('title', e.target.value)} placeholder="Filter" aria-label="Filter credit" />
+                  </th>
+                  {(['avail', 'targ', 'ach'] as const).map((k) => (
+                    <th key={k}>
+                      <input value={cf[k] ?? ''} onChange={(e) => setF(k, e.target.value)} placeholder="≥" title="Starts with this number; - for blank" aria-label={`Filter ${k}`} />
+                    </th>
+                  ))}
+                  <th>
+                    <input value={cf.crit ?? ''} onChange={(e) => setF('crit', e.target.value)} placeholder="Filter" aria-label="Filter criteria" />
+                  </th>
+                  <th>
+                    <input value={cf.evid ?? ''} onChange={(e) => setF('evid', e.target.value)} placeholder="Filter" aria-label="Filter evidence required" />
+                  </th>
+                  <th>
+                    <select value={cf.action ?? ''} onChange={(e) => setF('action', e.target.value)} aria-label="Filter action">
+                      <option value="">All</option>
+                      <option value="__none__">Not assigned</option>
+                      {actions.map((a) => (
+                        <option key={a} value={a}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                  </th>
+                  <th>
+                    <select value={cf.status ?? ''} onChange={(e) => setF('status', e.target.value)} aria-label="Filter status">
+                      <option value="">All</option>
+                      {STATUSES.map(([k, l]) => (
+                        <option key={k} value={k}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </th>
+                  <th>
+                    <input value={cf.comm ?? ''} onChange={(e) => setF('comm', e.target.value)} placeholder="Filter" aria-label="Filter comments" />
+                  </th>
+                  <th>
+                    <select value={cf.filed ?? ''} onChange={(e) => setF('filed', e.target.value)} aria-label="Filter evidence filed">
+                      <option value="">All</option>
+                      <option value="yes">Has evidence</option>
+                      <option value="no">None filed</option>
+                    </select>
+                  </th>
                   <th />
                 </tr>
               </thead>
@@ -476,7 +540,7 @@ export default function BreeamTab() {
                 return (
                   <tbody key={g.c}>
                     <tr className="bt-section">
-                      <td colSpan={11}>{g.c.trim()}</td>
+                      <td colSpan={12}>{g.c.trim()}</td>
                     </tr>
                     {g.rows.map((i) => (
                       <LineRow key={i.id} i={i} evidence={evidence.filter((e) => e.item_id === i.id)} actions={actions} change={change} onAttach={attach} onUnfile={unfile} onDelete={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))} />
@@ -487,7 +551,7 @@ export default function BreeamTab() {
                         <td>{fmt(s.available)}</td>
                         <td>{fmt(s.targeted)}</td>
                         <td>{fmt(s.achieved)}</td>
-                        <td colSpan={6} />
+                        <td colSpan={7} />
                       </tr>
                     )}
                   </tbody>
