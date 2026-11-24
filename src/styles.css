@@ -1322,23 +1322,32 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
   .breeam-table td { padding: 3px 0; }
   .breeam-table td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--muted); }
 }
-/* BREEAM lines as cards (24 Nov): each credit is a card, so long criteria / evidence text is readable at any width, no side scroll */
-.breeam-lines { display: flex; flex-direction: column; gap: 10px; }
-.breeam-line { border: 1px solid var(--line); border-left: 5px solid #bbb; border-radius: 8px; padding: 8px 10px 10px; background: #fff; }
-.breeam-line.completed { border-left-color: #6fb54a; } .breeam-line.in_progress { border-left-color: #e0b400; } .breeam-line.not_complete { border-left-color: #d9534f; } .breeam-line.by_others { border-left-color: #4a9fd0; } .breeam-line.no_action { border-left-color: #b5b5b5; background: #fafafa; }
-.breeam-line label { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.breeam-line label > span { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
-.breeam-line input, .breeam-line select, .breeam-line textarea { width: 100%; font-size: 14px; min-width: 0; box-sizing: border-box; }
-.bl-top { display: grid; grid-template-columns: 90px minmax(160px, 1.5fr) auto minmax(170px, 1fr) 160px 34px; gap: 10px; align-items: end; }
-.bl-title input { font-weight: 600; }
-.bl-nums { display: flex; gap: 6px; } .bl-nums label { width: 68px; } .bl-nums input { text-align: center; padding-left: 2px; padding-right: 2px; }
-.bl-nums .b-p { display: block; text-align: center; padding: 6px 0; color: var(--navy); }
-.bl-del { align-self: end; }
-.bl-text { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
-.bl-text textarea { min-height: 110px; resize: vertical; field-sizing: content; max-height: 360px; line-height: 1.35; }
-.bl-evidence { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.bl-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.bl-file { display: inline-flex; align-items: center; gap: 4px; background: #f0f4ea; border: 1px solid #cfdcbf; border-radius: 12px; padding: 2px 4px 2px 9px; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
-.bl-file button { border: 0; background: none; cursor: pointer; color: var(--muted); }
-@media (max-width: 1150px) { .bl-top { grid-template-columns: 90px minmax(0, 1fr) auto; } .bl-action, .bl-status { grid-column: span 1; } .bl-text { grid-template-columns: 1fr; } }
-@media (max-width: 700px) { .bl-top { grid-template-columns: 1fr 1fr; } .bl-title { grid-column: 1 / -1; } .bl-nums { grid-column: 1 / -1; } .bl-ref { grid-column: 1 / -1; } }
+
+/* BREEAM tracker as one sheet, like the assessor's (25 Nov): green headings, a band per section, fixed columns so it fits the page */
+.bt-wrap { width: 100%; }
+.bt-sheet { width: 100%; table-layout: fixed; border-collapse: collapse; background: #fff; font-size: 13px; }
+.bt-sheet th { position: sticky; top: 0; z-index: 2; background: #92d050; color: #111; font-weight: 600; text-align: center; padding: 6px 4px; border: 1px solid #5a8f2a; line-height: 1.15; }
+.bt-sheet th:nth-child(1), .bt-sheet th:nth-child(2), .bt-sheet th:nth-child(6), .bt-sheet th:nth-child(7) { text-align: left; }
+.bt-sheet td { border: 1px solid #c9c9c9; padding: 2px 3px; vertical-align: top; }
+.bt-sheet col.c-ref { width: 5.5%; } .bt-sheet col.c-credit { width: 11%; } .bt-sheet col.c-n { width: 4.4%; } .bt-sheet col.c-crit { width: 24%; }
+.bt-sheet col.c-evid { width: 19%; } .bt-sheet col.c-action { width: 9%; } .bt-sheet col.c-status { width: 8%; } .bt-sheet col.c-comm { width: 8%; } .bt-sheet col.c-del { width: 2.2%; }
+.bt-sheet input, .bt-sheet select, .bt-sheet textarea { width: 100%; box-sizing: border-box; font: inherit; border: 1px solid transparent; background: transparent; padding: 2px 3px; border-radius: 3px; min-width: 0; }
+.bt-sheet input:hover, .bt-sheet select:hover, .bt-sheet textarea:hover { border-color: #ccc; } .bt-sheet input:focus, .bt-sheet select:focus, .bt-sheet textarea:focus { border-color: var(--navy); background: #fff; outline: none; }
+.bt-sheet textarea { resize: none; field-sizing: content; min-height: 1.6em; line-height: 1.3; overflow: hidden; }
+.bt-sheet .bt-num input { text-align: center; padding: 2px 0; -moz-appearance: textfield; appearance: textfield; }
+.bt-sheet .bt-num input::-webkit-outer-spin-button, .bt-sheet .bt-num input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.bt-sheet .b-p { display: block; text-align: center; padding-top: 3px; }
+.bt-sheet tr.bt-section td { background: #dce6f1; font-weight: 700; font-size: 14px; padding: 5px 8px; }
+.bt-sheet tr.bt-total td { background: #f2f2f2; font-weight: 700; text-align: center; } .bt-sheet tr.bt-total td:first-child { text-align: left; }
+.bt-row.no_action td { background: #fafafa; } .bt-row.completed td:nth-child(5) { background: #e2f0d9; }
+.bt-sheet .b-status { font-weight: 600; border-color: #ddd; }
+.bl-files { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 3px; }
+.bl-file { display: inline-flex; align-items: center; gap: 3px; background: #f0f4ea; border: 1px solid #cfdcbf; border-radius: 10px; padding: 1px 3px 1px 7px; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; }
+.bl-file button, .bl-attach { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 12px; padding: 1px 3px; } .bl-attach:hover { color: var(--navy); text-decoration: underline; }
+@media (max-width: 1000px) {
+  .bt-sheet, .bt-sheet tbody, .bt-sheet tr, .bt-sheet td { display: block; width: 100%; }
+  .bt-sheet colgroup, .bt-sheet thead { display: none; }
+  .bt-sheet tr.bt-row { border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; padding: 4px; }
+  .bt-sheet td { border: 0; }
+  .bt-sheet td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; color: var(--muted); }
+}

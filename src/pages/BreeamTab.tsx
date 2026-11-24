@@ -111,109 +111,97 @@ function ScoreOverview({ score, cat, onPick }: { score: ReturnType<typeof scoreO
 
 type Change = (i: BreeamItem, patch: Partial<BreeamItem>) => void
 
-// One credit: top row (ref, credit, the three credit counts, who does it, status), then criteria / evidence required / comments.
-function LineCard({ i, evidence, actions, change, onAttach, onUnfile, onDelete }: { i: BreeamItem; evidence: BreeamEvidence[]; actions: string[]; change: Change; onAttach: (i: BreeamItem, f: FileList) => void; onUnfile: (e: BreeamEvidence) => void; onDelete: () => void }) {
+// One credit as a table row, in the order of the assessor's tracker: ref, credit, available / targeted / achieved, criteria, evidence
+// required (with the evidence filed against it), action by; then the status dropdown and comments.
+function LineRow({ i, evidence, actions, change, onAttach, onUnfile, onDelete }: { i: BreeamItem; evidence: BreeamEvidence[]; actions: string[]; change: Change; onAttach: (i: BreeamItem, f: FileList) => void; onUnfile: (e: BreeamEvidence) => void; onDelete: () => void }) {
   const pick = useRef<HTMLInputElement>(null)
   const nums = [
-    ['Avail.', 'credits_available'],
-    ['Target', 'credits_targeted'],
+    ['Available', 'credits_available'],
+    ['Targeted', 'credits_targeted'],
     ['Achieved', 'credits_achieved'],
   ] as const
   return (
-    <article className={`breeam-line ${i.status}`}>
-      <div className="bl-top">
-        <label className="bl-ref">
-          <span>Ref</span>
-          <input defaultValue={i.ref ?? ''} onBlur={(e) => e.target.value !== (i.ref ?? '') && change(i, { ref: e.target.value || null })} />
-        </label>
-        <label className="bl-title">
-          <span>Credit</span>
-          <input defaultValue={i.title} onBlur={(e) => e.target.value.trim() && e.target.value !== i.title && change(i, { title: e.target.value.trim() })} />
-        </label>
-        <div className="bl-nums">
-          {nums.map(([label, f]) => (
-            <label key={f}>
-              <span>{label}</span>
-              {i.prerequisite && i[f] == null ? (
-                <b className="b-p" title="Prerequisite: a must-have, no credit">P</b>
-              ) : (
-                <input type="number" step="0.5" defaultValue={i[f] ?? ''} onBlur={(e) => e.target.value !== String(i[f] ?? '') && change(i, { [f]: e.target.value === '' ? null : Number(e.target.value) })} />
-              )}
-            </label>
+    <tr className={`bt-row ${i.status}`}>
+      <td data-label="Ref">
+        <input defaultValue={i.ref ?? ''} onBlur={(e) => e.target.value !== (i.ref ?? '') && change(i, { ref: e.target.value || null })} />
+      </td>
+      <td data-label="Credit">
+        <textarea defaultValue={i.title} onBlur={(e) => e.target.value.trim() && e.target.value !== i.title && change(i, { title: e.target.value.trim() })} />
+      </td>
+      {nums.map(([label, f]) => (
+        <td key={f} data-label={label} className="bt-num">
+          {i.prerequisite && i[f] == null ? (
+            <b className="b-p" title="Prerequisite: a must-have, no credit">P</b>
+          ) : (
+            <input type="number" step="0.5" defaultValue={i[f] ?? ''} onBlur={(e) => e.target.value !== String(i[f] ?? '') && change(i, { [f]: e.target.value === '' ? null : Number(e.target.value) })} />
+          )}
+        </td>
+      ))}
+      <td data-label="Credit criteria">
+        <textarea defaultValue={i.criteria ?? ''} onBlur={(e) => e.target.value !== (i.criteria ?? '') && change(i, { criteria: e.target.value || null })} />
+      </td>
+      <td data-label="Evidence required">
+        <textarea defaultValue={i.evidence ?? ''} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
+        <div className="bl-files">
+          {evidence.map((ev) => (
+            <span key={ev.id} className="bl-file" title={`Filed in ${ev.folder ?? ''} by ${ev.added_by_name ?? ''} on ${new Date(ev.created_at).toLocaleDateString('en-GB')}`}>
+              📎 {ev.file_name}
+              <button type="button" aria-label="Remove from the list (the file stays in SharePoint)" onClick={() => onUnfile(ev)}>
+                ✕
+              </button>
+            </span>
           ))}
-        </div>
-        <label className="bl-action">
-          <span>Action by</span>
-          <select
-            value={i.responsible ?? ''}
-            onChange={(e) => {
-              if (e.target.value !== '__new__') return change(i, { responsible: e.target.value || null })
-              const v = prompt('Who is responsible for this line?')?.trim()
-              if (v) change(i, { responsible: v })
+          <input ref={pick} type="file" multiple hidden onChange={(e) => (e.target.files?.length && onAttach(i, e.target.files), (e.target.value = ''))} />
+          <button
+            type="button"
+            className="bl-attach"
+            title="Attach evidence: filed into the job's SharePoint folder"
+            onClick={async () => {
+              // the browser's folder-permission prompt must come straight from a click, so it is asked for here first
+              if (await folderAccess(i.job_id, 'breeam')) pick.current?.click()
+              else alert('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button at the top), and allow access when the browser asks.')
             }}
           >
-            <option value="">Not assigned</option>
-            {actions.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-            <option value="__new__">Other… (type a new one)</option>
-          </select>
-        </label>
-        <label className="bl-status">
-          <span>Status</span>
-          <select value={i.status} className={`b-status ${i.status}`} onChange={(e) => change(i, { status: e.target.value as BreeamStatus })}>
-            {STATUSES.map(([k, l]) => (
-              <option key={k} value={k}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="small-button bl-del" title="Remove this line" onClick={onDelete}>
+            📎 Attach
+          </button>
+        </div>
+      </td>
+      <td data-label="Action">
+        <select
+          value={i.responsible ?? ''}
+          onChange={(e) => {
+            if (e.target.value !== '__new__') return change(i, { responsible: e.target.value || null })
+            const v = prompt('Who is responsible for this line?')?.trim()
+            if (v) change(i, { responsible: v })
+          }}
+        >
+          <option value="">Not assigned</option>
+          {actions.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+          <option value="__new__">Other… (type a new one)</option>
+        </select>
+      </td>
+      <td data-label="Status">
+        <select value={i.status} className={`b-status ${i.status}`} onChange={(e) => change(i, { status: e.target.value as BreeamStatus })}>
+          {STATUSES.map(([k, l]) => (
+            <option key={k} value={k}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td data-label="Comments">
+        <textarea defaultValue={i.comments ?? ''} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
+      </td>
+      <td className="bt-del">
+        <button className="small-button" title="Remove this line" onClick={onDelete}>
           ✕
         </button>
-      </div>
-      <div className="bl-text">
-        <label>
-          <span>Credit criteria</span>
-          <textarea defaultValue={i.criteria ?? ''} onBlur={(e) => e.target.value !== (i.criteria ?? '') && change(i, { criteria: e.target.value || null })} />
-        </label>
-        <div className="bl-evidence">
-          <label>
-            <span>Evidence required</span>
-            <textarea defaultValue={i.evidence ?? ''} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
-          </label>
-          <div className="bl-files">
-            {evidence.map((ev) => (
-              <span key={ev.id} className="bl-file" title={`Filed in ${ev.folder ?? ''} by ${ev.added_by_name ?? ''} on ${new Date(ev.created_at).toLocaleDateString('en-GB')}`}>
-                📎 {ev.file_name}
-                <button type="button" aria-label="Remove from the list (the file stays in SharePoint)" onClick={() => onUnfile(ev)}>
-                  ✕
-                </button>
-              </span>
-            ))}
-            <input ref={pick} type="file" multiple hidden onChange={(e) => (e.target.files?.length && onAttach(i, e.target.files), (e.target.value = ''))} />
-            <button
-              type="button"
-              className="small-button"
-              onClick={async () => {
-                // the browser's folder-permission prompt must come straight from a click, so it is asked for here first
-                if (await folderAccess(i.job_id, 'breeam')) pick.current?.click()
-                else alert('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button at the top), and allow access when the browser asks.')
-              }}
-            >
-              📎 Attach evidence
-            </button>
-          </div>
-        </div>
-        <label>
-          <span>Comments</span>
-          <textarea defaultValue={i.comments ?? ''} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
-        </label>
-      </div>
-    </article>
+      </td>
+    </tr>
   )
 }
 
@@ -429,25 +417,60 @@ export default function BreeamTab() {
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" aria-label="Search" />
           </div>
           {groups.length === 0 && <p className="muted">Nothing matches.</p>}
-          {groups.map((g) => (
-            <section key={g.c} className="card breeam-group">
-              <h3>
-                {g.c}{' '}
-                <span className="muted small">
-                  {g.rows.length} line{g.rows.length === 1 ? '' : 's'}
-                  {(() => {
-                    const s = score.rows.find((r) => r.category === g.c)
-                    return s ? ` · ${fmt(s.achieved)} of ${fmt(s.targeted)} targeted credits achieved (${fmt(s.available)} available)` : ''
-                  })()}
-                </span>
-              </h3>
-              <div className="breeam-lines">
-                {g.rows.map((i) => (
-                  <LineCard key={i.id} i={i} evidence={evidence.filter((e) => e.item_id === i.id)} actions={actions} change={change} onAttach={attach} onUnfile={unfile} onDelete={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))} />
-                ))}
-              </div>
-            </section>
-          ))}
+          <div className="bt-wrap">
+            <table className="bt-sheet">
+              <colgroup>
+                <col className="c-ref" />
+                <col className="c-credit" />
+                <col className="c-n" />
+                <col className="c-n" />
+                <col className="c-n" />
+                <col className="c-crit" />
+                <col className="c-evid" />
+                <col className="c-action" />
+                <col className="c-status" />
+                <col className="c-comm" />
+                <col className="c-del" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Ref</th>
+                  <th>Credit</th>
+                  <th>Credits Available</th>
+                  <th>Credits Targeted</th>
+                  <th>Credits Achieved</th>
+                  <th>Credit Criteria</th>
+                  <th>Evidence Required</th>
+                  <th>Action</th>
+                  <th>Status</th>
+                  <th>Comments</th>
+                  <th />
+                </tr>
+              </thead>
+              {groups.map((g) => {
+                const s = score.rows.find((r) => r.category === g.c)
+                return (
+                  <tbody key={g.c}>
+                    <tr className="bt-section">
+                      <td colSpan={11}>{g.c.trim()}</td>
+                    </tr>
+                    {g.rows.map((i) => (
+                      <LineRow key={i.id} i={i} evidence={evidence.filter((e) => e.item_id === i.id)} actions={actions} change={change} onAttach={attach} onUnfile={unfile} onDelete={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))} />
+                    ))}
+                    {s && (
+                      <tr className="bt-total">
+                        <td colSpan={2}>{g.c.trim()} Totals:</td>
+                        <td>{fmt(s.available)}</td>
+                        <td>{fmt(s.targeted)}</td>
+                        <td>{fmt(s.achieved)}</td>
+                        <td colSpan={6} />
+                      </tr>
+                    )}
+                  </tbody>
+                )
+              })}
+            </table>
+          </div>
         </>
       )}
     </div>
