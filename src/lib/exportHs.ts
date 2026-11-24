@@ -1,6 +1,6 @@
 // Excel exports of the H&S records (24 Nov): whatever the list shows, one row each, with the dates as real dates.
 import { download, excelDate, fill, newWorkbook, safeName } from './excel'
-import { ACCIDENT_KINDS, CONDITIONS, INSPECTION_RESULTS, PERSON_TYPES, RIDDOR, SEVERITIES, accidentRef, failCount, type AccidentReport, type DeliveryNote, type Inspection, type SiteDiary } from './hs'
+import { ACCIDENT_KINDS, CONDITIONS, PERSON_TYPES, RIDDOR, SEVERITIES, accidentRef, type AccidentReport, type DeliveryNote, type SiteDiary } from './hs'
 import type { Job } from './types'
 
 type Cell = string | number | Date | null
@@ -45,14 +45,6 @@ export const exportDeliveries = (job: Job, rows: DeliveryNote[]) =>
     'Delivery notes',
     [['Date', 12], ['Supplier', 26], ['Delivery note no.', 16], ['Order / PO', 14], ['Description', 44], ['Quantity', 14], ['Received by', 20], ['Condition', 22], ['Notes', 34]],
     rows.map((r) => [d(r.delivered_on), r.supplier, r.note_ref, r.order_ref, r.description, r.quantity, r.received_by, CONDITIONS.find(([k]) => k === r.condition)?.[1] ?? r.condition, r.notes]),
-  )
-
-export const exportInspections = (job: Job, rows: Inspection[]) =>
-  sheet(
-    job,
-    'H&S inspections',
-    [['Date', 12], ['Type', 24], ['Area', 20], ['Inspector', 20], ['Result', 24], ['Items failed', 10], ['Failed items', 44], ['Actions', 44], ['Actions due', 12], ['Actions closed', 12], ['Notes', 30]],
-    rows.map((r) => [d(r.inspected_on), r.kind, r.area, r.inspector, INSPECTION_RESULTS.find(([k]) => k === r.result)?.[1] ?? r.result, failCount(r), r.items.filter((x) => x.result === 'fail').map((x) => `${x.q}${x.note ? `: ${x.note}` : ''}`).join('\n'), r.actions, d(r.actions_due), d(r.actions_closed_on), r.notes]),
   )
 
 export const exportAccidents = (job: Job, rows: AccidentReport[]) =>

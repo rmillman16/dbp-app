@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due", "rfi_followup"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due", "rfi_followup", "hs_inspection_due", "hs_inspection_overdue"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -313,6 +313,11 @@ Deno.serve(async (req) => {
       await db.rpc("progress_report_reminders"); // script 064
     } catch {
       /* script 064 not run yet */
+    }
+    try {
+      await db.rpc("hs_inspection_reminders"); // script 083: third-party inspections falling due, to the PMs
+    } catch {
+      /* script 083 not run yet */
     }
 
     const tenant = Deno.env.get("MS_TENANT_ID"), client = Deno.env.get("MS_CLIENT_ID"), secret = Deno.env.get("MS_CLIENT_SECRET");

@@ -1505,3 +1505,12 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .locked { opacity: 0.5; }
 .locked::after { content: '\1F512'; font-size: 0.7em; margin-left: 6px; vertical-align: middle; }
 .locked:hover { opacity: 0.8; }
+
+/* inspection tracker (24 Nov) */
+.hs-chip.trk-overdue { background: #f3e1e1; color: #b3261e; }
+.hs-chip.trk-soon { background: #fce4d6; color: #a04a00; }
+.hs-chip.trk-ok, .hs-chip.trk-done { background: #e2f0d9; color: #2e7d32; }
+.hs-chip.trk-paused { background: #ececf2; color: #555; }
+.hs-folder { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 9px 12px; margin: 8px 0; background: #eef3fa; border-left: 4px solid #007abe; border-radius: 6px; }
+.hs-folder-btns { display: inline-flex; gap: 8px; align-items: center; }
+.hs-log { margin: 6px 0 14px; padding: 4px 14px 12px; border: 1px solid #d9d9e0; border-radius: 8px; }
