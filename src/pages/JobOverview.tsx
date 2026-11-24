@@ -249,6 +249,7 @@ function ModuleCards({ job }: { job: Job }) {
     rfis: { open: number; overdue: number; answered: number; total: number } | null
     subs: { out: number; overdue: number; revise: number; total: number } | null
     reports: { last: number | null; lastEnd: string | null; status: string | null } | null
+    snags: { todo: number; check: number; total: number } | null
   } | null>(null)
   useEffect(() => {
     const today = todayIso()
@@ -262,7 +263,8 @@ function ModuleCards({ job }: { job: Job }) {
       can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('rfis').select('status, due_date').eq('job_id', jobId)) : null,
       can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('submittals').select('status, due_date').eq('job_id', jobId)) : null,
       can('jobs') ? get<{ report_no: number; period_end: string | null; status: string }>(supabase.from('progress_reports').select('report_no, period_end, status').eq('job_id', jobId).order('report_no', { ascending: false }).limit(1)) : null,
-    ]).then(([prog, proc, samples, meetings, reqs, rfis, subs, reports]) => {
+      can('job_rfis') ? get<{ status: string; marked_done_at: string | null }>(supabase.from('snags').select('status, marked_done_at').eq('job_id', jobId)) : null,
+    ]).then(([prog, proc, samples, meetings, reqs, rfis, subs, reports, snags]) => {
       const done = ['ordered', 'on_site', 'complete', 'covered', 'nothing_to_order']
       setM({
         finish: (prog as { finish_date: string | null }[])[0]?.finish_date ?? null,
@@ -294,6 +296,7 @@ function ModuleCards({ job }: { job: Job }) {
           total: subs.length,
         },
         reports: reports && { last: reports[0]?.report_no ?? null, lastEnd: reports[0]?.period_end ?? null, status: reports[0]?.status ?? null },
+        snags: snags && { todo: snags.filter((x) => x.status === 'incomplete' && !x.marked_done_at).length, check: snags.filter((x) => x.status === 'incomplete' && !!x.marked_done_at).length, total: snags.length },
       })
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -388,12 +391,19 @@ function ModuleCards({ job }: { job: Job }) {
         <strong>{m.reqs?.open ?? 0} open</strong>
         <span className="muted small">{m.reqs?.onHire ?? 0} on hire</span>
       </Link>
-      <div className="card module-card coming-card" title="Coming soon">
-        <h3>
-          Snagging <span className="soon">soon</span>
-        </h3>
-        <span className="muted small">A snag list with photos, assigned to subcontractors</span>
-      </div>
+      {m.snags && (
+        <Link to="snagging" className="card module-card">
+          <h3>Snagging</h3>
+          {m.snags.total === 0 ? (
+            <span className="muted small">No snags yet</span>
+          ) : (
+            <>
+              <strong>{m.snags.todo} to do</strong>
+              <span className={m.snags.check > 0 ? 'late small' : 'muted small'}>{m.snags.check > 0 ? `${m.snags.check} to check` : `${m.snags.total} in all`}</span>
+            </>
+          )}
+        </Link>
+      )}
     </div>
   )
 }

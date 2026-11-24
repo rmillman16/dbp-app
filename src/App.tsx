@@ -37,6 +37,9 @@ import SubmittalPage from './pages/SubmittalPage'
 import EnquiryRfis from './pages/EnquiryRfis'
 import TenderEnquiry from './pages/TenderEnquiry'
 import ExternalRoutes from './pages/ExternalPages'
+import SnagExternal from './pages/SnagExternal'
+import SnaggingTab from './pages/SnaggingTab'
+import { SnagDetail, SnagNew } from './pages/SnagPage'
 import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme, EnquiryReturn, EnquiryTender } from './pages/Estimating'
 import Settings from './pages/Settings'
 import Dashboard from './pages/Dashboard'
@@ -73,6 +76,8 @@ export default function App() {
 
   // outside people's pages (/r/<link> and /external): no sign-in, and none of the app around them (script 061)
   const { pathname } = useLocation()
+  // a trades person's snag list (/s/<link>): the same, no sign-in (script 070)
+  if (pathname.startsWith('/s/')) return <SnagExternal />
   if (pathname.startsWith('/r/') || pathname === '/external' || pathname.startsWith('/external/')) return <ExternalRoutes />
 
   if (configError) {
@@ -163,6 +168,9 @@ export default function App() {
             <Route path="submittals" element={<SubmittalsTab />} />
             <Route path="submittals/:submittalId" element={<SubmittalPage />} />
             <Route path="rfis/:rfiId" element={<RfiPage />} />
+            <Route path="snagging" element={<SnaggingTab />} />
+            <Route path="snagging/new" element={<SnagNew />} />
+            <Route path="snagging/:snagId" element={<SnagDetail />} />
           </Route>
           <Route path="/help/programme" element={<ProgrammeHelp />} />
           <Route path="/tasks" element={<MyTasks />} />
