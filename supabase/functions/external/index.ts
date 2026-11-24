@@ -383,8 +383,15 @@ async function snagRows(db: DB, email: string) {
   if (!filters.length) return [];
   const { data: dir } = await db.from("job_directory").select("id, job_id, company_id").or(filters.join(",")).not("job_id", "is", null);
   if (!dir?.length) return [];
-  const byDir = new Map<string, { job_id: string; company_id: string | null }>(dir.map((d: { id: string; job_id: string; company_id: string | null }) => [d.id, d]));
+  // a snag link opens the whole company's snags on a job, so list every snag given to ANY entry for that company on the job
+  // (not only the entry this person's own email is on)
+  const pairs = new Set<string>(dir.filter((d: { company_id: string | null }) => d.company_id).map((d: { job_id: string; company_id: string }) => `${d.job_id}:${d.company_id}`));
+  if (!pairs.size) return [];
+  const { data: all } = await db.from("job_directory").select("id, job_id, company_id").in("job_id", [...new Set(dir.map((d: { job_id: string }) => d.job_id))]).in("company_id", [...new Set(dir.map((d: { company_id: string | null }) => d.company_id).filter(Boolean))]);
+  const byDir = new Map<string, { job_id: string; company_id: string | null }>((all ?? []).filter((d: { job_id: string; company_id: string }) => pairs.has(`${d.job_id}:${d.company_id}`)).map((d: { id: string; job_id: string; company_id: string | null }) => [d.id, d]));
+  if (!byDir.size) return [];
   const { data: snags, error } = await db.from("snags").select("id, job_id, status, marked_done_at, assignee_id, jobs(name, job_no, code, status, hub_url)").in("assignee_id", [...byDir.keys()]);
+  if (error) console.warn("external: snag list:", error.message);
   if (error || !snags?.length) return [];
   // deno-lint-ignore no-explicit-any
   const groups = new Map<string, { job: any; job_id: string; company_id: string; todo: number; done: number; complete: number }>();
