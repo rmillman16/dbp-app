@@ -168,6 +168,11 @@ export function readTracker(sheets: { name: string; rows: unknown[][] }[]): { it
       if (!title && ref.length > 12) [ref, title] = [REF.exec(ref)?.[0] ?? '', ref.replace(/^[A-Za-z]{2,4}\s?\d{1,2}\b[\s:.-]*/, '')]
       if (!title) continue
       const [avail, targ, ach] = [raw(r, 'available'), raw(r, 'targeted'), raw(r, 'achieved')]
+      // a line with a name but no ref, no credits and no criteria is a heading in another form (e.g. a section name in one cell)
+      if (!ref && !avail && !targ && !ach && !raw(r, 'criteria') && !raw(r, 'evidence')) {
+        heading = title
+        continue
+      }
       const prereq = [avail, targ, ach].some((x) => /^p$/i.test(x))
       const link = raw(r, 'evidence')
       items.push({
@@ -231,4 +236,66 @@ export function scoreOverview(items: BreeamItem[]): { rows: Score[]; total: Scor
   const rows = [...by.values()]
   const total = rows.reduce((t, r) => ({ ...t, available: t.available + (/^innovation/i.test(r.category) ? 0 : r.available), targeted: t.targeted + r.targeted, achieved: t.achieved + r.achieved, lines: t.lines + r.lines, done: t.done + r.done, prereqs: t.prereqs + r.prereqs, prereqsMet: t.prereqsMet + r.prereqsMet }), blank('Total'))
   return { rows, total }
+}
+export async function deleteAllItems(jobId: string) {
+  const r = await supabase.from('breeam_items').delete().eq('job_id', jobId)
+  if (r.error) throw new Error(r.error.message)
+}
+
+// Who does a line (the tracker's "Action" column): a dropdown of the usual parties, plus whatever is already on the tracker.
+export const ACTIONS = [
+  'Main Contractor',
+  'Architect',
+  'BREEAM Assessor',
+  'BREEAM AP',
+  'Client',
+  'Developer',
+  'Project Manager',
+  'Mechanical Sub-Contractor',
+  'Electrical Sub-Contractor',
+  'M&E Sub-Contractors',
+  'Mechanical Consultant',
+  'Civil Engineer',
+  'Structural Engineer',
+  'Acoustician',
+  'Ecologist',
+  'Landscape Architect',
+  'Commissioning Manager',
+  'Building Owner',
+  'Building Occupier',
+  'Demolition Contractor',
+  'Waste Contractor',
+]
+
+// ---------- evidence: filed into the job's synced SharePoint folder (EXTERNAL / 08. BREEAM / section / credit) ----------
+export interface BreeamEvidence {
+  id: string
+  item_id: string
+  file_name: string
+  folder: string | null
+  filed: boolean
+  added_by_name: string | null
+  created_at: string
+}
+export async function loadEvidence(jobId: string) {
+  const r = await supabase.from('breeam_evidence').select('id, item_id, file_name, folder, filed, added_by_name, created_at').eq('job_id', jobId).order('created_at')
+  if (r.error) throw new Error(/relation|schema cache|does not exist/i.test(r.error.message) ? 'Attaching evidence needs script 073 run in Supabase first (supabase/README.md).' : r.error.message)
+  return r.data as BreeamEvidence[]
+}
+export async function removeEvidence(id: string) {
+  const r = await supabase.from('breeam_evidence').delete().eq('id', id)
+  if (r.error) throw new Error(r.error.message)
+}
+export async function fileEvidence(jobId: string, item: BreeamItem, file: File): Promise<BreeamEvidence> {
+  const { folderAccess, writeInto } = await import('./orderFolder')
+  const root = await folderAccess(jobId, 'breeam') // straight from the click, so the browser's permission prompt is allowed
+  if (!root) throw new Error('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button above), and allow access when the browser asks.')
+  const section = (item.category || 'Other').replace(/\s+/g, ' ').trim()
+  const credit = `${item.ref ?? ''} ${item.title}`.replace(/\s+/g, ' ').trim().slice(0, 70)
+  const path = [...(/breeam/i.test(root.name) ? [] : ['08. BREEAM']), section, credit]
+  const where = await writeInto(root, path, file.name, file)
+  const who = (await supabase.auth.getUser()).data.user?.email ?? null
+  const r = await supabase.from('breeam_evidence').insert({ job_id: jobId, item_id: item.id, file_name: file.name, folder: where.split(' / ').slice(0, -1).join(' / '), filed: true, added_by_name: who }).select('id, item_id, file_name, folder, filed, added_by_name, created_at').single()
+  if (r.error) throw new Error(r.error.message)
+  return r.data as BreeamEvidence
 }

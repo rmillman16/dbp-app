@@ -9,31 +9,32 @@ type Dir = FileSystemDirectoryHandle
 type PermissionDir = Dir & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> }
 
 export const folderSupported = () => typeof window !== 'undefined' && 'showDirectoryPicker' in window
-const key = (jobId: string) => `orders-folder:${jobId}`
+// scope: which synced folder this is for a job ('orders' = 3. Orders; 'breeam' = EXTERNAL / 08. BREEAM)
+const key = (jobId: string, scope = 'orders') => (scope === 'orders' ? `orders-folder:${jobId}` : `${scope}-folder:${jobId}`)
 export const clean = (s: string) => s.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '') || 'folder'
 
-export async function linkedFolderName(jobId: string): Promise<string | null> {
+export async function linkedFolderName(jobId: string, scope = 'orders'): Promise<string | null> {
   try {
-    return ((await get(key(jobId))) as Dir | undefined)?.name ?? null
+    return ((await get(key(jobId, scope))) as Dir | undefined)?.name ?? null
   } catch {
     return null
   }
 }
-export async function chooseFolder(jobId: string): Promise<string> {
-  const h = await (window as unknown as { showDirectoryPicker(o: { mode: 'readwrite'; id: string }): Promise<Dir> }).showDirectoryPicker({ mode: 'readwrite', id: 'dbp-orders' })
-  await set(key(jobId), h)
+export async function chooseFolder(jobId: string, scope = 'orders'): Promise<string> {
+  const h = await (window as unknown as { showDirectoryPicker(o: { mode: 'readwrite'; id: string }): Promise<Dir> }).showDirectoryPicker({ mode: 'readwrite', id: `dbp-${scope}` })
+  await set(key(jobId, scope), h)
   return h.name
 }
-export async function unlinkFolder(jobId: string) {
-  await del(key(jobId))
+export async function unlinkFolder(jobId: string, scope = 'orders') {
+  await del(key(jobId, scope))
 }
 
 // the linked folder, with permission to write (must be called straight from a click: the browser's prompt needs one).
 // null = not linked, not supported, or permission refused
-export async function folderAccess(jobId: string): Promise<Dir | null> {
+export async function folderAccess(jobId: string, scope = 'orders'): Promise<Dir | null> {
   if (!folderSupported()) return null
   try {
-    const h = (await get(key(jobId))) as PermissionDir | undefined
+    const h = (await get(key(jobId, scope))) as PermissionDir | undefined
     if (!h) return null
     if ((await h.queryPermission({ mode: 'readwrite' })) === 'granted') return h
     return (await h.requestPermission({ mode: 'readwrite' })) === 'granted' ? h : null
@@ -43,7 +44,7 @@ export async function folderAccess(jobId: string): Promise<Dir | null> {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-async function subfolders(d: Dir) {
+export async function subfolders(d: Dir) {
   const out: string[] = []
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for await (const [name, h] of (d as any).entries() as AsyncIterable<[string, FileSystemHandle]>) if (h.kind === 'directory') out.push(name)

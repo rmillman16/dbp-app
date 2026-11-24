@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
-import { STATUSES, addItems, deleteItem, lineKey, loadBreeam, readTracker, scoreOverview, updateItem, type BreeamItem, type BreeamStatus } from '../lib/breeam'
+import { ACTIONS, STATUSES, addItems, deleteAllItems, deleteItem, fileEvidence, lineKey, loadBreeam, loadEvidence, readTracker, removeEvidence, scoreOverview, updateItem, type BreeamEvidence, type BreeamItem, type BreeamStatus } from '../lib/breeam'
+import { chooseFolder, folderAccess, folderSupported, linkedFolderName, unlinkFolder } from '../lib/orderFolder'
 import { loadXlsx } from '../lib/xlsxLoad'
 
 // Job › BREEAM (script 071): the tracker, worked like the sampling tracker. A dropdown per line, filters by status and category,
@@ -108,6 +109,114 @@ function ScoreOverview({ score, cat, onPick }: { score: ReturnType<typeof scoreO
   )
 }
 
+type Change = (i: BreeamItem, patch: Partial<BreeamItem>) => void
+
+// One credit: top row (ref, credit, the three credit counts, who does it, status), then criteria / evidence required / comments.
+function LineCard({ i, evidence, actions, change, onAttach, onUnfile, onDelete }: { i: BreeamItem; evidence: BreeamEvidence[]; actions: string[]; change: Change; onAttach: (i: BreeamItem, f: FileList) => void; onUnfile: (e: BreeamEvidence) => void; onDelete: () => void }) {
+  const pick = useRef<HTMLInputElement>(null)
+  const nums = [
+    ['Avail.', 'credits_available'],
+    ['Target', 'credits_targeted'],
+    ['Achieved', 'credits_achieved'],
+  ] as const
+  return (
+    <article className={`breeam-line ${i.status}`}>
+      <div className="bl-top">
+        <label className="bl-ref">
+          <span>Ref</span>
+          <input defaultValue={i.ref ?? ''} onBlur={(e) => e.target.value !== (i.ref ?? '') && change(i, { ref: e.target.value || null })} />
+        </label>
+        <label className="bl-title">
+          <span>Credit</span>
+          <input defaultValue={i.title} onBlur={(e) => e.target.value.trim() && e.target.value !== i.title && change(i, { title: e.target.value.trim() })} />
+        </label>
+        <div className="bl-nums">
+          {nums.map(([label, f]) => (
+            <label key={f}>
+              <span>{label}</span>
+              {i.prerequisite && i[f] == null ? (
+                <b className="b-p" title="Prerequisite: a must-have, no credit">P</b>
+              ) : (
+                <input type="number" step="0.5" defaultValue={i[f] ?? ''} onBlur={(e) => e.target.value !== String(i[f] ?? '') && change(i, { [f]: e.target.value === '' ? null : Number(e.target.value) })} />
+              )}
+            </label>
+          ))}
+        </div>
+        <label className="bl-action">
+          <span>Action by</span>
+          <select
+            value={i.responsible ?? ''}
+            onChange={(e) => {
+              if (e.target.value !== '__new__') return change(i, { responsible: e.target.value || null })
+              const v = prompt('Who is responsible for this line?')?.trim()
+              if (v) change(i, { responsible: v })
+            }}
+          >
+            <option value="">Not assigned</option>
+            {actions.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+            <option value="__new__">Other… (type a new one)</option>
+          </select>
+        </label>
+        <label className="bl-status">
+          <span>Status</span>
+          <select value={i.status} className={`b-status ${i.status}`} onChange={(e) => change(i, { status: e.target.value as BreeamStatus })}>
+            {STATUSES.map(([k, l]) => (
+              <option key={k} value={k}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button className="small-button bl-del" title="Remove this line" onClick={onDelete}>
+          ✕
+        </button>
+      </div>
+      <div className="bl-text">
+        <label>
+          <span>Credit criteria</span>
+          <textarea defaultValue={i.criteria ?? ''} onBlur={(e) => e.target.value !== (i.criteria ?? '') && change(i, { criteria: e.target.value || null })} />
+        </label>
+        <div className="bl-evidence">
+          <label>
+            <span>Evidence required</span>
+            <textarea defaultValue={i.evidence ?? ''} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
+          </label>
+          <div className="bl-files">
+            {evidence.map((ev) => (
+              <span key={ev.id} className="bl-file" title={`Filed in ${ev.folder ?? ''} by ${ev.added_by_name ?? ''} on ${new Date(ev.created_at).toLocaleDateString('en-GB')}`}>
+                📎 {ev.file_name}
+                <button type="button" aria-label="Remove from the list (the file stays in SharePoint)" onClick={() => onUnfile(ev)}>
+                  ✕
+                </button>
+              </span>
+            ))}
+            <input ref={pick} type="file" multiple hidden onChange={(e) => (e.target.files?.length && onAttach(i, e.target.files), (e.target.value = ''))} />
+            <button
+              type="button"
+              className="small-button"
+              onClick={async () => {
+                // the browser's folder-permission prompt must come straight from a click, so it is asked for here first
+                if (await folderAccess(i.job_id, 'breeam')) pick.current?.click()
+                else alert('Link the job\'s BREEAM folder first (the "Link BREEAM folder" button at the top), and allow access when the browser asks.')
+              }}
+            >
+              📎 Attach evidence
+            </button>
+          </div>
+        </div>
+        <label>
+          <span>Comments</span>
+          <textarea defaultValue={i.comments ?? ''} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
+        </label>
+      </div>
+    </article>
+  )
+}
+
 export default function BreeamTab() {
   const { job } = useJob()
   const [items, setItems] = useState<BreeamItem[] | null>(null)
@@ -120,10 +229,29 @@ export default function BreeamTab() {
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState({ ref: '', category: '', title: '' })
 
+  const [evidence, setEvidence] = useState<BreeamEvidence[]>([])
+  const [linked, setLinked] = useState<string | null>(null)
   const reload = () => loadBreeam(job.id).then(setItems, (e: Error) => setError(e.message))
   useEffect(() => {
     reload()
+    loadEvidence(job.id).then(setEvidence, () => setEvidence([])) // an unrun script 073 just means no evidence list yet
+    linkedFolderName(job.id, 'breeam').then(setLinked)
   }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const actions = useMemo(() => [...new Set([...ACTIONS, ...(items ?? []).map((x) => x.responsible).filter((x): x is string => !!x)])].sort((x, y) => x.localeCompare(y)), [items])
+  async function attach(i: BreeamItem, files: FileList) {
+    setError(null)
+    setMsg(null)
+    try {
+      for (const file of Array.from(files)) {
+        const ev = await fileEvidence(job.id, i, file)
+        setEvidence((l) => [...l, ev])
+        setMsg(`Filed "${file.name}" in ${ev.folder}`)
+      }
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
+  const unfile = (ev: BreeamEvidence) => removeEvidence(ev.id).then(() => setEvidence((l) => l.filter((x) => x.id !== ev.id)), (e: Error) => setError(e.message))
 
   const all = items ?? []
   const count = (s: BreeamStatus) => all.filter((i) => i.status === s).length
@@ -166,8 +294,14 @@ export default function BreeamTab() {
       if (!read.length) throw new Error("Couldn't find a tracker in that file. It needs a heading row with words like Credits Available, Credits Targeted and Credit Criteria.")
       // lines already on the tracker (same ref and wording) aren't added twice
       const key = (x: { category: string | null; ref: string | null; title: string; criteria: string | null }) => `${lineKey(x)}|${(x.criteria ?? '').slice(0, 40).toLowerCase()}`
-      const have = new Set(all.map(key))
-      const fresh = read.filter((x) => !have.has(key(x))).map((x, k) => ({ ...x, sort: all.length + k }))
+      let base = all
+      if (all.length && confirm(`The tracker already has ${all.length} lines.\n\nOK = replace them all with the ${read.length} lines in this file (statuses and notes you have typed are lost).\nCancel = keep what is there and only add lines that are new.`)) {
+        await deleteAllItems(job.id)
+        setEvidence([])
+        base = []
+      }
+      const have = new Set(base.map(key))
+      const fresh = read.filter((x) => !have.has(key(x))).map((x, k) => ({ ...x, sort: base.length + k }))
       await addItems(job.id, fresh)
       setMsg(`Imported ${fresh.length} line${fresh.length === 1 ? '' : 's'} from "${sheet}"${read.length - fresh.length ? ` (${read.length - fresh.length} already on the tracker)` : ''}.`)
       await reload()
@@ -207,6 +341,28 @@ export default function BreeamTab() {
           </button>
         </div>
       </div>
+      <p className="small app-controls">
+        {!folderSupported() ? (
+          <span className="muted">Filing evidence into the synced SharePoint folder needs Microsoft Edge or Google Chrome on a PC.</span>
+        ) : linked ? (
+          <>
+            Evidence is filed into the synced folder <strong>{linked}</strong> on this computer (<em>08. BREEAM / section / credit</em>).{' '}
+            <button type="button" className="link-button small" onClick={() => chooseFolder(job.id, 'breeam').then(setLinked, (e: Error) => e.name !== 'AbortError' && setError(e.message))}>
+              Change
+            </button>{' '}
+            <button type="button" className="link-button small" onClick={() => unlinkFolder(job.id, 'breeam').then(() => setLinked(null))}>
+              Unlink
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" onClick={() => chooseFolder(job.id, 'breeam').then(setLinked, (e: Error) => e.name !== 'AbortError' && setError(e.message))}>
+              Link BREEAM folder…
+            </button>{' '}
+            <span className="muted">Pick the job's EXTERNAL folder (or its "08. BREEAM" folder) from the SharePoint synced to this PC. Evidence you attach to a line is then filed into it, in 08. BREEAM / section / credit. Asked once per job on each computer.</span>
+          </>
+        )}
+      </p>
       {error && <p className="error">{error}</p>}
       {msg && <p className="saved">{msg}</p>}
 
@@ -238,7 +394,7 @@ export default function BreeamTab() {
       {all.length === 0 ? (
         <div className="card">
           <p>
-            <strong>Nothing on the tracker yet.</strong> Use <em>Import tracker (Excel)</em> to bring in the one the assessor or client sends (any layout: it finds the heading row), or <em>+ Add a line</em> to build it by hand. Each line has a dropdown: Not complete, In progress, Completed, By others, No action required.
+            <strong>Nothing on the tracker yet.</strong> Use <em>Import tracker (Excel)</em> to bring in the one the assessor or client sends (it finds the heading row and the columns), or <em>+ Add a line</em> to build it by hand. Each line has a dropdown: Not complete, In progress, Completed, By others, No action required.
           </p>
         </div>
       ) : (
@@ -285,77 +441,10 @@ export default function BreeamTab() {
                   })()}
                 </span>
               </h3>
-              <div className="breeam-wrap">
-                <table className="table breeam-table">
-                  <thead>
-                    <tr>
-                      <th>Ref</th>
-                      <th>Credit</th>
-                      <th className="num" title="Credits available">Avail.</th>
-                      <th className="num" title="Credits targeted">Target</th>
-                      <th className="num" title="Credits achieved">Achvd</th>
-                      <th>Credit criteria</th>
-                      <th>Evidence required</th>
-                      <th>Action</th>
-                      <th>Status</th>
-                      <th>Comments</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.rows.map((i) => (
-                      <tr key={i.id} className={`breeam-row ${i.status}`}>
-                        <td data-label="Ref">
-                          <input defaultValue={i.ref ?? ''} onBlur={(e) => e.target.value !== (i.ref ?? '') && change(i, { ref: e.target.value || null })} className="b-ref" />
-                        </td>
-                        <td data-label="Issue">
-                          <textarea defaultValue={i.title} rows={2} onBlur={(e) => e.target.value.trim() && e.target.value !== i.title && change(i, { title: e.target.value.trim() })} />
-                        </td>
-                        {(
-                          [
-                            ['Available', 'credits_available'],
-                            ['Targeted', 'credits_targeted'],
-                            ['Achieved', 'credits_achieved'],
-                          ] as const
-                        ).map(([label, f]) => (
-                          <td key={f} data-label={label}>
-                            {i.prerequisite && i[f] == null ? (
-                              <span className="b-p" title="Prerequisite: a must-have, no credit">P</span>
-                            ) : (
-                              <input type="number" step="0.5" defaultValue={i[f] ?? ''} onBlur={(e) => e.target.value !== String(i[f] ?? '') && change(i, { [f]: e.target.value === '' ? null : Number(e.target.value) })} className="b-num" />
-                            )}
-                          </td>
-                        ))}
-                        <td data-label="Criteria">
-                          <textarea defaultValue={i.criteria ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.criteria ?? '') && change(i, { criteria: e.target.value || null })} />
-                        </td>
-                        <td data-label="Evidence">
-                          <textarea defaultValue={i.evidence ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
-                        </td>
-                        <td data-label="Action">
-                          <input defaultValue={i.responsible ?? ''} onBlur={(e) => e.target.value !== (i.responsible ?? '') && change(i, { responsible: e.target.value || null })} />
-                        </td>
-                        <td data-label="Status">
-                          <select value={i.status} className={`b-status ${i.status}`} onChange={(e) => change(i, { status: e.target.value as BreeamStatus })} aria-label="Status">
-                            {STATUSES.map(([k, l]) => (
-                              <option key={k} value={k}>
-                                {l}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td data-label="Comments">
-                          <textarea defaultValue={i.comments ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
-                        </td>
-                        <td>
-                          <button className="small-button" title="Remove this line" onClick={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))}>
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="breeam-lines">
+                {g.rows.map((i) => (
+                  <LineCard key={i.id} i={i} evidence={evidence.filter((e) => e.item_id === i.id)} actions={actions} change={change} onAttach={attach} onUnfile={unfile} onDelete={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))} />
+                ))}
               </div>
             </section>
           ))}
