@@ -7,6 +7,7 @@ import { useIsAdmin } from '../lib/admin'
 import Bell from './Bell'
 import { useAccess, type Section } from '../lib/access'
 import { PageErrorBoundary } from './NoAccess'
+import { trackPage } from '../lib/usage'
 
 // Company-wide areas (agreed 20 Nov). Each job's modules are tabs inside the job (see JobLayout).
 const NAV: { to: string; label: string; icon: string; soon?: boolean; admin?: boolean; section?: Section }[] = [
@@ -58,6 +59,8 @@ export default function Layout({ email, children }: { email: string; children: R
 
   // close the phone menu whenever you move to another page
   useEffect(() => setMenuOpen(false), [pathname])
+  // count the page for Settings › Usage
+  useEffect(() => trackPage(pathname), [pathname])
 
   const navItems = NAV.filter((n) => (!n.admin || isAdmin) && (!n.section || can(n.section))).map((n) =>
     n.soon ? (

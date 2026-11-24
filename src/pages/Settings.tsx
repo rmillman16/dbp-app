@@ -10,6 +10,7 @@ import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type 
 import { Insurances, OmStandardDocuments } from './Sections'
 import StandardDocuments from '../components/StandardDocuments'
 import RfiTemplates from '../components/RfiTemplates'
+import UsagePanel from '../components/UsagePanel'
 
 export default function Settings() {
   return (
@@ -23,6 +24,7 @@ export default function Settings() {
       <AccessRequests />
       <Users />
       <AccessGrid />
+      <UsagePanel />
       <ExportAll />
     </AdminOnly>
   )
