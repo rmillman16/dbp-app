@@ -16,7 +16,7 @@ const stateLabel = (state: string | undefined, status: string) =>
 const dueTone = (due: string | null | undefined, live: boolean) => {
   if (!due || !live) return ''
   const days = Math.floor((new Date(due.slice(0, 10)).getTime() - new Date(new Date().toISOString().slice(0, 10)).getTime()) / 86400000)
-  return days < 0 ? 'overdue' : days <= 3 ? 'soon' : ''
+  return days < 0 ? 'overdue' : days <= 3 ? 'due-soon' : ''
 }
 // what a reviewer chooses for each document
 const OUTCOMES: [string, string][] = [

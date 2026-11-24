@@ -1053,7 +1053,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-row { cursor: pointer; border-left: 5px solid transparent; }
 .ext-row:hover td { background: #f4f6fb; }
 .ext-row.overdue td { background: #fff1f1; } .ext-row.overdue td:first-child { box-shadow: inset 5px 0 0 #c62828; }
-.ext-row.soon td { background: #fff8ea; } .ext-row.soon td:first-child { box-shadow: inset 5px 0 0 #e08a00; }
+.ext-row.due-soon td { background: #fff8ea; } .ext-row.due-soon td:first-child { box-shadow: inset 5px 0 0 #e08a00; }
 
 .ext-row.quiet td { color: #666; } .ext-row.quiet td:first-child { box-shadow: inset 5px 0 0 #c9c9d3; }
 .ext-ref { white-space: nowrap; font-weight: 600; }
@@ -1063,7 +1063,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-table td.ext-due { white-space: nowrap; }
 .ext-row td:first-child { box-shadow: inset 5px 0 0 #2b2257; }
 .ext-row.overdue td:first-child { box-shadow: inset 5px 0 0 #c62828; }
-.ext-row.soon td:first-child { box-shadow: inset 5px 0 0 #e08a00; }
+.ext-row.due-soon td:first-child { box-shadow: inset 5px 0 0 #e08a00; }
 .ext-row.quiet td:first-child { box-shadow: inset 5px 0 0 #c9c9d3; }
 .ext-due.ok { color: inherit; }
 
@@ -1418,9 +1418,9 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-hub-box a:hover { text-decoration: underline; }
 
 /* outside pages (24 Nov): plain rows and pills, no yellow or red tints; the project hub large at the bottom */
-.ext-table .ext-row td, .ext-table .ext-row.soon td, .ext-table .ext-row.overdue td, .ext-table .ext-row.quiet td { background: transparent; color: inherit; }
+.ext-table .ext-row td, .ext-table .ext-row.due-soon td, .ext-table .ext-row.overdue td, .ext-table .ext-row.quiet td { background: transparent; color: inherit; }
 .ext-table .ext-row:hover td { background: #f4f6fb; }
-.ext-table .ext-row td:first-child, .ext-table .ext-row.soon td:first-child, .ext-table .ext-row.overdue td:first-child, .ext-table .ext-row.quiet td:first-child { box-shadow: none; }
+.ext-table .ext-row td:first-child, .ext-table .ext-row.due-soon td:first-child, .ext-table .ext-row.overdue td:first-child, .ext-table .ext-row.quiet td:first-child { box-shadow: none; }
 .ext-table td.ext-due.overdue { color: #c62828; font-weight: 600; }
 .ext-table .q-status { background: #eef3fa; color: #1f1246; font-weight: 600; }
 .ext-main .hub-block, .ext-main-wide .hub-block, .hub-block { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 28px 0 8px; padding: 26px 30px; background: #eef3fa; border-left: 6px solid #007abe; border-radius: 10px; }
