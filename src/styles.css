@@ -1387,3 +1387,18 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
   .jobs-table .jc-link { width: 7%; }
   .jobs-table td.nowrap { white-space: normal; }
 }
+/* project checklist on the job overview */
+.checklist-head { display: flex; align-items: center; gap: 10px; }
+.checklist-head .late-tag { background: #fdecea; color: #b3261e; }
+.checklist-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 28px; }
+@media (max-width: 900px) { .checklist-cols { grid-template-columns: 1fr; } }
+.checklist { list-style: none; margin: 0 0 6px; padding: 0; }
+.checklist li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.checklist li.done .checklist-title { color: var(--muted); }
+.checklist li.na .checklist-title { color: var(--muted); text-decoration: line-through; }
+.checklist-main { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.checklist-main input { margin-top: 3px; }
+.checklist-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0 0 24px; }
+.checklist-note { flex: 1 1 140px; min-width: 100px; padding: 3px 6px; font-size: 13px; }
+.checklist-add { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.checklist-add input { flex: 1; }

@@ -12,6 +12,7 @@ import { useJob } from './JobLayout'
 import { completeAction, dueStatus, formatDateSidebar, loadJobActions, meetingPath, plainMentions, projectNameOf, type OpenAction } from '../lib/minutes'
 import { useAccess } from '../lib/access'
 import ProjectDirectory from '../components/ProjectDirectory'
+import ProjectChecklist from '../components/ProjectChecklist'
 
 // Job Overview (23 Nov, tidied): Job details top left and TODO taking the rest of that row; the modules at a glance in one row
 // of tiles (each opens its tab); the variations; then people (the DBP team and the outside people in one card) and the SoW.
@@ -36,6 +37,9 @@ export default function JobOverview() {
 
       {/* the other modules at a glance: one row of tiles */}
       <ModuleCards job={job} />
+
+      {/* H&S and compliance checklist: F10 etc (script 076) */}
+      <ProjectChecklist job={job} />
 
       {/* all the VOs */}
       <section className="card span-all">
