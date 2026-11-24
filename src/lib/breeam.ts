@@ -299,3 +299,9 @@ export async function fileEvidence(jobId: string, item: BreeamItem, file: File):
   if (r.error) throw new Error(r.error.message)
   return r.data as BreeamEvidence
 }
+export async function deleteItems(ids: string[]) {
+  for (let i = 0; i < ids.length; i += 100) {
+    const r = await supabase.from('breeam_items').delete().in('id', ids.slice(i, i + 100))
+    if (r.error) throw new Error(r.error.message)
+  }
+}

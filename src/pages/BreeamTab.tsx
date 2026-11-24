@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
-import { ACTIONS, STATUSES, addItems, deleteAllItems, deleteItem, fileEvidence, lineKey, loadBreeam, loadEvidence, readTracker, removeEvidence, scoreOverview, updateItem, type BreeamEvidence, type BreeamItem, type BreeamStatus } from '../lib/breeam'
+import { ACTIONS, STATUSES, addItems, deleteItem, deleteItems, fileEvidence, lineKey, loadBreeam, loadEvidence, readTracker, removeEvidence, scoreOverview, updateItem, type BreeamEvidence, type BreeamItem, type BreeamStatus } from '../lib/breeam'
 import { chooseFolder, folderAccess, folderSupported, linkedFolderName, unlinkFolder } from '../lib/orderFolder'
 import { loadXlsx } from '../lib/xlsxLoad'
 
@@ -282,16 +282,40 @@ export default function BreeamTab() {
       if (!read.length) throw new Error("Couldn't find a tracker in that file. It needs a heading row with words like Credits Available, Credits Targeted and Credit Criteria.")
       // lines already on the tracker (same ref and wording) aren't added twice
       const key = (x: { category: string | null; ref: string | null; title: string; criteria: string | null }) => `${lineKey(x)}|${(x.criteria ?? '').slice(0, 40).toLowerCase()}`
-      let base = all
-      if (all.length && confirm(`The tracker already has ${all.length} lines.\n\nOK = replace them all with the ${read.length} lines in this file (statuses and notes you have typed are lost).\nCancel = keep what is there and only add lines that are new.`)) {
-        await deleteAllItems(job.id)
-        setEvidence([])
-        base = []
+      // The file is the master for what the lines say: a line already on the tracker is brought up to date from the file (credits,
+      // criteria, evidence required; its status, action and comments are kept), new lines are added, and leftovers from earlier
+      // imports (no section or no ref: section headings that were read as lines) are removed. Lines added by hand are kept.
+      const mine = new Map<string, BreeamItem>()
+      const dupes: string[] = []
+      for (const x of all) (mine.has(key(x)) ? dupes.push(x.id) : mine.set(key(x), x))
+      const seen = new Set<string>()
+      // lines that hold something typed by a person, found again by ref + name (or name alone) when the file's line is new
+      const oldLine = new Map<string, BreeamItem>()
+      for (const x of all) {
+        if (!(x.comments || x.responsible || x.due_date || x.evidence_link || x.status !== 'not_complete')) continue
+        oldLine.set(`${(x.ref ?? '').toLowerCase()}|${x.title.toLowerCase()}`, x)
+        if (!oldLine.has(x.title.toLowerCase())) oldLine.set(x.title.toLowerCase(), x)
       }
-      const have = new Set(base.map(key))
-      const fresh = read.filter((x) => !have.has(key(x))).map((x, k) => ({ ...x, sort: base.length + k }))
+      const fresh: typeof read = []
+      const updates: [string, Partial<BreeamItem>][] = []
+      read.forEach((x, k) => {
+        const k0 = key(x)
+        if (seen.has(k0)) return
+        seen.add(k0)
+        const have = mine.get(k0)
+        if (!have) {
+          // an older line for the same credit (e.g. from an earlier import with no section) hands over what was typed against it
+          const old = oldLine.get(`${(x.ref ?? '').toLowerCase()}|${x.title.toLowerCase()}`) ?? oldLine.get(x.title.toLowerCase())
+          return void fresh.push(old ? { ...x, comments: old.comments ?? x.comments, responsible: old.responsible ?? x.responsible, due_date: old.due_date ?? x.due_date, evidence_link: old.evidence_link ?? x.evidence_link, status: old.status !== 'not_complete' ? old.status : x.status, sort: k } : { ...x, sort: k })
+        }
+        updates.push([have.id, { ref: x.ref, category: x.category, title: x.title, credits_available: x.credits_available, credits_targeted: x.credits_targeted, credits_achieved: x.credits_achieved, criteria: x.criteria, evidence: x.evidence, prerequisite: x.prerequisite, responsible: have.responsible ?? x.responsible, sort: k }])
+      })
+      const stale = all.filter((x) => (!x.category || !x.ref || dupes.includes(x.id)) && !seen.has(key(x))).map((x) => x.id)
+      const stale2 = all.filter((x) => dupes.includes(x.id) && !stale.includes(x.id)).map((x) => x.id)
+      await deleteItems([...stale, ...stale2])
+      for (let n = 0; n < updates.length; n += 10) await Promise.all(updates.slice(n, n + 10).map(([id, p]) => updateItem(id, p)))
       await addItems(job.id, fresh)
-      setMsg(`Imported ${fresh.length} line${fresh.length === 1 ? '' : 's'} from "${sheet}"${read.length - fresh.length ? ` (${read.length - fresh.length} already on the tracker)` : ''}.`)
+      setMsg(`Imported "${sheet}": ${fresh.length} new line${fresh.length === 1 ? '' : 's'}, ${updates.length} updated from the file${stale.length + stale2.length ? `, ${stale.length + stale2.length} old line${stale.length + stale2.length === 1 ? '' : 's'} removed (headings and duplicates from earlier imports)` : ''}.`)
       await reload()
     } catch (e) {
       setError(saveError(e))
