@@ -5,6 +5,7 @@ import type { Job } from './types'
 import type { Snag } from './snags'
 import { stateOf, STATE_LABEL } from './snags'
 import { todayIso, ukDate } from './format'
+import { addPdfLink } from './pdfLink'
 
 const W = 595.28
 const H = 841.89
@@ -142,10 +143,18 @@ export async function buildSnagListPdf(a: SnagListArgs): Promise<Blob> {
     y = top - boxH - 6
   }
   if (!a.snags.length) page.drawText('No snags.', { x: M, y: y - 14, size: 11, font: regular, color: hex(MUTED) })
-  pages.forEach((p, i) => {
+  for (const [i, p] of pages.entries()) {
     const t = `du Boulay Projects Limited  -  Page ${i + 1} of ${pages.length}`
     p.drawText(t, { x: W / 2 - regular.widthOfTextAtSize(t, 8) / 2, y: 20, size: 8, font: regular, color: hex(MUTED) })
-  })
+    // the project hub: the job's one SharePoint link for outside people, on every page
+    const hub = a.job.hub_url
+    if (hub) {
+      const w = bold.widthOfTextAtSize('Project hub', 8.5)
+      p.drawText('Project hub', { x: M, y: 20, size: 8.5, font: bold, color: hex(BLUE) })
+      p.drawLine({ start: { x: M, y: 18.5 }, end: { x: M + w, y: 18.5 }, thickness: 0.6, color: hex(BLUE) })
+      await addPdfLink(doc, p, hub, M, 16, w, 13)
+    }
+  }
   return new Blob([(await doc.save()) as BlobPart], { type: 'application/pdf' })
 }
 

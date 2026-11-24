@@ -17,6 +17,7 @@ import * as M from '../lib/minutes'
 import { exportMinutesDocx, exportMinutesPdf } from '../lib/exportMinutes'
 import { enquiryRef } from '../lib/quotations'
 import { Icon, Mentions, useToast } from '../components/MinutesBits'
+import MinutesEmail from '../components/MinutesEmail'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
 import EnquiryHead from '../components/EnquiryHead'
@@ -43,7 +44,7 @@ const MAILTO_BODY_LIMIT = 1500
 export function MinutesTab() {
   const { job } = useJob()
   const owner = useMemo<M.MinutesOwner>(() => ({ jobId: job.id, enquiryId: null, label: `${job.job_no} ${job.code} · ${job.name}` }), [job.id, job.job_no, job.code, job.name])
-  return <MinutesApp owner={owner} readOnly={job.status === 'archived'} />
+  return <MinutesApp owner={owner} readOnly={job.status === 'archived'} hubUrl={job.hub_url ?? null} />
 }
 
 // an estimate's minutes (tender meetings): Estimating › enquiry › Minutes
@@ -65,7 +66,7 @@ export function MinutesEnquiry() {
           This enquiry was won; its meetings are now in the job's Minutes tab. <Link to={`/jobs/${e.job_id}/minutes`}>Open them →</Link>
         </p>
       )}
-      {!e.job_id && <MinutesApp owner={owner} readOnly={false} />}
+      {!e.job_id && <MinutesApp owner={owner} readOnly={false} hubUrl={null} />}
     </>
   )
 }
@@ -91,7 +92,7 @@ function autosize(el: HTMLTextAreaElement) {
   el.style.height = Math.max(35, el.scrollHeight) + 'px'
 }
 
-function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: boolean }) {
+function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOnly: boolean; hubUrl: string | null }) {
   const { meetingId } = useParams()
   const navigate = useNavigate()
   const ownerKey = owner.jobId ?? owner.enquiryId
@@ -124,6 +125,7 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
   const drawerOpenRef = useRef(false)
   drawerOpenRef.current = drawerOpen
   const [menu, setMenu] = useState<'export' | 'email' | null>(null)
+  const [emailing, setEmailing] = useState(false)
   const [confirmDel, setConfirmDel] = useState<string | null>(null)
   const [full, setFull] = useState(false)
   const [profiles, setProfiles] = useState<StaffProfile[]>([])
@@ -1158,7 +1160,7 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
     const m = activeRef.current
     if (!m) return
     setMenu(null)
-    exportMinutesPdf(m).then(
+    exportMinutesPdf(m, hubUrl).then(
       (fn) => showToast('Saved ' + fn),
       () => showToast('Couldn’t build the PDF — try Export as Word instead.', true),
     )
@@ -1167,7 +1169,7 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
     const m = activeRef.current
     if (!m) return
     setMenu(null)
-    exportMinutesDocx(m).then(
+    exportMinutesDocx(m, hubUrl).then(
       (fn) => showToast('Saved ' + fn),
       (e: Error) => showToast('Couldn’t build the Word file: ' + e.message, true),
     )
@@ -1299,6 +1301,10 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
           </button>
           {menu === 'email' && (
             <div className="export-menu" role="menu" data-readonly-ok>
+              <button type="button" role="menuitem" onClick={() => (setMenu(null), setEmailing(true))}>
+                <Icon.mail />
+                Email the minutes (PDF) to the team…
+              </button>
               <button type="button" role="menuitem" onClick={copyNotes}>
                 <Icon.copy />
                 Copy notes to clipboard
@@ -1533,6 +1539,7 @@ function MinutesApp({ owner, readOnly }: { owner: M.MinutesOwner; readOnly: bool
           )}
         </div>
       )}
+      {emailing && active && <MinutesEmail meeting={active} hubUrl={hubUrl} onClose={() => setEmailing(false)} onDone={(msg, danger) => showToast(msg, danger)} />}
       {toastElement}
     </div>
   )

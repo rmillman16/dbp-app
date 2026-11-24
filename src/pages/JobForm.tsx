@@ -22,6 +22,7 @@ interface FormState {
   start_date: string
   pc_date: string
   sharepoint_site_url: string
+  hub_url: string
   ohp_pct: string
   prelims_pct: string
   retention_pct: string
@@ -43,6 +44,7 @@ const EMPTY: FormState = {
   start_date: '',
   pc_date: '',
   sharepoint_site_url: '',
+  hub_url: '',
   ohp_pct: '15',
   prelims_pct: '9',
   retention_pct: '5',
@@ -66,6 +68,7 @@ function fromJob(j: Job): FormState {
     start_date: s(j.start_date),
     pc_date: s(j.pc_date),
     sharepoint_site_url: s(j.sharepoint_site_url),
+    hub_url: s(j.hub_url),
     ohp_pct: s(j.ohp_pct),
     prelims_pct: s(j.prelims_pct),
     retention_pct: s(j.retention_pct),
@@ -195,6 +198,7 @@ export default function JobForm() {
       start_date: blankToNull(form.start_date),
       pc_date: blankToNull(form.pc_date),
       sharepoint_site_url: blankToNull(form.sharepoint_site_url),
+      hub_url: blankToNull(form.hub_url),
       ohp_pct: Number(form.ohp_pct),
       prelims_pct: Number(form.prelims_pct),
       retention_pct: Number(form.retention_pct),
@@ -347,6 +351,13 @@ export default function JobForm() {
             onChange={(e) => set('sharepoint_site_url', e.target.value)}
           />
           <span className="hint">Paste the job site's address for now; picking from a list comes with the SharePoint link.</span>
+        </label>
+        <label className="span-2">
+          Project hub link (for outside people)
+          <input type="url" placeholder="https://duboulay.sharepoint.com/sites/…/Shared Documents/External" value={form.hub_url} onChange={(e) => set('hub_url', e.target.value)} />
+          <span className="hint">
+            The one SharePoint link outside people use for drawings and project documents (Document Control manages the folders). It goes on issued minutes and snag lists, at the foot of every email to an outside person, and in the welcome email. Share it with specific people in SharePoint, not "anyone with the link".
+          </span>
         </label>
         <label>
           OHP %

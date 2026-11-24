@@ -24,6 +24,7 @@ export interface Job {
   ohp_pct: number
   prelims_pct: number
   sharepoint_site_url: string | null
+  hub_url?: string | null // the one SharePoint link for outside people (script 078)
   client_company_id: string | null
   weekly_prelims: number | null // EOT prolongation rate per week
   eot_notice_days: number | null // notice of delay due this many days after an event (per contract)

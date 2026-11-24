@@ -166,6 +166,58 @@ async function weeklyRfiReport(db: any, getToken: () => Promise<string>, sender:
   return sent;
 }
 
+// The footer of every email to an outside person (script 078): the job's one project hub link (drawings and project documents).
+const hubFooter = (url: string | null | undefined) =>
+  url ? `<p style="margin:0 0 14px;padding:10px 12px;background:#eef3fa;border-left:3px solid #007abe;font-size:13px"><b>Project hub:</b> <a href="${esc(url)}" style="color:#007abe">drawings and project documents</a></p>` : "";
+
+// The welcome email (script 078): when someone is added to a job's project directory, they get one email with the project hub link,
+// whether or not they have any RFIs or submittals, so they can come back to it for the drawings. It waits until the job has a hub
+// link (up to 30 days), skips du Boulay people, and goes once per email address per job.
+// deno-lint-ignore no-explicit-any
+async function sendWelcome(db: any, getToken: () => Promise<string>, sender: string) {
+  const { data: rows, error } = await db.from("welcome_outbox").select("id, directory_id, job_id, created_at").is("sent_at", null).order("created_at").limit(20);
+  if (error || !rows?.length) return 0; // none, or script 078 not run yet
+  const old = new Date(Date.now() - 30 * 86400000).toISOString();
+  let sent = 0;
+  for (const o of rows) {
+    const done = (email?: string) => db.from("welcome_outbox").update({ sent_at: new Date().toISOString(), ...(email ? { email } : {}) }).eq("id", o.id);
+    if (o.created_at < old) { await done(); continue; }
+    const { data: job } = await db.from("jobs").select("job_no, code, name, status, site_address, hub_url").eq("id", o.job_id).maybeSingle();
+    if (!job || job.status === "archived") { await done(); continue; }
+    if (!job.hub_url) continue; // no hub link yet: wait
+    const { data: d } = await db.from("job_directory").select("contact_id, company_id, role").eq("id", o.directory_id).maybeSingle();
+    if (!d) { await done(); continue; }
+    const [c, co] = await Promise.all([
+      d.contact_id ? db.from("contacts").select("name, email").eq("id", d.contact_id).maybeSingle() : Promise.resolve({ data: null }),
+      d.company_id ? db.from("companies").select("name, email").eq("id", d.company_id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    const to = (c.data?.email || co.data?.email || "").trim();
+    const name = c.data?.name ?? "";
+    if (!to || /@duboulay\.co\.uk$/i.test(to)) { await done(); continue; }
+    const again = await db.from("welcome_outbox").select("id").eq("job_id", o.job_id).eq("email", to.toLowerCase()).not("sent_at", "is", null).limit(1);
+    if (again.data?.length) { await done(to.toLowerCase()); continue; }
+    const project = `${job.job_no} ${job.name}`;
+    const site = job.site_address ? String(job.site_address).replace(/\s*\n\s*/g, ", ") : "";
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:560px">
+  <p>${name ? "Dear " + esc(name.split(" ")[0]) + "," : "Hello,"}</p>
+  <p>Welcome to <b>${esc(project)}</b>${site ? ` (${esc(site)})` : ""}. du Boulay Projects has added you to the project team${d.role ? ` as <b>${esc(d.role)}</b>` : ""}.</p>
+  <p>Everything you need for the job is kept in one place, the project hub. Use it whenever you need the latest drawings and project documents, and keep this email so you can come back to it.</p>
+  <p style="margin:0 0 20px"><a href="${esc(job.hub_url)}" style="background:#2b2257;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Open the project hub</a></p>
+  <p>If we need an answer from you (an RFI or a submittal to review) you will get a separate email with your own private link. You don't need an account for those.</p>
+  <p>If anything is missing, contact your du Boulay Projects project manager.</p>
+  <p style="font-size:12px;color:#777;margin:0">Sent by du Boulay Projects Limited. The hub link is for the people on this project: please don't forward it.</p>
+</div>`;
+    const token = await getToken();
+    const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: { subject: `Welcome to ${project}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+    });
+    if (r.ok) { await done(to.toLowerCase()); sent++; }
+  }
+  return sent;
+}
+
 // Outside people's emails (script 061): each new RFI / submittal for review / chase queued in rfi_outbox / submittal_outbox is
 // emailed to the outside person with their own private link (made now; only its hash is kept). They answer on that page:
 // no login. Short and with no attachments, as every email here. Anything older than 3 days in the queue is dropped.
@@ -192,8 +244,8 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
       const to = (c.data?.email || co.data?.email || "").trim();
       const name = c.data?.name ?? co.data?.name ?? "";
       const itemRow = kind === "rfi"
-        ? await db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name)").eq("id", o[idCol]).maybeSingle()
-        : await db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name)").eq("id", o[idCol]).maybeSingle();
+        ? await db.from("rfis").select("id, job_id, number, title, status, due_date, jobs(name, hub_url)").eq("id", o[idCol]).maybeSingle()
+        : await db.from("submittals").select("id, job_id, number, title, status, due_date, jobs(name, hub_url)").eq("id", o[idCol]).maybeSingle();
       const it = itemRow.data;
       const live = it && it.job_id && (kind === "rfi" ? ["open", "answered"].includes(it.status) : it.status === "out");
       if (!to || !live) { await done(); continue; }
@@ -214,6 +266,7 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
   <p style="font-size:17px;font-weight:600;margin:0 0 6px">${esc(what)}: ${esc(it.title)}</p>
   <p style="margin:0 0 16px">${p.role === "cc" ? "It is for your information." : "Please open it to " + (kind === "rfi" ? "reply" : "respond") + ". You don't need an account."}${esc(due)}</p>
   <p style="margin:0 0 24px"><a href="${esc(link)}" style="background:#2b2257;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Open ${esc(what)}</a></p>
+  ${hubFooter(it.jobs?.hub_url)}
   <p style="font-size:12px;color:#777;margin:0">This link is for you: please don't forward it. If it stops working, ask du Boulay Projects for a new one.</p>
 </div>`;
       const token = await getToken();
@@ -286,6 +339,14 @@ Deno.serve(async (req) => {
       console.warn("outside emails:", e instanceof Error ? e.message : e);
     }
 
+    // the welcome email to anyone newly added to a job's project directory (script 078)
+    let welcomes = 0;
+    try {
+      welcomes = await sendWelcome(db, token0, sender);
+    } catch (e) {
+      console.warn("welcome emails:", e instanceof Error ? e.message : e);
+    }
+
     const since = new Date(Date.now() - 2 * 86400000).toISOString();
     const today = new Date().toISOString().slice(0, 10);
     const cols = "id, profile_id, kind, title, detail, due_date, link, job_id, source_id, source_table";
@@ -315,7 +376,7 @@ Deno.serve(async (req) => {
     const error = news.error ?? dated.error;
     if (error) return reply({ ok: false, detail: error.message });
     const ready = [...(news.data ?? []), ...(dated.data ?? [])];
-    if (ready.length === 0) return reply({ ok: true, sent: 0 });
+    if (ready.length === 0) return reply({ ok: true, sent: 0, welcomes, outside });
 
     const ids = [...new Set(ready.map((n) => n.profile_id as string))];
     const { data: people } = await db.from("profiles").select("id, email, email_notifications").in("id", ids);
@@ -362,7 +423,7 @@ Deno.serve(async (req) => {
         failures.push(`${p.email}: ${r.status} ${t.slice(0, 200)}`);
       }
     }
-    return reply({ ok: failures.length === 0, sent, reports, outside, failures });
+    return reply({ ok: failures.length === 0, sent, reports, outside, welcomes, failures });
   } catch (e) {
     return reply({ ok: false, detail: e instanceof Error ? e.message : String(e) }, 500);
   }
