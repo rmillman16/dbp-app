@@ -36,6 +36,8 @@ import GenerateProgramme from '../components/GenerateProgramme'
 import { GENERATED_FILE } from '../lib/programmeGen'
 import type { Job } from '../lib/types'
 import { useJob } from './JobLayout'
+import { useAccess } from '../lib/access'
+import { supabase } from '../lib/supabase'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
 
@@ -58,6 +60,7 @@ const KIND_NOTE: Record<CashflowItem['kind'], string> = {
 // programme (docs/decisions.md "Cashflow: built").
 export default function CashflowTab() {
   const { job } = useJob()
+  const { me } = useAccess()
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
@@ -284,6 +287,16 @@ export default function CashflowTab() {
           try {
             const { exportCashflow } = await import('../lib/exportCashflow')
             await exportCashflow({ job, items: data.items, result, actuals, siteStart, pc, programmeName: data.programme?.project_name ?? null, copy })
+          } catch (e) {
+            setError((e as Error).message)
+          }
+        }}
+        onPdf={async (copy) => {
+          setError(null)
+          try {
+            const client = job.client_company_id ? await supabase.from('companies').select('name').eq('id', job.client_company_id).maybeSingle() : null
+            const { exportCashflowPdf } = await import('../lib/exportCashflowPdf')
+            await exportCashflowPdf({ job, items: data.items, result, actuals, siteStart, pc, programmeName: data.programme?.project_name ?? null, copy, preparedBy: me?.full_name ?? '', clientName: (client?.data?.name as string | undefined) ?? null })
           } catch (e) {
             setError((e as Error).message)
           }
@@ -898,6 +911,7 @@ function Forecast({
   pc,
   actuals,
   onExport,
+  onPdf,
 }: {
   result: CashflowResult
   retentionPct: number
@@ -905,6 +919,7 @@ function Forecast({
   pc: string | null
   actuals: Actual[]
   onExport: (copy: 'internal' | 'client') => void
+  onPdf: (copy: 'internal' | 'client') => void
 }) {
   const { monthly } = result
   const notPlaced = result.rows.filter((r) => r.unplaced && r.kind !== 'vo_risk')
@@ -918,7 +933,13 @@ function Forecast({
       <div className="pane-head">
         <h2>Forecast</h2>
         <div className="form-actions">
-          <button className="primary" onClick={() => onExport('client')} disabled={!monthly.length}>
+          <button className="primary" onClick={() => onPdf('client')} disabled={!monthly.length} title="The report: cover, summary with the S-curve, forecast by month and by trade">
+            Report (PDF): client copy
+          </button>
+          <button onClick={() => onPdf('internal')} disabled={!monthly.length}>
+            Report (PDF): internal
+          </button>
+          <button onClick={() => onExport('client')} disabled={!monthly.length}>
             Excel: client copy
           </button>
           <button onClick={() => onExport('internal')} disabled={!monthly.length}>
