@@ -45,6 +45,35 @@ function serverKey() {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
+// The du Boulay signature (script 088, Settings › Email signature) goes at the foot of every email to someone outside the company.
+// The saved HTML (or the standard one) with {{person}} left out and {{logo}} = the logo on the app's own address; a picture pasted
+// into it goes as an inline attachment. Read at most once every 5 minutes.
+// deno-lint-ignore no-explicit-any
+let sigCache: { at: number; html: string; attachments: any[] } | null = null;
+// deno-lint-ignore no-explicit-any
+async function signed(db: any, html: string) {
+  if (!sigCache || Date.now() - sigCache.at > 300000) {
+    const { data: c } = await db.from("company_settings").select("*").eq("id", 1).maybeSingle();
+    const app = (Deno.env.get("APP_URL") ?? "").replace(/\/+$/, "");
+    const address = String(c?.address ?? "Studio 7, Royal Victoria Patriotic Building, John Archer Way, London SW18 3SX").split(/\n/).map((s: string) => s.trim()).filter(Boolean).join(", ");
+    const web = String(c?.website ?? "duboulay.co.uk").replace(/^https?:\/\//, "");
+    const standard = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:10pt;color:#1d1d24">{{person}}<img src="{{logo}}" alt="du Boulay Projects" width="170" style="display:block;border:0;margin:0 0 8px"><div style="color:#007abe">${esc(address)}<br>${esc(String(c?.phone ?? "020 8877 0266"))} &nbsp;|&nbsp; ${esc(String(c?.email ?? "office@duboulay.co.uk"))} &nbsp;|&nbsp; <a href="https://${esc(web)}" style="color:#007abe;text-decoration:none">${esc(web)}</a></div><div style="font-size:8pt;color:#6b6b78;margin-top:6px">du Boulay Projects Limited is a limited company registered in England No. 08431815 &nbsp;|&nbsp; VAT No: 461 246 603</div></div>`;
+    let sig = String(c?.email_signature ?? "").trim() || standard;
+    sig = sig.replace(/\{\{person\}\}/g, "");
+    sig = app ? sig.replace(/src="\{\{logo\}\}"/g, `src="${app}/dbp-logo.png"`) : sig.replace(/<img\b[^>]*src="\{\{logo\}\}"[^>]*>/gi, "");
+    // deno-lint-ignore no-explicit-any
+    const attachments: any[] = [];
+    let n = 0;
+    sig = sig.replace(/src="data:(image\/(?:png|jpe?g|gif));base64,([^"]+)"/g, (_m, type, b64) => {
+      const cid = `sig${++n}@dbp`;
+      attachments.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: `${cid}.${String(type).split("/")[1]}`, contentType: type, contentBytes: b64, isInline: true, contentId: cid });
+      return `src="cid:${cid}"`;
+    });
+    sigCache = { at: Date.now(), html: sig, attachments };
+  }
+  return { content: `${html}<br>${sigCache.html}`, attachments: sigCache.attachments };
+}
+
 function emailHtml(title: string, detail: string | null, link: string) {
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:560px">
   <p style="font-size:17px;font-weight:600;margin:0 0 10px">${esc(title)}</p>
@@ -208,10 +237,11 @@ async function sendWelcome(db: any, getToken: () => Promise<string>, sender: str
   <p style="font-size:12px;color:#777;margin:0">Sent by du Boulay Projects Limited. The hub link is for the people on this project: please don't forward it.</p>
 </div>`;
     const token = await getToken();
+    const m = await signed(db, html);
     const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ message: { subject: `Welcome to ${project}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+      body: JSON.stringify({ message: { subject: `Welcome to ${project}`, body: { contentType: "HTML", content: m.content }, toRecipients: [{ emailAddress: { address: to } }], ...(m.attachments.length ? { attachments: m.attachments } : {}) }, saveToSentItems: false }),
     });
     if (r.ok) { await done(to.toLowerCase()); sent++; }
   }
@@ -270,10 +300,11 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
   <p style="font-size:12px;color:#777;margin:0">This link is for you: please don't forward it. If it stops working, ask du Boulay Projects for a new one.</p>
 </div>`;
       const token = await getToken();
+      const m = await signed(db, html);
       const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: { subject: `${chase ? "Reminder: " : followUp ? "Reply: " : ""}${project}: ${what} – ${it.title}`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+        body: JSON.stringify({ message: { subject: `${chase ? "Reminder: " : followUp ? "Reply: " : ""}${project}: ${what} – ${it.title}`, body: { contentType: "HTML", content: m.content }, toRecipients: [{ emailAddress: { address: to } }], ...(m.attachments.length ? { attachments: m.attachments } : {}) }, saveToSentItems: false }),
       });
       if (r.ok) { await done(); sent++; }
     }
@@ -348,10 +379,11 @@ async function sendActions(db: any, getToken: () => Promise<string>, sender: str
   ${hubFooter(hub)}
   <p style="font-size:12px;color:#777;margin:0">This link is for you: please don't forward it. If it stops working, ask du Boulay Projects for a new one.</p>
 </div>`;
+    const m = await signed(db, html);
     const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
       method: "POST",
       headers: { Authorization: `Bearer ${await getToken()}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ message: { subject: `${overdue ? "Overdue: " : ""}${n === 1 ? "Your action" : "Your " + n + " actions"} from the meeting minutes`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: email } }] }, saveToSentItems: false }),
+      body: JSON.stringify({ message: { subject: `${overdue ? "Overdue: " : ""}${n === 1 ? "Your action" : "Your " + n + " actions"} from the meeting minutes`, body: { contentType: "HTML", content: m.content }, toRecipients: [{ emailAddress: { address: email } }], ...(m.attachments.length ? { attachments: m.attachments } : {}) }, saveToSentItems: false }),
     });
     if (r.ok) { await done(); sent++; }
   }

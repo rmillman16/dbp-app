@@ -276,6 +276,9 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>The app sends email from the DBP mailbox: new RFIs and chases, welcome emails, issued minutes, actions due and overdue, inspections due, reports due, and the Monday briefing. Everyone can switch their own emails off in My details. Reminders only run once IT has set up the mailbox and the scheduled job for the app.</p>
+        <p>
+          <b>The du Boulay email signature</b> is added to the foot of every email that goes outside the company: the Outlook drafts the app makes (orders, variation instructions, PQQs, snag lists, tender enquiries, RFI queries) and the emails the app sends itself (minutes, chasers, sign-in codes). An admin sets it once in <b>Settings › Email signature</b>: edit the box, or copy your signature out of Outlook and paste it in, then press <b>Save signature</b>. The sender’s own name, job title and phone are filled in on drafts and minutes (use <b>Insert sender’s name, title and phone</b> to place them), and the du Boulay logo picture is included. <b>Back to the standard signature</b> undoes your changes.
+        </p>
       </>
     ),
   },

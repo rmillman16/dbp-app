@@ -317,7 +317,29 @@ async function checkFiles(ctx: Ctx, files: unknown) {
 }
 
 // ---------- mail (the sign-in code) ----------
-async function sendMail(to: string, subject: string, html: string) {
+// The du Boulay signature (script 088, Settings › Email signature) at the foot of the email; the sender's name/title/phone are left out.
+// deno-lint-ignore no-explicit-any
+async function signed(db: any, html: string) {
+  const { data: c } = await db.from("company_settings").select("*").eq("id", 1).maybeSingle();
+  const app = (Deno.env.get("APP_URL") ?? "").replace(/\/+$/, "");
+  const address = String(c?.address ?? "Studio 7, Royal Victoria Patriotic Building, John Archer Way, London SW18 3SX").split(/\n/).map((s: string) => s.trim()).filter(Boolean).join(", ");
+  const web = String(c?.website ?? "duboulay.co.uk").replace(/^https?:\/\//, "");
+  const standard = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:10pt;color:#1d1d24">{{person}}<img src="{{logo}}" alt="du Boulay Projects" width="170" style="display:block;border:0;margin:0 0 8px"><div style="color:#007abe">${esc(address)}<br>${esc(String(c?.phone ?? "020 8877 0266"))} &nbsp;|&nbsp; ${esc(String(c?.email ?? "office@duboulay.co.uk"))} &nbsp;|&nbsp; <a href="https://${esc(web)}" style="color:#007abe;text-decoration:none">${esc(web)}</a></div><div style="font-size:8pt;color:#6b6b78;margin-top:6px">du Boulay Projects Limited is a limited company registered in England No. 08431815 &nbsp;|&nbsp; VAT No: 461 246 603</div></div>`;
+  let sig = (String(c?.email_signature ?? "").trim() || standard).replace(/\{\{person\}\}/g, "");
+  sig = app ? sig.replace(/src="\{\{logo\}\}"/g, `src="${app}/dbp-logo.png"`) : sig.replace(/<img\b[^>]*src="\{\{logo\}\}"[^>]*>/gi, "");
+  // deno-lint-ignore no-explicit-any
+  const attachments: any[] = [];
+  let n = 0;
+  sig = sig.replace(/src="data:(image\/(?:png|jpe?g|gif));base64,([^"]+)"/g, (_m, type, b64) => {
+    const cid = `sig${++n}@dbp`;
+    attachments.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: `${cid}.${String(type).split("/")[1]}`, contentType: type, contentBytes: b64, isInline: true, contentId: cid });
+    return `src="cid:${cid}"`;
+  });
+  return { content: `${html}<br>${sig}`, attachments };
+}
+
+// deno-lint-ignore no-explicit-any
+async function sendMail(db: any, to: string, subject: string, html: string) {
   const tenant = Deno.env.get("MS_TENANT_ID"), client = Deno.env.get("MS_CLIENT_ID"), secret = Deno.env.get("MS_CLIENT_SECRET"), sender = Deno.env.get("MAIL_SENDER");
   if (!tenant || !client || !secret || !sender) return false;
   const t = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
@@ -327,10 +349,11 @@ async function sendMail(to: string, subject: string, html: string) {
   });
   const j = await t.json();
   if (!t.ok) return false;
+  const m = await signed(db, html);
   const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
     method: "POST",
     headers: { Authorization: `Bearer ${j.access_token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ message: { subject, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: to } }] }, saveToSentItems: false }),
+    body: JSON.stringify({ message: { subject, body: { contentType: "HTML", content: m.content }, toRecipients: [{ emailAddress: { address: to } }], ...(m.attachments.length ? { attachments: m.attachments } : {}) }, saveToSentItems: false }),
   });
   return r.ok;
 }
@@ -567,7 +590,7 @@ Deno.serve(async (req) => {
         const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
         await db.from("external_codes").delete().eq("email", email);
         await db.from("external_codes").insert({ email, code_hash: await sha256(`${code}:${email}`) });
-        await sendMail(email, "Your du Boulay Projects sign-in code", `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b"><p>Your sign-in code is</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It works for 10 minutes. If you didn't ask for it, ignore this email.</p></div>`);
+        await sendMail(db, email, "Your du Boulay Projects sign-in code", `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b"><p>Your sign-in code is</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It works for 10 minutes. If you didn't ask for it, ignore this email.</p></div>`);
       }
       db.rpc("external_cleanup").then(() => {}, () => {});
       return reply({ ok: true });

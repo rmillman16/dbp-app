@@ -119,7 +119,8 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `075_requisition_order_files.sql` | Order documents on requisitions: the buyer attaches a receipt / order confirmation, emailed to the requester when set to Ordered (run after 074; then redeploy `send-emails`) | Not run yet |
 | `084_inspection_inspector.sql` | The inspector's name on the external H&S inspection log (run after 083) | Not run yet |
 | `085_minutes_upgrade.sql` | Minutes: overdue-action chasing (staff bell + outside email), meeting numbers and types, apologies, links to RFIs/snags, issue record and lock, outside owners' actions (run after 084). Needs `send-emails` and `external` redeployed, and `minutes-draft` deployed (Verify JWT ON, uses the ANTHROPIC_API_KEY secret) | Run 24 Nov |
-| `087_final_account.sql` | "Final account" flag on applications, so the list shows when a project is finished off (run after 086) | Not run yet |
+| `087_final_account.sql` | "Final account" flag on applications, so the list shows when a project is finished off (run after 086) | Run 24 Nov |
+| `088_email_signature.sql` | The du Boulay email signature (Settings › Email signature) added to every email going outside the company (run after 087; then redeploy `send-emails`, `send-minutes` and `external`) | Not run yet |
 | `086_weekly_briefing.sql` | Monday briefing: records who has had this week's friendly "your week ahead" email (run after 085; then redeploy `send-emails`) | Not run yet |
 | `076_job_checklist.sql` | Project checklist on the job Overview: H&S and compliance items (F10, construction phase plan, principal designer / contractor, building control, insurances…) (run after 075) | Run 24 Nov |
 | `077_standard_clauses.sql` | Standard clarifications and exclusions library, filled from the draft Schedule of Works templates (Templates › Clause library; tick them onto quotations) (run after 076) | Run 24 Nov |

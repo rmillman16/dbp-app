@@ -8,6 +8,7 @@ import { cached } from './offline'
 import { money, todayIso } from './format'
 import { longDate, ordinalDate, type Block } from './letter'
 import { letterPdf, pdfBlob } from './letterPdf'
+import { fillSignature, inlineImages, loadSignatureSource, sentWithSignature, type InlineImage } from './signature'
 import { addProcPackage, loadProcurement, rowDates } from './procurement'
 import type { Company, Job, Order, Profile } from './types'
 import type { Contact } from '../components/ContactsEditor'
@@ -249,8 +250,20 @@ async function base64(blob: Blob) {
   return btoa(bin).replace(/.{1,76}/g, '$&\r\n')
 }
 const encodeWord = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${btoa(unescape(encodeURIComponent(s)))}?=`)
-export async function emlDraft(args: { to: string[]; cc?: string[]; subject: string; html: string; attachments: Attachment[] }) {
+// The du Boulay signature (Settings › Email signature) goes at the foot of every draft; pass signature: false to leave it off.
+export async function emlDraft(args: { to: string[]; cc?: string[]; subject: string; html: string; attachments: Attachment[]; signature?: boolean }) {
   const boundary = `----dbp-${Math.random().toString(36).slice(2)}`
+  let bodyHtml = args.html
+  let sigImages: InlineImage[] = []
+  if (args.signature !== false) {
+    try {
+      const sig = await inlineImages(fillSignature(await loadSignatureSource()))
+      bodyHtml = sentWithSignature(args.html, sig.html)
+      sigImages = sig.images
+    } catch {
+      /* no signature this time: the draft is still made */
+    }
+  }
   const parts: string[] = [
     'X-Unsent: 1',
     `To: ${args.to.join(', ')}`,
@@ -263,8 +276,20 @@ export async function emlDraft(args: { to: string[]; cc?: string[]; subject: str
     'Content-Type: text/html; charset="utf-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    await base64(new Blob([`<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${args.html}</body></html>`], { type: 'text/html' })),
+    await base64(new Blob([`<html><body style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:11pt">${bodyHtml}</body></html>`], { type: 'text/html' })),
   ]
+  // the signature's pictures, shown inside the email (not as attachments)
+  for (const im of sigImages) {
+    parts.push(
+      `--${boundary}`,
+      `Content-Type: ${im.type}; name="${im.cid}.${im.type.split('/')[1] ?? 'png'}"`,
+      'Content-Transfer-Encoding: base64',
+      `Content-ID: <${im.cid}>`,
+      `Content-Disposition: inline; filename="${im.cid}.${im.type.split('/')[1] ?? 'png'}"`,
+      '',
+      await base64(im.blob),
+    )
+  }
   for (const a of args.attachments) {
     const name = encodeWord(a.name)
     parts.push(

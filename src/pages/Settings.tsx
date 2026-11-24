@@ -10,6 +10,7 @@ import { createLogin, listLogins, resetPassword, setLoginOn, welcomeEmail, type 
 import { Insurances, OmStandardDocuments } from './Sections'
 import StandardDocuments from '../components/StandardDocuments'
 import RfiTemplates from '../components/RfiTemplates'
+import EmailSignature from '../components/EmailSignature'
 import UsagePanel from '../components/UsagePanel'
 import Loading from '../components/Loading'
 
@@ -18,6 +19,7 @@ export default function Settings() {
     <AdminOnly>
       <h1>Settings</h1>
       <CompanyDetails />
+      <EmailSignature />
       <Insurances />
       <OmStandardDocuments />
       <StandardDocuments />

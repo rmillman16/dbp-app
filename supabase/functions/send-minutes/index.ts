@@ -63,14 +63,33 @@ Deno.serve(async (req) => {
       const { data: j } = await db.from("jobs").select("hub_url").eq("id", String(body.job_id)).maybeSingle();
       hub = j?.hub_url ?? null;
     }
-    const { data: p } = await db.from("profiles").select("full_name").eq("id", me.id).maybeSingle();
+    const { data: p } = await db.from("profiles").select("*").eq("id", me.id).maybeSingle();
     const who = p?.full_name || me.email;
+
+    // The du Boulay signature (script 088, Settings › Email signature) with the sender's own name, title and phone.
+    const { data: c } = await db.from("company_settings").select("*").eq("id", 1).maybeSingle();
+    const app = (Deno.env.get("APP_URL") ?? "").replace(/\/+$/, "");
+    const address = String(c?.address ?? "Studio 7, Royal Victoria Patriotic Building, John Archer Way, London SW18 3SX").split(/\n/).map((s: string) => s.trim()).filter(Boolean).join(", ");
+    const web = String(c?.website ?? "duboulay.co.uk").replace(/^https?:\/\//, "");
+    const standard = `<div style="font-family:Aptos,Calibri,Arial,sans-serif;font-size:10pt;color:#1d1d24">{{person}}<img src="{{logo}}" alt="du Boulay Projects" width="170" style="display:block;border:0;margin:0 0 8px"><div style="color:#007abe">${esc(address)}<br>${esc(String(c?.phone ?? "020 8877 0266"))} &nbsp;|&nbsp; ${esc(String(c?.email ?? "office@duboulay.co.uk"))} &nbsp;|&nbsp; <a href="https://${esc(web)}" style="color:#007abe;text-decoration:none">${esc(web)}</a></div><div style="font-size:8pt;color:#6b6b78;margin-top:6px">du Boulay Projects Limited is a limited company registered in England No. 08431815 &nbsp;|&nbsp; VAT No: 461 246 603</div></div>`;
+    const person = `<p style="margin:0 0 10px"><b>${esc(who)}</b>${p?.job_title ? `<br>${esc(p.job_title)}` : ""}${p?.phone ? `<br>T: ${esc(p.phone)}` : ""}</p>`;
+    let sig = (String(c?.email_signature ?? "").trim() || standard).replace(/\{\{person\}\}/g, person);
+    sig = app ? sig.replace(/src="\{\{logo\}\}"/g, `src="${app}/dbp-logo.png"`) : sig.replace(/<img\b[^>]*src="\{\{logo\}\}"[^>]*>/gi, "");
+    // deno-lint-ignore no-explicit-any
+    const inline: any[] = [];
+    let imgN = 0;
+    sig = sig.replace(/src="data:(image\/(?:png|jpe?g|gif));base64,([^"]+)"/g, (_m, type, b64) => {
+      const cid = `sig${++imgN}@dbp`;
+      inline.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: `${cid}.${String(type).split("/")[1]}`, contentType: type, contentBytes: b64, isInline: true, contentId: cid });
+      return `src="cid:${cid}"`;
+    });
 
     const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:600px">
   <p style="margin:0 0 16px;white-space:pre-wrap">${esc(message)}</p>
-  <p style="margin:0 0 16px">Kind regards,<br>${esc(who)}<br>du Boulay Projects Limited</p>
+  <p style="margin:0 0 16px">Kind regards,</p>
   ${hub ? `<p style="margin:0 0 14px;padding:10px 12px;background:#eef3fa;border-left:3px solid #007abe;font-size:13px"><b>Project hub:</b> <a href="${esc(hub)}" style="color:#007abe">drawings and project documents</a></p>` : ""}
-  <p style="font-size:12px;color:#777;margin:0">The minutes are attached as a PDF. Reply to this email to reach ${esc(who)}.</p>
+  <p style="font-size:12px;color:#777;margin:0 0 18px">The minutes are attached as a PDF. Reply to this email to reach ${esc(who)}.</p>
+  ${sig}
 </div>`;
 
     const tr = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
@@ -91,7 +110,7 @@ Deno.serve(async (req) => {
           toRecipients: to.map((address) => ({ emailAddress: { address } })),
           ccRecipients: to.includes(me.email.toLowerCase()) ? [] : [{ emailAddress: { address: me.email } }],
           replyTo: [{ emailAddress: { address: me.email, name: who } }],
-          attachments: [{ "@odata.type": "#microsoft.graph.fileAttachment", name: filename, contentType: "application/pdf", contentBytes: pdf }],
+          attachments: [{ "@odata.type": "#microsoft.graph.fileAttachment", name: filename, contentType: "application/pdf", contentBytes: pdf }, ...inline],
         },
         saveToSentItems: true,
       }),

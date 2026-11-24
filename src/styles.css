@@ -1562,3 +1562,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .gate-list li.stop { color: var(--red); font-weight: 600; }
 .gate-list li.note { color: var(--ink); }
 .gate-mark { display: inline-block; width: 1.4em; }
+/* Settings › Email signature (24 Nov) */
+.sig-box { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 130px; background: #fff; margin: 10px 0; outline: none; overflow-x: auto; }
+.sig-box:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,122,190,.15); }
+.sig-preview { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; background: #fafafc; overflow-x: auto; }
