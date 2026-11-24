@@ -28,6 +28,7 @@ import { FIELD_LABELS, buildItems, findHeader, guessMapping, readWorkbook, suppl
 import { addCompany } from '../lib/subcontracts'
 import ContractorPicker from '../components/ContractorPicker'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 type Data = Awaited<ReturnType<typeof loadSampling>>
 // what's shown (22 Nov): statuses switched off are hidden; "only" switches; and narrowing by group, location,
@@ -91,7 +92,7 @@ export default function SamplingTab() {
   }, [data])
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading…</p>
+  if (!data) return <Loading />
 
   // a change in the table: shown straight away and saved
   const change = async (s: Sample, p: Partial<Sample>) => {

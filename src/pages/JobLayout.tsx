@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase'
 import { money, ukDate } from '../lib/format'
 import { cached, must } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Job } from '../lib/types'
+import Loading from '../components/Loading'
 
 // Each module is a tab inside the job; new modules are added here.
 const TABS: { to: string; label: string; soon?: boolean; section?: Section; breeam?: boolean }[] = [
@@ -79,7 +80,7 @@ export default function JobLayout() {
   }
 
   if (error) return <p className="error">{error}</p>
-  if (!job) return <p className="muted">Loading…</p>
+  if (!job) return <Loading />
 
   // the section you're in: the first part of the address after /jobs/<id>/
   const section = pathname.split('/')[3] ?? ''

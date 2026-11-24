@@ -5,6 +5,7 @@ import { VO_STATUS_LABELS } from '../lib/types'
 import { loadJobVariations, projectedValue, type VoWithLines } from '../lib/variations'
 import { exportVariationWorkbook } from '../lib/exportVariations'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 export default function VariationsRegister() {
   const { job } = useJob()
@@ -63,7 +64,7 @@ export default function VariationsRegister() {
         </div>
       </div>
 
-      {vos === null && !error && <p className="muted">Loading…</p>}
+      {vos === null && !error && <Loading />}
       {vos?.length === 0 && <p className="muted">No variations yet.</p>}
       {vos && vos.length > 0 && (
         <table className="table stack">

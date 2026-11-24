@@ -5,6 +5,7 @@ import { RfiOwnerProvider, type RfiOwner } from '../lib/rfiOwner'
 import type { Enquiry } from '../lib/types'
 import { loadEnquiry } from './Estimating'
 import EnquiryHead from '../components/EnquiryHead'
+import Loading from '../components/Loading'
 
 // Estimating › enquiry › RFIs (23 Nov, script 059): tender RFIs, the same screens as a job's. When the enquiry is won and
 // set up as a job, its RFIs become the job's.
@@ -17,7 +18,7 @@ export default function EnquiryRfis({ children }: { children: ReactNode }) {
   }, [enquiryId])
   const owner = useMemo<RfiOwner | null>(() => (e ? { kind: 'enquiry', id: e.id, ref: enquiryRef(e), name: e.name, base: `/estimating/e/${e.id}/rfis`, client: { name: e.client_name, contact: e.client_contact, email: e.client_email } } : null), [e])
   if (error) return <p className="error">{error}</p>
-  if (!e || !owner) return <p className="muted">Loading…</p>
+  if (!e || !owner) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />

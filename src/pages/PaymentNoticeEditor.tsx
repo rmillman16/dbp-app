@@ -11,6 +11,7 @@ import type { Adjustment, Block, Company, Order, PaymentNotice, SubAppLine, SubA
 import { useJob } from './JobLayout'
 import OmOutstanding from '../components/OmOutstanding'
 import MoneyInput from '../components/MoneyInput'
+import Loading from '../components/Loading'
 
 const BLOCKS: [Block, string][] = [
   ['measured', 'Contract works (measured)'],
@@ -62,7 +63,7 @@ export default function PaymentNoticeEditor() {
   )
 
   if (error && !pn) return <p className="error">{error}</p>
-  if (!order || !pn || !app || !totals || !company) return <p className="muted">Loading…</p>
+  if (!order || !pn || !app || !totals || !company) return <Loading />
 
   const dirty = () => setMsg(null)
   const setP = <K extends keyof PaymentNotice>(k: K, v: PaymentNotice[K]) => (dirty(), setPn({ ...pn, [k]: v }))

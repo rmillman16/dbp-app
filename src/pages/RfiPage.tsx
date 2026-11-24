@@ -35,6 +35,7 @@ import RichTextEditor from '../components/RichTextEditor'
 import ExternalAccess from '../components/ExternalAccess'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
+import Loading from '../components/Loading'
 
 // Job › RFIs › one RFI: the question, who it's with, replies, files; DBP's RFI manager closes it.
 export default function RfiPage() {
@@ -78,7 +79,7 @@ export default function RfiPage() {
 
   const assigneeNames = useMemo(() => (d ? d.people.filter((p) => p.role === 'assignee').map(ctx.nameOf).filter(Boolean) : []), [d, ctx.dir, ctx.profiles]) // eslint-disable-line react-hooks/exhaustive-deps
   if (error && !d) return <p className="error">{error}</p>
-  if (!d) return <p className="muted">Loading…</p>
+  if (!d) return <Loading />
   const { rfi, people, responses, files: rfiFiles } = d
   const canClose = isAdmin || me?.id === rfi.manager_id
   const finished = rfi.status === 'closed' || rfi.status === 'void'

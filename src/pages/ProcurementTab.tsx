@@ -13,6 +13,7 @@ import { GENERATED_FILE } from '../lib/programmeGen'
 import { addCompany } from '../lib/subcontracts'
 import type { Company } from '../lib/types'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 type Data = Awaited<ReturnType<typeof loadProcurement>>
 const today = todayIso()
@@ -36,7 +37,7 @@ export default function ProcurementTab() {
   }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading…</p>
+  if (!data) return <Loading />
 
   const run = async (f: () => Promise<unknown>, done?: string) => {
     setError(null)

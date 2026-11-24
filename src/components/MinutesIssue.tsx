@@ -5,6 +5,7 @@ import { buildMinutesPdf, minutesFilename } from '../lib/exportMinutes'
 import { downloadBlob } from '../lib/letter'
 import { loadIssues, revLetter, type IssueRecord, type Meeting } from '../lib/minutes'
 import { ukDate } from '../lib/format'
+import Loading from './Loading'
 
 export default function MinutesIssueBar({ meeting, archived, hubUrl, onAmend, onToast }: { meeting: Meeting; archived: boolean; hubUrl: string | null; onAmend: () => void; onToast: (msg: string, danger?: boolean) => void }) {
   const [open, setOpen] = useState(false)
@@ -57,7 +58,7 @@ export default function MinutesIssueBar({ meeting, archived, hubUrl, onAmend, on
       </div>
       {open && (
         <div className="issue-history">
-          {issues === null && <p className="muted">Loading…</p>}
+          {issues === null && <Loading />}
           {issues && issues.length === 0 && <p className="muted">Nothing found.</p>}
           {issues && issues.length > 0 && (
             <table>

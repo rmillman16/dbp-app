@@ -358,6 +358,79 @@ async function sendActions(db: any, getToken: () => Promise<string>, sender: str
   return sent;
 }
 
+// The Monday briefing (script 086): from 5am UK time on a Monday, each du Boulay person gets one friendly email with their week:
+// what is overdue, what falls due in the next 7 days (from their bell) and what they closed last week. Once per person per week
+// (weekly_briefings). Switched off by "email notifications" in My details.
+const BRIEF_GREETINGS = [
+  (n: string) => `Good morning${n ? ", " + n : ""}! Kettle on: here is your week.`,
+  (n: string) => `Morning${n ? " " + n : ""}. Here is what the week looks like, before you have even sat down.`,
+  (n: string) => `Happy Monday${n ? ", " + n : ""}! A quick look at what is ahead.`,
+  (n: string) => `Morning${n ? " " + n : ""}, hard hat on: this is your week.`,
+];
+// deno-lint-ignore no-explicit-any
+async function sendBriefings(db: any, getToken: () => Promise<string>, sender: string, appUrl: string) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+  );
+  const hour = Number(parts.hour);
+  if (parts.weekday !== "Mon" || hour < 5 || hour >= 12) return 0;
+  const today = `${parts.year}-${parts.month}-${parts.day}`;
+  const addDays = (iso: string, n: number) => new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
+  const weekEnd = addDays(today, 6);
+  const { data: people, error } = await db.from("profiles").select("id, email, full_name, email_notifications").ilike("email", "%@duboulay.co.uk");
+  if (error || !people?.length) return 0;
+  const { data: had, error: hadErr } = await db.from("weekly_briefings").select("profile_id").eq("week_start", today);
+  if (hadErr) return 0; // script 086 not run
+  const done = new Set((had ?? []).map((h: { profile_id: string }) => h.profile_id));
+  // deno-lint-ignore no-explicit-any
+  const todo = people.filter((p: any) => p.email && p.email_notifications !== false && !done.has(p.id)).slice(0, 25);
+  const weekNo = Math.floor(new Date(today + "T00:00:00Z").getTime() / (7 * 86400000));
+  const wk = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "");
+  let sent = 0;
+  for (const p of todo) {
+    const [open, wins] = await Promise.all([
+      db.from("notifications").select("title, due_date, link, kind").eq("profile_id", p.id).neq("status", "done").order("due_date", { nullsFirst: false }).limit(200),
+      db.from("meeting_points").select("id", { count: "exact", head: true }).eq("owner_profile_id", p.id).eq("done", true).gte("done_at", new Date(Date.now() - 7 * 86400000).toISOString()),
+    ]);
+    const rows = (open.data ?? []) as { title: string; due_date: string | null; link: string | null }[];
+    const overdue = rows.filter((r) => r.due_date && r.due_date < today);
+    const soon = rows.filter((r) => r.due_date && r.due_date >= today && r.due_date <= weekEnd);
+    const other = rows.length - overdue.length - soon.length;
+    const closed = wins.count ?? 0;
+    const first = p.full_name && p.full_name !== p.email ? String(p.full_name).split(" ")[0] : "";
+    const table = (list: typeof rows, late: boolean) =>
+      `<table style="border-collapse:collapse;width:100%;margin:0 0 6px">${list
+        .slice(0, 8)
+        .map((r) => `<tr><td style="padding:5px 8px;border-bottom:1px solid #e3e3ea;font-size:14px"><a href="${esc(appUrl + (r.link ?? "/"))}" style="color:#1f1d2b;text-decoration:none">${esc(r.title)}</a></td><td style="padding:5px 8px;border-bottom:1px solid #e3e3ea;font-size:13px;white-space:nowrap;${late ? "color:#c00;font-weight:600" : "color:#555"}">${wk(r.due_date)}</td></tr>`)
+        .join("")}</table>${list.length > 8 ? `<p style="margin:0 0 12px;font-size:12px;color:#777">…and ${list.length - 8} more in the app.</p>` : ""}`;
+    const head = (t: string) => `<p style="margin:18px 0 6px;font-weight:700;color:#1f1246">${t}</p>`;
+    const body = [
+      overdue.length ? head(`Overdue (${overdue.length})`) + table(overdue, true) : "",
+      soon.length ? head(`Due this week (${soon.length})`) + table(soon, false) : "",
+      !overdue.length && !soon.length ? `<p>Nothing is overdue or due this week. A clear start.</p>` : "",
+      other > 0 ? `<p style="font-size:13px;color:#555">Plus ${other} other thing${other === 1 ? "" : "s"} waiting with no date.</p>` : "",
+      closed > 0 ? `<p style="margin-top:18px;padding:10px 12px;background:#e8f5ec;border-radius:8px">Last week you closed <b>${closed}</b> action${closed === 1 ? "" : "s"} from meetings. Nice work.</p>` : "",
+    ].join("");
+    // recorded first, so a slow run or a retry never sends it twice; removed again if the send fails
+    const mark = await db.from("weekly_briefings").insert({ profile_id: p.id, week_start: today });
+    if (mark.error) continue;
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:600px">
+  <p style="font-size:17px;margin:0 0 4px">${esc(BRIEF_GREETINGS[weekNo % BRIEF_GREETINGS.length](first))}</p>
+  ${body}
+  <p style="margin:22px 0"><a href="${esc(appUrl)}/tasks" style="background:#2b2257;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Open my tasks</a></p>
+  <p style="font-size:12px;color:#777;margin:0">Sent every Monday morning. Switch it off with "email notifications" in My details.</p>
+</div>`;
+    const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await getToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: { subject: `Your week: ${overdue.length ? overdue.length + " overdue, " : ""}${soon.length} due this week`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: p.email } }] }, saveToSentItems: false }),
+    });
+    if (r.ok) sent++;
+    else await db.from("weekly_briefings").delete().eq("profile_id", p.id).eq("week_start", today);
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -433,6 +506,14 @@ Deno.serve(async (req) => {
       actionMails = await sendActions(db, token0, sender, appUrl);
     } catch (e) {
       console.warn("action emails:", e instanceof Error ? e.message : e);
+    }
+
+    // Monday morning: everyone's week ahead (script 086)
+    let briefings = 0;
+    try {
+      briefings = await sendBriefings(db, token0, sender, appUrl);
+    } catch (e) {
+      console.warn("monday briefing:", e instanceof Error ? e.message : e);
     }
 
     // the welcome email to anyone newly added to a job's project directory (script 078)

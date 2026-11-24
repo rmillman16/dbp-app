@@ -240,12 +240,30 @@ const SECTIONS: Section[] = [
     ),
   },
   {
+    id: 'extras',
+    group: 'Day to day',
+    title: 'Monday briefing and little celebrations',
+    body: (
+      <>
+        <p>
+          <b>Monday briefing:</b> every Monday morning, from 5am, you get one friendly email with your week: what is overdue, what is due in the next 7 days, how many meeting actions you closed last week, and a button to open your tasks. It is built from the same list as your bell. Switch it off with <b>email notifications</b> in My details.
+        </p>
+        <p>
+          <b>Milestone moments:</b> confetti and a banner when you clear the last snag on a job, tick off the last action of a meeting, or empty your My Day list. Nothing animates if your device is set to reduced motion.
+        </p>
+        <p>
+          <b>Loading lines:</b> while a page loads you will see a line of site humour instead of plain “Loading…”.
+        </p>
+      </>
+    ),
+  },
+  {
     id: 'email',
     group: 'Admin',
     title: 'Emails and reminders',
     body: (
       <>
-        <p>The app sends email from the DBP mailbox: new RFIs and chases, welcome emails, issued minutes, actions due and overdue, inspections due, reports due. Everyone can switch their own emails off in My details. Reminders only run once IT has set up the mailbox and the scheduled job for the app.</p>
+        <p>The app sends email from the DBP mailbox: new RFIs and chases, welcome emails, issued minutes, actions due and overdue, inspections due, reports due, and the Monday briefing. Everyone can switch their own emails off in My details. Reminders only run once IT has set up the mailbox and the scheduled job for the app.</p>
       </>
     ),
   },

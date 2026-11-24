@@ -32,6 +32,7 @@ function PackageOptions({ packages }: { packages: PkgOption[] }) {
 }
 import type { Cvr } from '../lib/types'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 const pct = (n: number) => `${(n * 100).toFixed(2)}%`
 const signed = (n: number | null) => (n == null ? '–' : `${n > 0 ? '+' : ''}${money(n)}`)
@@ -76,7 +77,7 @@ export default function CvrEditor() {
   }, [cvr, ctx, forecasts, final])
 
   if (error && !cvr) return <p className="error">{error}</p>
-  if (!cvr || !ctx || !result) return <p className="muted">Loading…</p>
+  if (!cvr || !ctx || !result) return <Loading />
 
   const run = async (f: () => Promise<unknown>, done?: string) => {
     setError(null)

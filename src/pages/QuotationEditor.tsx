@@ -13,6 +13,7 @@ import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
 import { parseSow } from '../lib/sowImport'
 import { readPricingPdf } from '../lib/readPdf'
+import Loading from '../components/Loading'
 
 // Pricing schedule from a priced SoW in Excel (our SoW template, client / office SoW, or an
 // application workbook) or from a PDF read by Claude: every priced line, or one line per
@@ -170,7 +171,7 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
   const total = priced.reduce((sum, l) => sum + lineTotal(l), 0)
 
   if (error && !q) return <p className="error">{error}</p>
-  if (!q) return <p className="muted">Loading…</p>
+  if (!q) return <Loading />
 
   const set = <K extends keyof Quotation>(k: K, v: Quotation[K]) => {
     setSaved(false)

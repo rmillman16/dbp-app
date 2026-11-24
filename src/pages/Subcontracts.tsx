@@ -40,6 +40,7 @@ import MoneyInput from '../components/MoneyInput'
 import OrderVariations from '../components/OrderVariations'
 import OrderFolder from '../components/OrderFolder'
 import { folderAccess, orderFolderName, writeInto } from '../lib/orderFolder'
+import Loading from '../components/Loading'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -548,7 +549,7 @@ export function OrderPage() {
   const pkg = useMemo(() => packages.find((p) => p.name === order?.package_name) ?? null, [packages, order?.package_name])
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data || !order) return <p className="muted">Loading…</p>
+  if (!data || !order) return <Loading />
 
   const setO = <K extends keyof Order>(k: K, v: Order[K]) => (setMsg(null), setOrder({ ...order, [k]: v }))
   const contact = contacts.find((c) => c.id === order.contact_id) ?? null

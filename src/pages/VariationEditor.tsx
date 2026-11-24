@@ -9,6 +9,7 @@ import { exportSingleVo } from '../lib/exportVariations'
 import { cached, must, saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
 import { loadRfiForVariation } from '../lib/rfis'
+import Loading from '../components/Loading'
 
 // Inputs are held as text while editing and converted on save.
 interface LineDraft {
@@ -229,7 +230,7 @@ export default function VariationEditor() {
   }
 
   if (error && !head) return <p className="error">{error}</p>
-  if (!head || !built) return <p className="muted">Loading…</p>
+  if (!head || !built) return <Loading />
 
   const section = (sec: VoSection) => (
     <>

@@ -24,6 +24,9 @@ import {
   type SnagFile,
   type SnagStatus,
 } from '../lib/snags'
+import Loading from '../components/Loading'
+import { supabase } from '../lib/supabase'
+import { celebrate } from '../lib/celebrate'
 
 // One snag: the form to make one (on a phone: photo first, then a name and where it is, then who has to put it right) and the
 // page for one that exists (change it, add photos, and, when a trade says it is done, check it and complete it or send it back).
@@ -232,7 +235,7 @@ export function SnagDetail() {
   }, [d]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !d) return <p className="error">{error}</p>
-  if (!d || !form) return <p className="muted">Loading…</p>
+  if (!d || !form) return <Loading />
   const { snag, files } = d
   const st = stateOf(snag)
   const raisedPhotos = files.filter((f) => f.kind === 'raised')
@@ -320,6 +323,9 @@ export function SnagDetail() {
                 run(async () => {
                   await updateSnag(snag.id, { status: 'complete' })
                   setForm((f) => f && { ...f, status: 'complete' })
+                  // the last one on the job: a moment worth a cheer
+                  const left = await supabase.from('snags').select('id', { count: 'exact', head: true }).eq('job_id', job.id).neq('status', 'complete')
+                  if (!left.error && left.count === 0) celebrate('Snag list cleared!', `Every snag on ${job.job_no} ${job.code} is complete.`)
                 }, 'Checked: the snag is complete.')
               }
             >

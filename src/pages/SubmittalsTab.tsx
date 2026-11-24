@@ -33,6 +33,7 @@ import RichTextEditor from '../components/RichTextEditor'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
 import SubmittalTemplates from '../components/SubmittalTemplates'
+import Loading from '../components/Loading'
 
 type Filter = 'draft' | 'out' | 'answered' | 'revise' | 'all'
 const ANSWERED: SubmittalStatus[] = ['approved', 'approved_noted']
@@ -174,7 +175,7 @@ export default function SubmittalsTab() {
         </select>
       </div>
 
-      {data === null && <p className="muted">Loading…</p>}
+      {data === null && <Loading />}
       {data && rows.length === 0 && !error && <p className="muted">No submittals yet. Add one with “+ New submittal”.</p>}
       {data && rows.length > 0 && shown.length === 0 && <p className="muted">None match those filters.</p>}
       {shown.length > 0 && (

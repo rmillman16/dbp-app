@@ -9,6 +9,7 @@ import { addCompany, loadCompanies } from '../lib/subcontracts'
 import { enquiryRef, moveEnquiryToJob } from '../lib/quotations'
 import { moveEnquiryProgramme } from '../lib/programme'
 import { loadEnquiry } from './Estimating'
+import Loading from '../components/Loading'
 
 // Every input is held as text while editing and converted on save.
 interface FormState {
@@ -246,7 +247,7 @@ export default function JobForm() {
     navigate(`/jobs/${result.data.id}`)
   }
 
-  if (loading) return <p className="muted">Loading…</p>
+  if (loading) return <Loading />
 
   return (
     <form className="card form" onSubmit={save}>

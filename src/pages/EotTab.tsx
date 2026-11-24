@@ -14,6 +14,7 @@ import { loadProgramme, loadRevisionData, type ProgrammeTask, type Shutdown } fr
 import { comparisonFrom, finishSlip, type Comparison } from '../lib/programmeCompare'
 import { revName } from '../lib/timelineFormat'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 const num = (v: string) => (v.trim() === '' ? null : Number(v))
 // the job's programme and its original (committed) programme, for quoting a task's slippage on an event
@@ -69,7 +70,7 @@ export default function EotTab() {
   }, [job]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !events) return <p className="error">{error}</p>
-  if (!events) return <p className="muted">Loading…</p>
+  if (!events) return <Loading />
 
   const prog = programme(job, events)
   const claimed = new Set(links.map((l) => l.event_id))

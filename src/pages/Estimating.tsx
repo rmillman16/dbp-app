@@ -12,6 +12,7 @@ import { loadProgramme } from '../lib/programme'
 import { TenderTracker } from './TenderEnquiry'
 import EnquiryHead from '../components/EnquiryHead'
 import { loadTracker } from '../lib/tender'
+import Loading from '../components/Loading'
 
 // Estimating (agreed 20 Nov): laid out like Jobs but simpler. A list of enquiries (small
 // works, new enquiries, tenders), each with its own quotations; when won, it's set up as
@@ -99,7 +100,7 @@ export default function Estimating() {
             </div>
           </div>
           {error && <p className="error">{error}</p>}
-          {enquiries === null && !error && <p className="muted">Loading…</p>}
+          {enquiries === null && !error && <Loading />}
           {enquiries && shown.length === 0 && <p className="muted">{enquiries.length === 0 ? 'No enquiries yet. Add the first one.' : 'No enquiries match.'}</p>}
           {shown.length > 0 && (
             <table className="table stack">
@@ -218,7 +219,7 @@ export function EnquiryForm() {
     navigate(`/estimating/e/${id}`)
   }
 
-  if (!form) return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>
+  if (!form) return error ? <p className="error">{error}</p> : <Loading />
   const set = (k: keyof Enquiry, v: string) => setForm({ ...form, [k]: v })
 
   return (
@@ -328,7 +329,7 @@ export function EnquiryPage() {
   }, [enquiryId])
 
   if (error && !e) return <p className="error">{error}</p>
-  if (!e) return <p className="muted">Loading…</p>
+  if (!e) return <Loading />
 
   return (
     <>
@@ -538,7 +539,7 @@ export function EnquiryReturn() {
     }
   }
   if (error && !e) return <p className="error">{error}</p>
-  if (!e) return <p className="muted">Loading…</p>
+  if (!e) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />
@@ -584,7 +585,7 @@ export function EnquiryProgramme() {
   }, [enquiryId])
   const owner = useMemo(() => ({ enquiryId: enquiryId! }), [enquiryId])
   if (error) return <p className="error">{error}</p>
-  if (!e) return <p className="muted">Loading…</p>
+  if (!e) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />
@@ -607,7 +608,7 @@ export function EnquiryTender() {
     loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
   }, [enquiryId])
   if (error) return <p className="error">{error}</p>
-  if (!e) return <p className="muted">Loading…</p>
+  if (!e) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />

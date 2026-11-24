@@ -32,6 +32,7 @@ import {
   isDefectsJob,
 } from '../lib/requisitions'
 import type { Job } from '../lib/types'
+import Loading from '../components/Loading'
 
 // Site (renamed from "Project management", 22 Nov): what site raises and the buyer works. Material
 // requisitions now, hire requisitions next. The material and hire buyer's lists (the back ends) show only to
@@ -172,7 +173,7 @@ export default function Site() {
           </div>
         )}
         {error && <p className="error">{error}</p>}
-        {rows === null && !error && <p className="muted">Loading…</p>}
+        {rows === null && !error && <Loading />}
         {rows && shown.length === 0 && <p className="muted">{rows.length === 0 ? 'No requisitions on your sites yet.' : 'None for this site.'}</p>}
         {shown.length > 0 && (
           <table className="table stack">
@@ -483,7 +484,7 @@ export function BuyerList() {
           </div>
         </div>
         {error && <p className="error">{error}</p>}
-        {rows === null && !error && <p className="muted">Loading…</p>}
+        {rows === null && !error && <Loading />}
         {rows && shown.length === 0 && <p className="muted">{rows.length === 0 ? 'No requisitions yet.' : 'None match.'}</p>}
         {shown.length > 0 && (
           <table className="table stack buyer-table">
@@ -640,7 +641,7 @@ export function RequisitionPage() {
       )
   }, [req])
 
-  if (!req) return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>
+  if (!req) return error ? <p className="error">{error}</p> : <Loading />
   const isRequester = userId != null && userId === req.requested_by
   const asBuyer = can(req.kind === 'hire' ? 'buyer_hire' : 'buyer_material')
 

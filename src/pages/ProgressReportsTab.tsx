@@ -4,6 +4,7 @@ import { addDaysIso, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
 import { REPORT_STATUS, createReport, loadReports, type ProgressReport } from '../lib/progressReports'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 // Job › Progress reports (23 Nov, script 064): the job's reports, newest first, and the next one due.
 export default function ProgressReportsTab() {
@@ -54,7 +55,7 @@ export default function ProgressReportsTab() {
         )}
       </p>
       {error && <p className="error">{error}</p>}
-      {reports === null && <p className="muted">Loading…</p>}
+      {reports === null && <Loading />}
       {reports?.length === 0 && !error && <p className="muted">No reports yet. Start the first with “+ New report”.</p>}
       {reports && reports.length > 0 && (
         <table className="table stack">

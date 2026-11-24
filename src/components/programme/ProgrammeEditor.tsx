@@ -72,6 +72,7 @@ import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
 import IssueMenu from './ProgrammeIssue'
 import { DeleteSectionDialog, DuplicateSectionDialog, LegendMenu, Modal, Popover, ShiftMenu, ShutdownMenu, TaskModal } from './ProgrammeParts'
 import '../../programme.css'
+import Loading from '../Loading'
 
 const COLWIDTHS_KEY = 'duboulay-timeline-colwidths-v1' // the same as Timeline's, so widths carry over
 const ZOOM_KEY = 'dbp-programme-zoom'
@@ -332,7 +333,7 @@ export default function ProgrammeEditor({
     }
   }
 
-  if (!loaded) return <p className="muted">Loading…</p>
+  if (!loaded) return <Loading />
   if (error && !w) return <p className="error">{error}</p>
   if (!w)
     return (

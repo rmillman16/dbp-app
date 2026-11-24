@@ -37,6 +37,7 @@ import {
 import { buildReportPdf } from '../lib/progressReportPdf'
 import { buildReportDocx } from '../lib/progressReportDocx'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 // Job › Progress reports › one report: the period, which sections are in, the narrative, photos, appendices; and the PDF / Word.
 export default function ProgressReportPage() {
@@ -107,7 +108,7 @@ export default function ProgressReportPage() {
   }, [job.id])
   const [dragHs, setDragHs] = useState(false) // keep with the other hooks: above the early returns
   if (error && !report) return <p className="error">{error}</p>
-  if (!report || !content) return <p className="muted">Loading…</p>
+  if (!report || !content) return <Loading />
   const num = numbering(sections)
   const setC = (patch: Partial<Content>) => setContent((c) => (c ? { ...c, ...patch } : c))
   const setSection = <K extends keyof Content>(k: K, patch: Partial<Content[K]>) => setContent((c) => (c ? { ...c, [k]: { ...(c[k] as object), ...patch } } : c))

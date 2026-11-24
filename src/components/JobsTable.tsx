@@ -5,6 +5,7 @@ import { money, ukDate } from '../lib/format'
 import { cached, must } from '../lib/offline'
 import { JOB_STATUS_LABELS, type Job, type JobStatus, type Profile } from '../lib/types'
 import { loadCompanies } from '../lib/subcontracts'
+import Loading from './Loading'
 
 type Filter = JobStatus | 'all'
 const FILTERS: Filter[] = ['live', 'tender', 'complete', 'archived', 'all']
@@ -75,7 +76,7 @@ export default function JobsTable({ title = 'Jobs' }: { title?: string }) {
       </div>
 
       {error && <p className="error">{error}</p>}
-      {jobs === null && !error && <p className="muted">Loading…</p>}
+      {jobs === null && !error && <Loading />}
       {jobs && shown.length === 0 && <p className="muted">{jobs.length === 0 ? 'No jobs yet. Add the first one.' : 'No jobs match.'}</p>}
       {shown.length > 0 && (
         <table className="table stack jobs-table">

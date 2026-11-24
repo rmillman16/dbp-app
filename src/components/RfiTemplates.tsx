@@ -3,6 +3,7 @@ import { saveError } from '../lib/offline'
 import { CHASE_OPTIONS, archiveTemplate, loadTemplates, saveTemplate, type RfiTemplate } from '../lib/rfis'
 import { TEAM_ROLES } from '../lib/om'
 import { DEFAULT_ROLES } from '../lib/roles'
+import Loading from './Loading'
 
 // Settings › RFI templates (23 Nov, script 057): a template fills in the people by ROLE, looked up in each job's project
 // directory and team, so one template works on every job: e.g. "Joinery subcontractor" finds whoever holds that role on
@@ -53,7 +54,7 @@ export default function RfiTemplates() {
         named people. A job can copy one of these, and its roles (e.g. "Joinery subcontractor" in the Project directory, "PM" on the Team) are filled in with that job's people, which you then adjust.
       </p>
       {error && <p className="error">{error}</p>}
-      {list === null && <p className="muted">Loading…</p>}
+      {list === null && <Loading />}
       {list && list.length === 0 && <p className="muted small">No templates yet (or script 057 hasn't been run).</p>}
       <ul className="std-list">
         {list?.map((t) => (

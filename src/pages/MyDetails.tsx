@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
 import { loadMe } from '../lib/admin'
 import type { Profile } from '../lib/types'
+import Loading from '../components/Loading'
 
 // Each user's own name, initials and job title: letters are signed with these and
 // references start with the initials (e.g. RM/DBP/DN/2).
@@ -14,7 +15,7 @@ export default function MyDetails() {
     loadMe().then(setMe, (e: Error) => setMsg(e.message))
   }, [])
 
-  if (!me) return msg ? <p className="error">{msg}</p> : <p className="muted">Loading…</p>
+  if (!me) return msg ? <p className="error">{msg}</p> : <Loading />
   const set = (k: 'full_name' | 'initials' | 'job_title' | 'phone', v: string) => setMe({ ...me, [k]: v || null })
 
   // emails on / off (script 041): saved straight away

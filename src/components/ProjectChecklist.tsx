@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { todayIso, ukDate } from '../lib/format'
 import type { Job } from '../lib/types'
+import Loading from './Loading'
 
 // Project checklist on the job Overview (24 Nov, script 076): health & safety and compliance items for the job, F10 first.
 // The standard items are added the first time the job's checklist is opened; each can be ticked, marked not applicable,
@@ -129,7 +130,7 @@ export default function ProjectChecklist({ job }: { job: Job }) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {items === null && !error && <p className="muted">Loading…</p>}
+      {items === null && !error && <Loading />}
       {open && items && (
         <div className="checklist-cols">
           {cats.map((cat) => (

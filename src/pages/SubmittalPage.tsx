@@ -40,6 +40,7 @@ import RichTextEditor from '../components/RichTextEditor'
 import ExternalAccess from '../components/ExternalAccess'
 import PeoplePicker from '../components/PeoplePicker'
 import SuggestInput from '../components/SuggestInput'
+import Loading from '../components/Loading'
 
 // Job › Submittals › one submittal: details, the revisions (what was submitted, the response, files), and the actions.
 export default function SubmittalPage() {
@@ -65,7 +66,7 @@ export default function SubmittalPage() {
   }, [submittalId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error && !d) return <p className="error">{error}</p>
-  if (!d) return <p className="muted">Loading…</p>
+  if (!d) return <Loading />
   const { s, people, revisions, files } = d
   const cur = revisions.find((r) => r.rev === s.current_rev)
   const curName = revName(s.current_rev, cur?.rev_label ?? s.rev_label)

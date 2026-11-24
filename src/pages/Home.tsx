@@ -6,6 +6,7 @@ import { nudgeEmails, useNotifications } from '../lib/notifications'
 import { loadMyDay, setTaskDone, stepCount, type Task } from '../lib/tasks'
 import NotificationList from '../components/NotificationList'
 import { useAccess } from '../lib/access'
+import { celebrate } from '../lib/celebrate'
 import { ADMIN_LIST_NAME } from '../lib/requisitions'
 
 // Home = "My day" (23 Nov): quick actions for what this person does most, then My Day (tasks I've added to My Day
@@ -42,7 +43,9 @@ function MyDay() {
   async function done(t: Task) {
     try {
       await setTaskDone(t.id, true)
-      setTasks((l) => (l ?? []).filter((x) => x.id !== t.id))
+      const rest = (tasks ?? []).filter((x) => x.id !== t.id)
+      setTasks(rest)
+      if (!rest.length) celebrate('My Day cleared!', 'Nice work: everything on today’s list is done.')
       reload()
       nudgeEmails()
     } catch (e) {

@@ -11,6 +11,7 @@ import { Insurances, OmStandardDocuments } from './Sections'
 import StandardDocuments from '../components/StandardDocuments'
 import RfiTemplates from '../components/RfiTemplates'
 import UsagePanel from '../components/UsagePanel'
+import Loading from '../components/Loading'
 
 export default function Settings() {
   return (
@@ -76,7 +77,7 @@ function CompanyDetails() {
     else setSaved(true)
   }
 
-  if (!form) return error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>
+  if (!form) return error ? <p className="error">{error}</p> : <Loading />
   const field = (key: string, label: string, props: Record<string, unknown> = {}) => (
     <label {...(props.wide ? { className: 'span-2' } : {})}>
       {label}

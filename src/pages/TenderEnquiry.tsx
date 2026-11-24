@@ -33,6 +33,7 @@ import {
   type TenderInvite,
   type TenderPackage,
 } from '../lib/tender'
+import Loading from '../components/Loading'
 
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
@@ -576,7 +577,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {!data && !error && <p className="muted">Loading…</p>}
+      {!data && !error && <Loading />}
       {data && packages.length === 0 && <p className="muted">{data.packages.length === 0 || (enquiryId && !data.packages.some((p) => p.enquiry_id === enquiryId)) ? 'Nothing sent out yet.' : 'Nothing matches.'}</p>}
       {packages.map((p) => {
         const e = enq[p.enquiry_id]

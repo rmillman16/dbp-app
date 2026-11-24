@@ -20,9 +20,11 @@ import { Icon, Mentions, useToast } from '../components/MinutesBits'
 import MinutesEmail from '../components/MinutesEmail'
 import MinutesDraft, { type DraftPoint } from '../components/MinutesDraft'
 import MinutesIssueBar from '../components/MinutesIssue'
+import { celebrate } from '../lib/celebrate'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
 import EnquiryHead from '../components/EnquiryHead'
+import Loading from '../components/Loading'
 
 interface StaffProfile {
   id: string
@@ -68,7 +70,7 @@ export function MinutesEnquiry() {
   }, [enquiryId])
   const owner = useMemo<M.MinutesOwner | null>(() => (e ? { jobId: null, enquiryId: e.id, label: `${enquiryRef(e)} · ${e.name}` } : null), [e])
   if (error) return <p className="error">{error}</p>
-  if (!e || !owner) return <p className="muted">Loading…</p>
+  if (!e || !owner) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />
@@ -872,6 +874,9 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     if (point.type !== 'heading') point.isAction = !point.done
     scheduleSave()
     rerender()
+    // the last open action of the meeting ticked off
+    const m = activeRef.current
+    if (point.done && m && M.countOpenActions(m) === 0) celebrate('All actions from this meeting are done!', 'Nothing left to carry forward.')
   }
   function removePoint(point: M.Point) {
     const m = activeRef.current!

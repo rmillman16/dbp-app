@@ -6,6 +6,7 @@ import { QUOTE_STATUS_LABELS, type Quotation } from '../lib/types'
 import { createQuotation, fullRef, loadQuotations } from '../lib/quotations'
 import { loadJobVariations, type VoWithLines } from '../lib/variations'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 export default function QuotationsRegister() {
   const { job } = useJob()
@@ -82,7 +83,7 @@ export default function QuotationsRegister() {
       )}
 
       {error && <p className="error">{error}</p>}
-      {quotes === null && !error && <p className="muted">Loading…</p>}
+      {quotes === null && !error && <Loading />}
       {quotes?.length === 0 && <p className="muted">No quotations yet.</p>}
       {quotes && quotes.length > 0 && (
         <table className="table stack">

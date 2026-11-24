@@ -20,6 +20,7 @@ import {
   type SnagState,
 } from '../lib/snags'
 import { buildSnagListPdf, snagFileName } from '../lib/exportSnags'
+import Loading from '../components/Loading'
 
 // Job › Snagging. Made for a phone: big touch targets, a card per snag, the + New snag button always in reach. Filter by status
 // and by trade; "Snag lists" compiles the whole list, or one per trade, and drafts the emails to each trade with their own link.
@@ -73,7 +74,7 @@ export default function SnaggingTab() {
   })
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading…</p>
+  if (!data) return <Loading />
 
   return (
     <div className="snag-page">

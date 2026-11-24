@@ -8,6 +8,7 @@ import { useAccess } from '../../lib/access'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
 import HsFiles from './HsFiles'
+import Loading from '../Loading'
 
 type Form = {
   incident_on: string; incident_time: string; location: string; kind: AccidentKind
@@ -329,7 +330,7 @@ export default function Accidents({ job, readOnly }: { job: Job; readOnly: boole
         </p>
       )}
       {error && <p className="error">{error}</p>}
-      {rows === null && <p className="muted">Loading…</p>}
+      {rows === null && <Loading />}
       {rows && rows.length === 0 && !error && <p className="muted">No reports. Good. If something happens, report it here the same day.</p>}
       {rows && rows.length > 0 && (
         <div className="table-scroll">

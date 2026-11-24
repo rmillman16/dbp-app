@@ -7,6 +7,7 @@ import { saveError } from '../../lib/offline'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
 import HsFiles from './HsFiles'
+import Loading from '../Loading'
 
 type Form = {
   diary_date: string
@@ -246,7 +247,7 @@ export default function SiteDiaries({ job, readOnly }: { job: Job; readOnly: boo
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {rows === null && <p className="muted">Loading…</p>}
+      {rows === null && <Loading />}
       {rows && rows.length === 0 && !error && <p className="muted">No diaries yet. Start today's: one a day for the job.</p>}
       {rows && rows.length > 0 && (
         <div className="table-scroll">

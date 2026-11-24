@@ -8,6 +8,7 @@ import { useAccess } from '../../lib/access'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
 import HsFiles from './HsFiles'
+import Loading from '../Loading'
 
 type Form = { delivered_on: string; supplier: string; note_ref: string; order_ref: string; description: string; quantity: string; received_by: string; condition: Condition; notes: string }
 const blank = (by: string): Form => ({ delivered_on: todayIso(), supplier: '', note_ref: '', order_ref: '', description: '', quantity: '', received_by: by, condition: 'ok', notes: '' })
@@ -166,7 +167,7 @@ export default function DeliveryNotes({ job, readOnly }: { job: Job; readOnly: b
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {rows === null && <p className="muted">Loading…</p>}
+      {rows === null && <Loading />}
       {rows && rows.length === 0 && !error && <p className="muted">No deliveries logged yet.</p>}
       {rows && rows.length > 0 && (
         <div className="table-scroll">

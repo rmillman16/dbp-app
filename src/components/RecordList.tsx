@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
+import Loading from './Loading'
 
 // A list of records from one table that an admin can open, edit, save, add and delete.
 // Used by the Templates pages (clauses, insurances, wording, O&M documents).
@@ -205,7 +206,7 @@ export default function RecordList(p: Props) {
         </div>
       )}
       {error && !openId && <p className="error">{error}</p>}
-      {rows === null && !error && <p className="muted">Loading…</p>}
+      {rows === null && !error && <Loading />}
       {rows?.length === 0 && <p className="muted">{p.emptyText ?? 'Nothing here yet.'}</p>}
       {groups.map(({ g, items }) => (
         <div key={g}>

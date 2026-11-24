@@ -1535,3 +1535,12 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
   .help-menu { position: static; width: auto; height: auto; flex: none; border-right: 0; border-bottom: 1px solid #d9d9e0; }
   .help-main { padding: 16px; }
 }
+/* ---------- 24 Nov: site-flavoured loading lines and milestone moments ---------- */
+.loading-line { font-style: italic; }
+.celebrate { position: fixed; inset: 0; pointer-events: none; z-index: 200; overflow: hidden; }
+.celebrate-banner { position: absolute; left: 50%; top: 18%; transform: translateX(-50%); background: #1f1246; color: #fff; padding: 14px 22px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); text-align: center; display: flex; flex-direction: column; gap: 4px; animation: celebrate-pop 0.35s ease-out; max-width: 90vw; }
+.celebrate-banner strong { font-size: 18px; }
+.celebrate-banner span { font-size: 13px; opacity: 0.85; }
+.confetti { position: absolute; top: -14px; width: 9px; height: 14px; border-radius: 2px; animation: confetti-fall linear forwards; }
+@keyframes confetti-fall { to { top: 105vh; margin-left: 40px; } }
+@keyframes celebrate-pop { from { transform: translateX(-50%) scale(0.7); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }

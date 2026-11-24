@@ -10,6 +10,7 @@ import { RequireAccess as A } from './components/NoAccess'
 import JobsTable from './components/JobsTable'
 import SignIn from './pages/SignIn'
 import Home from './pages/Home'
+import Loading from './components/Loading'
 
 // Pages load when first opened (a smaller first download), not all at once.
 const JobForm = lazy(() => import('./pages/JobForm'))
@@ -130,7 +131,7 @@ export default function App() {
     <AccessProvider>
       <Layout email={email}>
         <ConnectionBoundary key={pathname}>
-        <Suspense fallback={<p className="muted">Loading…</p>}>
+        <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route

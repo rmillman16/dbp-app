@@ -38,6 +38,7 @@ import type { Job } from '../lib/types'
 import { useJob } from './JobLayout'
 import { useAccess } from '../lib/access'
 import { supabase } from '../lib/supabase'
+import Loading from '../components/Loading'
 
 type Data = Awaited<ReturnType<typeof loadCashflow>>
 
@@ -94,7 +95,7 @@ export default function CashflowTab() {
   )
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data || !result) return <p className="muted">Loading…</p>
+  if (!data || !result) return <Loading />
 
   const run = async (f: () => Promise<unknown>, done?: string) => {
     setError(null)

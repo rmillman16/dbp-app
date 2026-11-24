@@ -54,6 +54,7 @@ import type { Job } from '../lib/types'
 import { useJob } from './JobLayout'
 import '../om.css'
 import SuggestInput from '../components/SuggestInput'
+import Loading from '../components/Loading'
 
 // what's shown (23 Nov, Richard): all, received (has a link) or missing; removed items only when asked for.
 // Remembered per job on this device.
@@ -131,7 +132,7 @@ export default function OmTab() {
   }, [data])
 
   if (error && !data) return <p className="error">{error}</p>
-  if (!data) return <p className="muted">Loading…</p>
+  if (!data) return <Loading />
 
   const run: Run = async (what, done) => {
     setError(null)

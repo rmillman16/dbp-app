@@ -4,6 +4,7 @@ import { addDaysIso, money, ukDate } from '../lib/format'
 import { useAccess, type Section as Part } from '../lib/access'
 import { CLIENT_PAYMENT_DAYS, TARGET_MARGIN_PCT, loadDashboard, type Dashboard as Data, type JobRow } from '../lib/dashboard'
 import { APP_STATUS_LABELS, ENQUIRY_STATUS_LABELS, JOB_STATUS_LABELS, type AppStatus, type Job, type JobStatus } from '../lib/types'
+import Loading from '../components/Loading'
 
 // Management › the company dashboard: the directors' overview (23 Nov; docs/decisions.md "Company dashboard").
 // Headline tiles, then Cash · Pipeline · Margin & risk · Programme & delivery, then every job in one table.
@@ -97,7 +98,7 @@ export default function Dashboard() {
         <span className="muted small">All figures exclude VAT. Pipeline and win rate are company-wide.</span>
       </div>
       {error && <p className="error">{error}</p>}
-      {!data && !error && <p className="muted">Loading…</p>}
+      {!data && !error && <Loading />}
       {data && (
         <>
           <div className="dash-tiles">

@@ -2,6 +2,7 @@
 // or 90 days. Page views only: nothing typed into the app is recorded.
 import { useEffect, useState } from 'react'
 import { loadUsage, type UsageArea, type UsageDay, type UsagePerson } from '../lib/usage'
+import Loading from './Loading'
 
 const AREA: Record<string, string> = {
   home: 'Home', tasks: 'Tasks', dashboard: 'Dashboard', jobs: 'Jobs', estimating: 'Estimating', contracts: 'Contracts', site: 'Site (requisitions)',
@@ -65,7 +66,7 @@ export default function UsagePanel() {
       </div>
       <p className="muted small intro">What the team opens most. This counts page views by area and tab; nothing typed into the app is recorded.</p>
       {error && <p className="error">{error}</p>}
-      {!data && !error && <p className="muted">Loading…</p>}
+      {!data && !error && <Loading />}
       {data && totalViews === 0 && <p className="muted">Nothing recorded yet. Usage is counted from the day script 080 was run.</p>}
       {data && totalViews > 0 && (
         <>

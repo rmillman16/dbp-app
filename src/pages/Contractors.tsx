@@ -32,6 +32,7 @@ import {
 } from '../lib/pqq'
 import ContactsEditor, { loadContacts, type Contact } from '../components/ContactsEditor'
 import type { Company, CompanyType, PqqPack, PqqStatus, Profile } from '../lib/types'
+import Loading from '../components/Loading'
 
 // The company list: subcontractors, suppliers, clients, consultants. Used for orders and
 // payment notices (name and address printed) and the CVR (iPlicit code). From 23 Nov (script 054) it also
@@ -193,7 +194,7 @@ export default function Contractors() {
             onCancel={() => setAdding(false)}
           />
         )}
-        {companies === null && !error && <p className="muted">Loading…</p>}
+        {companies === null && !error && <Loading />}
         {companies && shown.length === 0 && <p className="muted">Nobody here{filter || q ? ' matching that' : ' yet'}.</p>}
         <ul className="company-list">
           {shown.map((c) => {

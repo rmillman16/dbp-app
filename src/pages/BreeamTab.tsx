@@ -4,6 +4,7 @@ import { useJob } from './JobLayout'
 import { ACTIONS, STATUSES, addItems, deleteItem, deleteItems, fileEvidence, lineKey, loadBreeam, loadEvidence, readTracker, removeEvidence, scoreOverview, updateItem, type BreeamEvidence, type BreeamItem, type BreeamStatus } from '../lib/breeam'
 import { chooseFolder, folderAccess, folderSupported, linkedFolderName, unlinkFolder } from '../lib/orderFolder'
 import { loadXlsx } from '../lib/xlsxLoad'
+import Loading from '../components/Loading'
 
 // Job › BREEAM (script 071): the tracker, worked like the sampling tracker. A dropdown per line, filters by status and category,
 // an import from the Excel tracker the assessor sends, and an export to send it back.
@@ -398,7 +399,7 @@ export default function BreeamTab() {
   }
 
   if (error && !items) return <p className="error">{error}</p>
-  if (!items) return <p className="muted">Loading…</p>
+  if (!items) return <Loading />
 
   return (
     <div className="breeam-page">

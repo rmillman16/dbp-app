@@ -8,6 +8,7 @@ import { appName, frontSheet, loadApplication, loadApplications, loadSowRevision
 import { exportApplication } from '../lib/exportApplication'
 import { APP_STATUS_LABELS, type Application, type ApplicationLine, type AppStatus, type SowLine } from '../lib/types'
 import { useJob } from './JobLayout'
+import Loading from '../components/Loading'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const pctText = (p: number | null | undefined) => (p == null ? '' : String(Math.round(p * 10000) / 100))
@@ -60,7 +61,7 @@ export default function ApplicationEditor() {
   const fsPrev = useMemo(() => (prev ? frontSheet(job, prev.app, sow, prev.lines, vos) : null), [job, prev, sow, vos])
 
   if (error && !app) return <p className="error">{error}</p>
-  if (!app || !fs) return <p className="muted">Loading…</p>
+  if (!app || !fs) return <Loading />
 
   const setA = <K extends keyof Application>(k: K, v: Application[K]) => {
     setSaved(false)

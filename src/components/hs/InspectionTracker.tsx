@@ -9,6 +9,7 @@ import { ukDate } from '../../lib/format'
 import { chooseFolder, folderAccess, folderSupported, linkedFolderName, unlinkFolder } from '../../lib/orderFolder'
 import { FREQUENCIES, STATE_LABEL, deleteReport, loadTrackers, logReport, nextDue, reportUrl, saveTracker, stateOf, todayIso, type Report, type Tracker } from '../../lib/hsTracker'
 import type { Job } from '../../lib/types'
+import Loading from '../Loading'
 
 type Person = { id: string; full_name: string | null; email: string | null }
 const NAME = 'External H&S inspection'
@@ -186,7 +187,7 @@ export default function InspectionTracker({ job, readOnly }: { job: Job; readOnl
       </div>
 
       <h3 className="sub-head">Reports</h3>
-      {tracker === undefined && <p className="muted">Loading…</p>}
+      {tracker === undefined && <Loading />}
       {tracker !== undefined && sorted.length === 0 && <p className="muted small">None logged yet.</p>}
       {sorted.length > 0 && (
         <div className="table-scroll">
