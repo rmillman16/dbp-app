@@ -1545,3 +1545,20 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 @keyframes confetti-fall { to { top: 105vh; margin-left: 40px; } }
 @keyframes celebrate-pop { from { transform: translateX(-50%) scale(0.7); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 .app-new { border: 1px solid #c9d3e3; border-left: 4px solid #007abe; background: #eef3fa; border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }
+/* Orders: the money, filters and the checks before placing (24 Nov) */
+.order-money { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.order-money > div { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: #fafafc; }
+.order-money > div strong { font-size: 17px; color: var(--navy); }
+.order-money > div.em { border-color: var(--navy); }
+.order-money > div.bad { background: var(--red-bg); border-color: var(--red); }
+.order-money > div.bad strong { color: var(--red); }
+.order-money > div.good strong { color: #1b6e3c; }
+.ok-text { color: #1b6e3c; }
+.order-filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.order-filters input[type=search] { flex: 1 1 220px; max-width: 320px; margin-left: auto; }
+.place-gate { border-left: 4px solid #1b6e3c; }
+.place-gate.has-stop { border-left-color: var(--amber); background: var(--amber-bg); }
+.gate-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gate-list li.stop { color: var(--red); font-weight: 600; }
+.gate-list li.note { color: var(--ink); }
+.gate-mark { display: inline-block; width: 1.4em; }

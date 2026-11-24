@@ -41,6 +41,8 @@ import OrderVariations from '../components/OrderVariations'
 import OrderFolder from '../components/OrderFolder'
 import { folderAccess, orderFolderName, writeInto } from '../lib/orderFolder'
 import Loading from '../components/Loading'
+import { loadDocsFor, loadOrderMoneyData, orderMoney, placeChecks, type OrderMoney, type OrderMoneyData, type PlaceCheck } from '../lib/orderMoney'
+import type { CompanyDoc } from '../lib/pqq'
 
 // old links (bell, bookmarks) to the tab's old name
 export function OldOrdersLink() {
@@ -68,15 +70,35 @@ export default function SubcontractsTab() {
   const [packages, setPackages] = useState<OrderPackage[]>([])
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [moneyData, setMoneyData] = useState<OrderMoneyData | null>(null)
+  const [filter, setFilter] = useState<'all' | 'draft' | 'placed' | 'over'>('all')
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    loadOrders(job.id).then(setOrders, (e: Error) => setError(e.message))
+    loadOrders(job.id).then(
+      (os) => {
+        setOrders(os)
+        loadOrderMoneyData(os.map((o) => o.id)).then(setMoneyData, () => {})
+      },
+      (e: Error) => setError(e.message),
+    )
     loadCompanies().then(setCompanies, () => {})
     loadOrderPackages(job).then(setPackages, () => {})
   }, [job])
 
   const byId = new Map(companies.map((c) => [c.id, c]))
   const pkgLabel = (o: Order) => packages.find((p) => p.name === o.package_name)?.label ?? o.trade ?? '–'
+  const moneyOf = (o: Order): OrderMoney | null => (moneyData ? orderMoney(o, packages.find((p) => p.name === o.package_name)?.budget || null, moneyData) : null)
+  const rows = (orders ?? [])
+    .map((o) => ({ o, m: moneyOf(o) }))
+    .filter(({ o, m }) => {
+      if (filter === 'draft' && o.status !== 'draft') return false
+      if (filter === 'placed' && o.status === 'draft') return false
+      if (filter === 'over' && !(m?.vsBudget != null && m.vsBudget < 0)) return false
+      const q = search.trim().toLowerCase()
+      return !q || [o.order_no, pkgLabel(o), byId.get(o.company_id)?.name].some((s) => (s ?? '').toLowerCase().includes(q))
+    })
+  const sum = (f: (m: OrderMoney) => number) => rows.reduce((t, { m }) => t + (m ? f(m) : 0), 0)
   return (
     <section className="card">
       <div className="pane-head">
@@ -97,7 +119,18 @@ export default function SubcontractsTab() {
       )}
       {error && <p className="error">{error}</p>}
       {orders?.length === 0 && !adding && <p className="muted">No orders yet. Add one to place it, then take applications and payment notices against it.</p>}
-      {orders && orders.length > 0 && (
+      {orders && orders.length > 1 && (
+        <div className="order-filters">
+          {([['all', 'All'], ['draft', 'Drafts'], ['placed', 'Placed'], ['over', 'Over budget']] as const).map(([k, l]) => (
+            <button key={k} type="button" className={`small-button ${filter === k ? 'primary' : ''}`} onClick={() => setFilter(k)}>
+              {l}
+            </button>
+          ))}
+          <input type="search" placeholder="Search order, package or company…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      )}
+      {orders && orders.length > 0 && rows.length === 0 && <p className="muted">No orders match.</p>}
+      {orders && rows.length > 0 && (
         <table className="table stack">
           <thead>
             <tr>
@@ -105,12 +138,15 @@ export default function SubcontractsTab() {
               <th>Package</th>
               <th>Subcontractor / supplier</th>
               <th className="num">Order value</th>
+              <th className="num">v budget</th>
+              <th className="num">Certified</th>
+              <th className="num">Paid</th>
               <th>Delivery / start</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            {orders.map((o) => (
+            {rows.map(({ o, m }) => (
               <tr key={o.id} className="clickable" onClick={() => navigate(o.id)}>
                 <td className="stack-title">
                   <strong>{o.order_no ?? <span className="late">none</span>}</strong>
@@ -120,7 +156,26 @@ export default function SubcontractsTab() {
                   {byId.get(o.company_id)?.name ?? '–'} <PqqChip company={byId.get(o.company_id)} />
                 </td>
                 <td className="num" data-label="Order value">
-                  {money(o.order_value)}
+                  {money(m && m.variations ? m.revised : o.order_value)}
+                  {m && m.variations !== 0 && <span className="muted small"> incl. {money(m.variations)} variations</span>}
+                </td>
+                <td className={`num ${m?.vsBudget == null ? 'stack-hide' : ''}`} data-label="v budget">
+                  {m?.vsBudget != null && (
+                    <span className={m.vsBudget < 0 ? 'late' : m.vsBudget > 0 ? 'ok-text' : 'muted'}>
+                      {m.vsBudget < 0 ? `${money(-m.vsBudget)} over` : m.vsBudget > 0 ? `${money(m.vsBudget)} under` : 'on budget'}
+                    </span>
+                  )}
+                </td>
+                <td className={`num ${!m?.certified ? 'stack-hide' : ''}`} data-label="Certified">
+                  {m && m.certified > 0 && (
+                    <>
+                      {money(m.certified)}
+                      {m.pctCertified != null && <span className="muted small"> {m.pctCertified}%</span>}
+                    </>
+                  )}
+                </td>
+                <td className={`num ${!m?.paid ? 'stack-hide' : ''}`} data-label="Paid">
+                  {m && m.paid > 0 && money(m.paid)}
                 </td>
                 <td data-label="Delivery / start">{o.delivery_date ? ukDate(o.delivery_date) : <span className="muted">–</span>}</td>
                 <td data-label="Status">
@@ -130,6 +185,26 @@ export default function SubcontractsTab() {
               </tr>
             ))}
           </tbody>
+          {rows.length > 1 && moneyData && (
+            <tfoot>
+              <tr className="total-row">
+                <td className="stack-title" colSpan={3}>
+                  <strong>Total ({rows.length} orders)</strong>
+                </td>
+                <td className="num" data-label="Order value">
+                  <strong>{money(sum((m) => m.revised))}</strong>
+                </td>
+                <td className="stack-hide" />
+                <td className="num" data-label="Certified">
+                  <strong>{money(sum((m) => m.certified))}</strong>
+                </td>
+                <td className="num" data-label="Paid">
+                  <strong>{money(sum((m) => m.paid))}</strong>
+                </td>
+                <td colSpan={2} className="stack-hide" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       )}
     </section>
@@ -523,8 +598,15 @@ export function OrderPage() {
   const [msg, setMsg] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const savedVars = useRef<SubVariation[]>([])
+  const [moneyData, setMoneyData] = useState<OrderMoneyData | null>(null)
+  const [siblings, setSiblings] = useState<Order[]>([])
+  const [docs, setDocs] = useState<CompanyDoc[]>([])
+  // the checks before placing: shown instead of a plain "are you sure", and the order only goes after "I understand"
+  const [gate, setGate] = useState<{ checks: PlaceCheck[]; then: 'place' | 'email'; ok: boolean } | null>(null)
 
   useEffect(() => {
+    loadOrderMoneyData([orderId!]).then(setMoneyData, () => {})
+    loadOrders(job.id).then(setSiblings, () => {})
     loadOrder(orderId!).then(
       (d) => {
         setData(d)
@@ -536,6 +618,7 @@ export function OrderPage() {
           () => {},
         )
         loadContacts(d.order.company_id).then(setContacts, () => {})
+        loadDocsFor(d.order.company_id).then(setDocs)
       },
       (e: Error) => setError(e.message),
     )
@@ -558,6 +641,16 @@ export function OrderPage() {
   const withPqq = !!company && company.pqq_status !== undefined && needsPqq(company)
   const placed = order.status !== 'draft'
   const hasPaymentTerms = library.some((d) => /payment|application/i.test(d.name))
+  const money_ = moneyData ? orderMoney(order, pkg?.budget || null, moneyData) : null
+
+  // placing (or emailing a draft, which places it): look first, then ask only if something needs a second look
+  function askToPlace(then: 'place' | 'email') {
+    if (!order) return
+    if (!order.package_name) return setError('Choose the package first: placing the order marks it Ordered on the procurement schedule.')
+    const checks = placeChecks({ order, company, docs, budget: pkg?.budget || null, others: siblings })
+    setError(null)
+    setGate({ checks, then, ok: false })
+  }
 
   async function save(quiet = false) {
     if (!order) return false
@@ -635,8 +728,6 @@ export function OrderPage() {
 
   async function place() {
     if (!order) return
-    if (!order.package_name) return setError('Choose the package first: placing the order marks it Ordered on the procurement schedule.')
-    if (!confirm(`Place order ${order.order_no ?? ''}? The procurement schedule's ${packageLabel} row will show ${company?.name ?? 'them'}, ${money(order.order_value)}, Ordered.`)) return
     if (!(await save(true))) return
     try {
       setOrder(await placeOrder(order, me?.id ?? null))
@@ -660,10 +751,10 @@ export function OrderPage() {
   }
 
   // the email to them, as an Outlook draft: the order, every appendix, and the PQQ pack if they're not approved
-  async function email() {
+  async function email(gated = false) {
     if (!order || !company) return
     setError(null)
-    if (!placed && !confirm('This order is still a draft. Place it now and make the email?')) return
+    if (!placed && !gated) return askToPlace('email') // a draft is placed first, after the checks
     if (!placed) {
       if (!order.package_name) return setError('Choose the package first.')
       if (!(await save(true))) return
@@ -749,11 +840,11 @@ export function OrderPage() {
             {busy === 'word' ? 'Making…' : 'Order (Word)'}
           </button>
           {!placed && (
-            <button onClick={place} disabled={!!busy}>
+            <button onClick={() => askToPlace('place')} disabled={!!busy}>
               Place order
             </button>
           )}
-          <button onClick={email} disabled={!!busy}>
+          <button onClick={() => email()} disabled={!!busy}>
             {busy === 'email' ? 'Building…' : 'Email (Outlook draft)'}
           </button>
           <button className="primary" onClick={() => save()} disabled={!!busy}>
@@ -770,7 +861,102 @@ export function OrderPage() {
           <Link to={`/contractors?company=${company!.id}`}>PQQ in Supply Chain</Link>
         </p>
       )}
+      {gate && (
+        <section className={`card place-gate ${gate.checks.some((c) => c.level === 'stop') ? 'has-stop' : ''}`}>
+          <h2>{gate.then === 'email' ? 'Place this order and make the email?' : `Place order ${order.order_no ?? ''}?`}</h2>
+          {gate.checks.length === 0 ? (
+            <p className="saved">✓ Nothing to flag: the subcontractor's PQQ and documents are in date, the value is within budget and the order is complete.</p>
+          ) : (
+            <ul className="gate-list">
+              {gate.checks.map((c, i) => (
+                <li key={i} className={c.level}>
+                  <span className="gate-mark">{c.level === 'stop' ? '⚠' : 'ℹ'}</span> {c.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="muted small">
+            Placing it fills in the procurement schedule: {packageLabel} shows {company?.name ?? 'them'}, {money(order.order_value)}, Ordered.
+          </p>
+          {gate.checks.some((c) => c.level === 'stop') && (
+            <label className="check">
+              <span>
+                <input type="checkbox" checked={gate.ok} onChange={(e) => setGate({ ...gate, ok: e.target.checked })} /> I've seen the warnings above and want to place the order anyway
+              </span>
+            </label>
+          )}
+          <p>
+            <button
+              className="primary"
+              disabled={!!busy || (gate.checks.some((c) => c.level === 'stop') && !gate.ok)}
+              onClick={() => {
+                const next = gate.then
+                setGate(null)
+                if (next === 'place') place()
+                else email(true)
+              }}
+            >
+              {gate.then === 'email' ? 'Place and make the email' : 'Place order'}
+            </button>{' '}
+            <button type="button" onClick={() => setGate(null)}>
+              Cancel
+            </button>
+          </p>
+        </section>
+      )}
       <OmOutstanding jobId={job.id} orderId={order.id} />
+
+      {money_ && (money_.budget || money_.certified > 0 || money_.variations !== 0 || money_.variationsPending !== 0 || money_.orderValue > 0) && (
+        <section className="card">
+          <h2>The money</h2>
+          <div className="order-money">
+            {money_.budget != null && (
+              <div>
+                <span className="muted small">Package budget</span>
+                <strong>{money(money_.budget)}</strong>
+              </div>
+            )}
+            <div>
+              <span className="muted small">Order value</span>
+              <strong>{money(money_.orderValue)}</strong>
+            </div>
+            <div>
+              <span className="muted small">Instructed variations</span>
+              <strong>{money(money_.variations)}</strong>
+              {money_.variationsPending !== 0 && <span className="muted small">+ {money(money_.variationsPending)} not yet instructed</span>}
+            </div>
+            <div className="em">
+              <span className="muted small">Revised order value</span>
+              <strong>{money(money_.revised)}</strong>
+            </div>
+            {money_.vsBudget != null && (
+              <div className={money_.vsBudget < 0 ? 'bad' : 'good'}>
+                <span className="muted small">Against budget</span>
+                <strong>{money_.vsBudget < 0 ? `${money(-money_.vsBudget)} over` : money_.vsBudget > 0 ? `${money(money_.vsBudget)} saving` : 'On budget'}</strong>
+              </div>
+            )}
+            <div>
+              <span className="muted small">Certified to date{money_.notices ? ` (notice ${money_.notices})` : ''}</span>
+              <strong>{money(money_.certified)}</strong>
+              {money_.pctCertified != null && money_.certified > 0 && <span className="muted small">{money_.pctCertified}% of the revised value</span>}
+            </div>
+            <div>
+              <span className="muted small">Retention held ({order.retention_pct}%)</span>
+              <strong>{money(money_.retention)}</strong>
+            </div>
+            <div>
+              <span className="muted small">Paid to date (after retention)</span>
+              <strong>{money(money_.paid)}</strong>
+              {money_.toPay > 0 && <span className="muted small">{money(money_.toPay)} certified, not yet paid</span>}
+            </div>
+            <div>
+              <span className="muted small">Still to certify</span>
+              <strong>{money(money_.remaining)}</strong>
+            </div>
+          </div>
+          {!money_.notices && placed && <p className="muted small">Nothing certified yet: this fills in as payment notices are issued.</p>}
+        </section>
+      )}
 
       <section className="card">
         <h2>Order</h2>
