@@ -1566,3 +1566,27 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .sig-box { border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 130px; background: #fff; margin: 10px 0; outline: none; overflow-x: auto; }
 .sig-box:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(0,122,190,.15); }
 .sig-preview { border: 1px dashed var(--line); border-radius: 8px; padding: 12px; background: #fafafc; overflow-x: auto; }
+/* ---------- company cashflow on the Dashboard, and the outbox (24 Nov) ---------- */
+.cf-bars { display: flex; align-items: stretch; gap: 6px; height: 170px; margin: 12px 0 4px; overflow-x: auto; padding-bottom: 2px; }
+.cf-col { flex: 1 0 34px; display: flex; flex-direction: column; align-items: stretch; min-width: 34px; }
+.cf-stack { flex: 1; position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 2px; border-bottom: 1px solid var(--border, #d7d7e0); }
+.cf-bar { width: 42%; min-height: 0; border-radius: 3px 3px 0 0; }
+.cf-bar.forecast { background: #007abe; }
+.cf-bar.risk { background: #e0a100; }
+.cf-bar.applied { background: #1f1246; }
+.cf-col.now .cf-label { font-weight: 700; }
+.cf-col.now .cf-stack { background: rgba(0, 122, 190, 0.07); }
+.cf-label { font-size: 11px; text-align: center; color: var(--muted, #6b6b78); padding-top: 3px; white-space: nowrap; }
+.cf-key { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+.cf-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.cf-swatch.forecast { background: #007abe; }
+.cf-swatch.risk { background: #e0a100; }
+.cf-swatch.applied { background: #1f1246; }
+.dash-now td { background: rgba(0, 122, 190, 0.06); }
+.mobile-offline:empty { display: none; }
+.outbox { position: relative; display: inline-block; }
+.outbox-pill { cursor: pointer; border: 0; font: inherit; }
+.outbox-pill.bad { background: #fde8e8; color: #9b1c1c; }
+.outbox-panel { position: absolute; z-index: 30; top: 120%; left: 0; width: min(380px, 90vw); text-align: left; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
+.outbox-panel ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+.outbox-panel li { display: grid; gap: 2px; }

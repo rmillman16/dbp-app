@@ -46,7 +46,6 @@ export type Section =
   | 'contractors'
 // the parts of the app, as ticked in Settings › Access (Settings itself is admins only)
 export const SECTIONS: [Section, string, string][] = [
-  ['dashboard', 'Dashboard', 'The directors’ overview: value, cash, pipeline, margin and risk, programme and delivery across every job'],
   ['jobs', 'Jobs', 'The jobs list and each job’s Overview'],
   ['job_programme', 'Job › Programme', ''],
   ['job_commercial', 'Job › Commercial', 'Variations, quotations, applications, payment notices, cashflow, CVR'],
@@ -106,6 +105,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   const can = (s: Section) => {
     if (!ready) return true // don't flash "no access" while loading
     if (isAdmin) return true
+    if (s === 'dashboard') return false // the Dashboard is for admins only (24 Nov), whatever the grid says
     if (roles.length === 0) return s.startsWith('buyer_') ? !!me?.is_operations : true
     return grid.some((g) => roles.includes(g.role) && g.section === s)
   }

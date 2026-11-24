@@ -15,6 +15,7 @@ import {
   loadSnag,
   removeSnagFile,
   snagPhotoUrl,
+  snagNo,
   snagRef,
   stateOf,
   sendBackSnag,
@@ -99,14 +100,14 @@ export function SnagNew() {
   async function save(another: boolean) {
     setError(null)
     if (!title.trim()) return setError('Give the snag a name.')
-    if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
       const a = pick.byKey(assignee[0])
+      // offline, it is kept on this device and sent when the signal is back (lib/outbox.ts)
       const s = await createSnag({ job_id: job.id, title, description, location, assignee_id: a?.id ?? null, trade: a?.trade ?? null, status }, photos)
       if (another) {
         // keep the location and assignee: the next snag is usually in the same place
-        setSaved(`Snag ${s.number} saved.`)
+        setSaved(s.number ? `Snag ${s.number} saved.` : 'Saved on this device: it will be sent, and numbered, when you have signal.')
         setTitle('')
         setDescription('')
         setPhotos([])
@@ -302,7 +303,7 @@ export function SnagDetail() {
             ← All snags
           </Link>
           <h2>
-            Snag {snag.number} <span className={`snag-chip ${st}`}>{STATE_LABEL[st]}</span>
+            Snag {snagNo(snag.number)} <span className={`snag-chip ${st}`}>{STATE_LABEL[st]}</span>
           </h2>
           <span className="muted small">{snagRef(job, snag.number)} · raised {ukDate(snag.created_at.slice(0, 10))}</span>
         </div>

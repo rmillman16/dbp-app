@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { ACCIDENT_KINDS, PERSON_TYPES, RIDDOR, SEVERITIES, accidentRef, deleteRow, loadRows, saveRow, type AccidentKind, type AccidentReport, type Riddor, type Severity } from '../../lib/hs'
 import { exportAccidents } from '../../lib/exportHs'
 import { saveError } from '../../lib/offline'
+import { useOnSynced } from '../../lib/outbox'
 import { useAccess } from '../../lib/access'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
@@ -52,6 +53,7 @@ export default function Accidents({ job, readOnly }: { job: Job; readOnly: boole
   const [busy, setBusy] = useState(false)
 
   const reload = () => loadRows<AccidentReport>('accident_reports', job.id).then(setRows, (e: Error) => (setError(e.message), setRows([])))
+  useOnSynced(reload)
   useEffect(() => {
     reload()
   }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -67,7 +69,6 @@ export default function Accidents({ job, readOnly }: { job: Job; readOnly: boole
     if (!f.incident_on) return setError('Choose the date it happened.')
     if (!f.description.trim()) return setError('Say what happened.')
     if (injured(f) && !f.person_name.trim()) return setError('Who was hurt or affected? Give their name.')
-    if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
       const saved = await saveRow<AccidentReport>('accident_reports', job.id, open.id, {
@@ -80,7 +81,11 @@ export default function Accidents({ job, readOnly }: { job: Job; readOnly: boole
         reported_by: nul(f.reported_by), investigated_by: nul(f.investigated_by), status: f.status,
       })
       setOpen({ id: saved.id, number: saved.number, form: fromRow(saved) })
-      setMsg(`Saved as ${accidentRef(saved.number)}. You can add photos below.`)
+      setMsg(
+        (saved as { pending?: boolean }).pending
+          ? 'Saved on this device: it will be sent, and numbered, when you have signal. You can add photos below.'
+          : `Saved as ${accidentRef(saved.number)}. You can add photos below.`,
+      )
       await reload()
     } catch (e) {
       setError(saveError(e))

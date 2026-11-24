@@ -1,5 +1,6 @@
 // Photos and documents on a diary, delivery note or inspection (24 Nov, script 081): take a photo on a phone, or add from the gallery.
 import { useEffect, useRef, useState } from 'react'
+import { useOnSynced } from '../../lib/outbox'
 import { addFile, fileUrl, loadFiles, removeFile, type HsFile } from '../../lib/hs'
 
 export default function HsFiles({ jobId, kind, recordId, readOnly }: { jobId: string; kind: HsFile['record_kind']; recordId: string; readOnly?: boolean }) {
@@ -10,9 +11,14 @@ export default function HsFiles({ jobId, kind, recordId, readOnly }: { jobId: st
   const cam = useRef<HTMLInputElement>(null)
   const gal = useRef<HTMLInputElement>(null)
 
+  const reload = () => loadFiles(kind, recordId).then(setFiles, (e: Error) => setError(e.message))
+  useOnSynced(() => {
+    setUrls({})
+    void reload()
+  })
   useEffect(() => {
-    loadFiles(kind, recordId).then(setFiles, (e: Error) => setError(e.message))
-  }, [kind, recordId])
+    void reload()
+  }, [kind, recordId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true
     Promise.all(files.filter((f) => !urls[f.id]).map(async (f) => [f.id, await fileUrl(f.path).catch(() => '')] as const)).then((pairs) => {
@@ -25,7 +31,6 @@ export default function HsFiles({ jobId, kind, recordId, readOnly }: { jobId: st
 
   async function add(list: File[]) {
     if (!list.length) return
-    if (!navigator.onLine) return setError('You are offline: photos can only be added with a connection.')
     setBusy(true)
     setError(null)
     try {

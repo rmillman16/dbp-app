@@ -12,6 +12,7 @@ import {
   loadLinkStatus,
   loadSnags,
   revokeSnagLinks,
+  snagNo,
   snagPhotoBlob,
   stateOf,
   type Assignee,
@@ -20,6 +21,7 @@ import {
   type SnagState,
 } from '../lib/snags'
 import { buildSnagListPdf, snagFileName } from '../lib/exportSnags'
+import { useOnSynced } from '../lib/outbox'
 import Loading from '../components/Loading'
 
 // Job › Snagging. Made for a phone: big touch targets, a card per snag, the + New snag button always in reach. Filter by status
@@ -43,6 +45,7 @@ export default function SnaggingTab() {
     loadAssignees(job.id).then(setAssignees, () => setAssignees([]))
   }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useOnSynced(reload) // what was made offline has just been sent: show the real numbers
   const byDir = useMemo(() => new Map(assignees.map((a) => [a.id, a])), [assignees])
   const companyOf = (s: Snag) => (s.assignee_id ? (byDir.get(s.assignee_id)?.companyId ?? 'none') : 'none')
   const snags = data?.snags ?? []
@@ -143,7 +146,7 @@ export default function SnaggingTab() {
           return (
             <li key={s.id}>
               <Link to={s.id} className={`snag-card ${st}`}>
-                <span className="snag-no">{s.number}</span>
+                <span className="snag-no">{snagNo(s.number)}</span>
                 <span className="snag-main">
                   <strong>{s.title}</strong>
                   <span className="muted small">

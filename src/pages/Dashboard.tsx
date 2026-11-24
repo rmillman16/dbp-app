@@ -4,6 +4,7 @@ import { addDaysIso, money, ukDate } from '../lib/format'
 import { useAccess, type Section as Part } from '../lib/access'
 import { CLIENT_PAYMENT_DAYS, TARGET_MARGIN_PCT, loadDashboard, type Dashboard as Data, type JobRow } from '../lib/dashboard'
 import { APP_STATUS_LABELS, ENQUIRY_STATUS_LABELS, JOB_STATUS_LABELS, type AppStatus, type Job, type JobStatus } from '../lib/types'
+import { loadCompanyCashflow, type CompanyCashflow, type CompanyCashMonth } from '../lib/companyCashflow'
 import Loading from '../components/Loading'
 
 // Management › the company dashboard: the directors' overview (23 Nov; docs/decisions.md "Company dashboard").
@@ -143,6 +144,7 @@ export default function Dashboard() {
 
           <div className="dash-sections">
             <CashCard rows={rows} t={t} today={today} allowed={commercial} go={go} />
+            <CashflowCard rows={rows} today={today} go={go} />
             <PipelineCard data={data} allowed={can('estimating')} go={go} />
             <MarginCard rows={rows} allowed={commercial} eot={can('job_eot')} go={go} />
             <ProgrammeCard rows={rows} today={today} can={can} go={go} />
@@ -321,6 +323,140 @@ function ValueBreakdown({ rows: all, initial, onClose }: { rows: JobRow[]; initi
       </p>
     </section>
   )
+}
+
+// ---------- Cashflow by month, all jobs ----------
+// Each job's own Cashflow forecast added together, with what was actually applied, certified and paid. Loaded after the
+// rest of the page (it reads a dozen tables per job).
+const monthLabel = (ym: string) => `${monthName(ym)} ${ym.slice(2, 4)}`
+function CashflowCard({ rows, today, go }: { rows: JobRow[]; today: string; go: Go }) {
+  const [data, setData] = useState<CompanyCashflow | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [perJob, setPerJob] = useState(false)
+  const key = rows.map((r) => r.job.id).join(',')
+  useEffect(() => {
+    let live = true
+    setData(null)
+    setError(null)
+    loadCompanyCashflow(rows.map((r) => r.job)).then(
+      (d) => live && setData(d),
+      (e: Error) => live && setError(e.message),
+    )
+    return () => {
+      live = false
+    }
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const thisMonth = today.slice(0, 7)
+
+  const body = () => {
+    if (error) return <p className="error">{error}</p>
+    if (!data) return <Loading />
+    if (!data.months.length) return <Empty>No job has a cashflow forecast yet (it needs a programme and the SoW imported on the CVR tab).</Empty>
+    const max = Math.max(...data.months.map((m) => Math.max(m.forecast + m.atRisk, m.applied)), 1)
+    const total = (f: (m: CompanyCashMonth) => number) => data.months.reduce((s, m) => s + f(m), 0)
+    // the lowest net month ahead is where cash is tightest
+    const ahead = data.months.filter((m) => m.month >= thisMonth)
+    const low = ahead.length ? ahead.reduce((a, b) => (b.net < a.net ? b : a)) : null
+    return (
+      <>
+        <p className="muted small">
+          Forecast = what each job’s programme says we’ll apply for in the month, added together. Net = after retention is held and released. Past months show what was
+          actually applied, certified and paid (a month’s application is the change from the one before). {data.jobs.length} job{data.jobs.length === 1 ? '' : 's'}.
+        </p>
+        <div className="cf-bars" role="img" aria-label="Forecast and applied by month">
+          {data.months.map((m) => (
+            <div key={m.month} className={`cf-col ${m.month === thisMonth ? 'now' : ''}`} title={`${monthLabel(m.month)}: forecast ${money(m.forecast)}, applied ${money(m.applied)}`}>
+              <div className="cf-stack">
+                <div className="cf-bar forecast" style={{ height: `${(m.forecast / max) * 100}%` }} />
+                {m.atRisk > 0 && <div className="cf-bar risk" style={{ height: `${(m.atRisk / max) * 100}%` }} />}
+                {m.applied > 0 && <div className="cf-bar applied" style={{ height: `${(m.applied / max) * 100}%` }} />}
+              </div>
+              <span className="cf-label">{monthLabel(m.month)}</span>
+            </div>
+          ))}
+        </div>
+        <p className="small muted cf-key">
+          <span className="cf-swatch forecast" /> forecast <span className="cf-swatch risk" /> variations at risk <span className="cf-swatch applied" /> applied (actual)
+        </p>
+        {low && low.net < 0 && <p className="warning small">⚠ {monthLabel(low.month)} is forecast to be {money(low.net)} after retention: the tightest month ahead.</p>}
+        <div className="table-scroll">
+          <table className="table stack dash-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th className="num">Forecast</th>
+                <th className="num">At risk</th>
+                <th className="num">Net of retention</th>
+                <th className="num">Applied</th>
+                <th className="num">Certified</th>
+                <th className="num">Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.months.map((m) => (
+                <tr key={m.month} className={m.month === thisMonth ? 'dash-now' : ''}>
+                  <td className="stack-title">
+                    {monthLabel(m.month)}
+                    {m.month === thisMonth && <span className="muted small"> · this month</span>}
+                  </td>
+                  <td className="num" data-label="Forecast">{money(m.forecast)}</td>
+                  <td className="num" data-label="At risk">{m.atRisk ? money(m.atRisk) : <span className="muted">–</span>}</td>
+                  <td className="num" data-label="Net of retention">{money(m.net)}</td>
+                  <td className="num" data-label="Applied">{m.applied ? money(m.applied) : <span className="muted">–</span>}</td>
+                  <td className="num" data-label="Certified">{m.certified ? money(m.certified) : <span className="muted">–</span>}</td>
+                  <td className="num" data-label="Paid">{m.paid ? money(m.paid) : <span className="muted">–</span>}</td>
+                </tr>
+              ))}
+              <tr className="total">
+                <td className="stack-title"><strong>Total</strong></td>
+                <td className="num" data-label="Forecast"><strong>{money(total((m) => m.forecast))}</strong></td>
+                <td className="num" data-label="At risk">{money(total((m) => m.atRisk))}</td>
+                <td className="num" data-label="Net of retention"><strong>{money(total((m) => m.net))}</strong></td>
+                <td className="num" data-label="Applied">{money(total((m) => m.applied))}</td>
+                <td className="num" data-label="Certified">{money(total((m) => m.certified))}</td>
+                <td className="num" data-label="Paid">{money(total((m) => m.paid))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          <button type="button" className="button secondary" onClick={() => setPerJob((p) => !p)}>
+            {perJob ? 'Hide' : 'Show'} each job’s forecast by month
+          </button>
+        </p>
+        {perJob && (
+          <div className="table-scroll">
+            <table className="table dash-table">
+              <thead>
+                <tr>
+                  <th>Job</th>
+                  {data.months.map((m) => (
+                    <th key={m.month} className="num">{monthLabel(m.month)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.jobs.map((j) => (
+                  <tr key={j.job.id} className="clickable" onClick={go(`/jobs/${j.job.id}/cashflow`)}>
+                    <td><JobName job={j.job} /></td>
+                    {data.months.map((m) => (
+                      <td key={m.month} className="num">{j.months[m.month]?.forecast ? money(j.months[m.month].forecast) : <span className="muted">–</span>}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {data.left.length > 0 && (
+          <p className="muted small">
+            Not included: {data.left.map((l) => `${l.job.job_no} ${l.job.name} (${l.why})`).join('; ')}.
+          </p>
+        )}
+      </>
+    )
+  }
+  return <Section title="Cashflow by month">{body()}</Section>
 }
 
 // ---------- Cash ----------

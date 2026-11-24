@@ -24,6 +24,10 @@ const SECTIONS: Section[] = [
         </p>
         <p>The bell at the top shows what needs you: actions, reminders, RFIs, inspections falling due. Tick one done and it clears. If emails are switched on you also get the important ones by email.</p>
         <p>Working on site with a poor signal: the app keeps a saved copy and syncs when the connection returns. A grey “Offline” bar tells you when that is happening.</p>
+        <p>
+          <b>Working with no signal:</b> every page you have opened before opens again from the saved copy. <b>New snags, site diaries, delivery notes, accident reports, changes to a snag and photos</b> are saved on the device and sent by themselves when the signal is back. A <b>“waiting to send”</b> badge at the top shows how many are still on the phone (click it to see them or send now). <b>Meeting minutes</b> save on the device as you type and sync when you open the Minutes page with signal; if they haven’t gone they show in the same badge. Things that need the internet are still blocked offline: deleting, sending a snag back, issuing a snag link, emailing, and PDFs that fetch photos. Don’t sign out or clear the browser’s data while something is waiting.
+        </p>
+        <p>The <b>Dashboard</b> is for admins only. Under Cash it now has <b>Cashflow by month</b>: every live job’s cashflow forecast added together, with what has actually been applied, certified and paid, and a warning if a month ahead is forecast to go negative after retention.</p>
       </>
     ),
   },

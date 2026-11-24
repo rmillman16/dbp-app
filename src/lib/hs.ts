@@ -1,6 +1,7 @@
 // Job › H&S (24 Nov, script 081): site diaries, delivery notes and H&S inspections, each with photos (storage "hs").
 import { supabase } from './supabase'
 import { shrinkImage } from './image'
+import { enqueue, isLocalPath, localFileUrl, newId, queued, tryOrQueue } from './outbox'
 
 const needs081 = (m: string) => (/relation|schema cache|does not exist/i.test(m) ? 'H&S needs script 081 run in Supabase first (supabase/README.md).' : m)
 const fail = (e: { message: string }) => new Error(needs081(e.message))
@@ -129,12 +130,33 @@ const dateCol: Record<Table, string> = { site_diaries: 'diary_date', delivery_no
 export async function loadRows<T>(table: Table, jobId: string): Promise<T[]> {
   const r = await supabase.from(table).select('*').eq('job_id', jobId).order(dateCol[table], { ascending: false }).order('created_at', { ascending: false })
   if (r.error) throw fail(r.error)
-  return r.data as T[]
+  // what was written offline and hasn't been sent yet, shown as if it had been (lib/outbox.ts)
+  const waiting = (await queued()).filter((i) => i.op.t === 'hs.save' && i.op.table === table && i.jobId === jobId)
+  if (!waiting.length) return r.data as T[]
+  const byId = new Map((r.data as Array<{ id: string }>).map((x) => [x.id, x as Record<string, unknown>]))
+  for (const i of waiting) {
+    const op = i.op as Extract<typeof i.op, { t: 'hs.save' }>
+    const base = byId.get(op.id) ?? { id: op.id, job_id: jobId, created_at: i.at, updated_at: i.at, number: 0 }
+    byId.set(op.id, { ...base, ...op.values, pending: true })
+  }
+  const col = dateCol[table]
+  return [...byId.values()].sort((x, y) => String(y[col] ?? '').localeCompare(String(x[col] ?? '')) || String(y.created_at ?? '').localeCompare(String(x.created_at ?? ''))) as T[]
 }
+// Saves; with no signal (or if it drops) the entry is kept on the device and sent when the connection is back
 export async function saveRow<T extends { id: string }>(table: Table, jobId: string, id: string | null, values: Record<string, unknown>): Promise<T> {
-  const r = id ? await supabase.from(table).update(values).eq('id', id).select('*').single() : await supabase.from(table).insert({ ...values, job_id: jobId }).select('*').single()
-  if (r.error) throw fail(r.error)
-  return r.data as T
+  const rowId = id ?? newId()
+  let saved = null as T | null
+  const label = { site_diaries: 'Site diary', delivery_notes: 'Delivery note', hs_inspections: 'H&S inspection', accident_reports: 'Accident report' }[table]
+  await tryOrQueue(
+    async () => {
+      const r = id ? await supabase.from(table).update(values).eq('id', id).select('*').single() : await supabase.from(table).insert({ ...values, id: rowId, job_id: jobId }).select('*').single()
+      if (r.error) throw fail(r.error)
+      saved = r.data as T
+    },
+    () => enqueue(label, jobId, { t: 'hs.save', table, id: rowId, jobId, isNew: !id, values }),
+    id ?? undefined,
+  )
+  return saved ?? ({ ...values, id: rowId, job_id: jobId, number: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), pending: true } as unknown as T)
 }
 export async function deleteRow(table: Table, id: string, kind: HsFile['record_kind']) {
   const files = await supabase.from('hs_files').select('path').eq('record_kind', kind).eq('record_id', id)
@@ -158,29 +180,50 @@ export interface HsFile {
   created_at: string
 }
 export async function loadFiles(kind: HsFile['record_kind'], recordId: string): Promise<HsFile[]> {
+  // photos taken offline that haven't been sent yet are on the device (path "local:<id>")
+  const local: HsFile[] = (await queued())
+    .filter((i) => i.op.t === 'hs.file' && i.op.recordId === recordId)
+    .map((i) => {
+      const op = i.op as Extract<typeof i.op, { t: 'hs.file' }>
+      return { id: op.fileId, job_id: op.jobId, record_kind: kind, record_id: recordId, name: op.file.name, path: `local:${op.fileId}`, created_at: i.at }
+    })
+  // a record that is itself still waiting to be sent isn't in the database yet
   const r = await supabase.from('hs_files').select('*').eq('record_kind', kind).eq('record_id', recordId).order('created_at')
-  if (r.error) throw fail(r.error)
-  return r.data as HsFile[]
+  if (r.error) {
+    if (local.length) return local
+    throw fail(r.error)
+  }
+  return [...(r.data as HsFile[]), ...local]
 }
 export async function addFile(jobId: string, kind: HsFile['record_kind'], recordId: string, file: File): Promise<HsFile> {
   const f = file.type.startsWith('image/') ? await shrinkImage(file) : file
-  const safe = f.name.replace(/[^\w.\- ()]+/g, '_')
-  const path = `${jobId}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${safe}`
-  const up = await supabase.storage.from('hs').upload(path, f, { contentType: f.type || undefined })
-  if (up.error) throw fail(up.error)
-  const r = await supabase.from('hs_files').insert({ job_id: jobId, record_kind: kind, record_id: recordId, name: f.name, path }).select('*').single()
-  if (r.error) {
-    await supabase.storage.from('hs').remove([path])
-    throw fail(r.error)
-  }
-  return r.data as HsFile
-}
-export async function removeFile(f: HsFile) {
+  const fileId = newId()
+  const waiting = (): HsFile => ({ id: fileId, job_id: jobId, record_kind: kind, record_id: recordId, name: f.name, path: `local:${fileId}`, created_at: new Date().toISOString() })
+  let added = null as HsFile | null
+  await tryOrQueue(
+    async () => {
+      const safe = f.name.replace(/[^\w.\- ()]+/g, '_')
+      const path = `${jobId}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${safe}`
+      const up = await supabase.storage.from('hs').upload(path, f, { contentType: f.type || undefined })
+      if (up.error) throw fail(up.error)
+      const r = await supabase.from('hs_files').insert({ id: fileId, job_id: jobId, record_kind: kind, record_id: recordId, name: f.name, path }).select('*').single()
+      if (r.error) {
+        await supabase.storage.from('hs').remove([path])
+        throw fail(r.error)
+      }
+      added = r.data as HsFile
+    },
+    () => enqueue('Photo or document', jobId, { t: 'hs.file', fileId, jobId, kind, recordId, file: f }),
+    recordId,
+  )
+  return added ?? waiting()
+}export async function removeFile(f: HsFile) {
   const r = await supabase.from('hs_files').delete().eq('id', f.id)
   if (r.error) throw fail(r.error)
   await supabase.storage.from('hs').remove([f.path])
 }
 export async function fileUrl(path: string) {
+  if (isLocalPath(path)) return localFileUrl(path)
   const r = await supabase.storage.from('hs').createSignedUrl(path, 3600)
   if (r.error || !r.data) throw new Error(r.error?.message ?? 'File not found')
   return r.data.signedUrl

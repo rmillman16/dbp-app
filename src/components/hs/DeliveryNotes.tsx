@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { CONDITIONS, deleteRow, loadRows, saveRow, type Condition, type DeliveryNote } from '../../lib/hs'
 import { exportDeliveries } from '../../lib/exportHs'
 import { saveError } from '../../lib/offline'
+import { useOnSynced } from '../../lib/outbox'
 import { useAccess } from '../../lib/access'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
@@ -26,6 +27,7 @@ export default function DeliveryNotes({ job, readOnly }: { job: Job; readOnly: b
   const [q, setQ] = useState('')
 
   const reload = () => loadRows<DeliveryNote>('delivery_notes', job.id).then(setRows, (e: Error) => (setError(e.message), setRows([])))
+  useOnSynced(reload)
   useEffect(() => {
     reload()
   }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -39,7 +41,6 @@ export default function DeliveryNotes({ job, readOnly }: { job: Job; readOnly: b
     setMsg(null)
     if (!f.supplier.trim()) return setError('Who was it delivered by? Give the supplier.')
     if (!f.delivered_on) return setError('Choose the date.')
-    if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
       const saved = await saveRow<DeliveryNote>('delivery_notes', job.id, open.id, {
@@ -54,7 +55,7 @@ export default function DeliveryNotes({ job, readOnly }: { job: Job; readOnly: b
         notes: nul(f.notes),
       })
       setOpen({ id: saved.id, form: fromRow(saved) })
-      setMsg('Saved. Add a photo of the delivery note below.')
+      setMsg((saved as { pending?: boolean }).pending ? 'Saved on this device: it will be sent when you have signal. Add a photo of the delivery note below.' : 'Saved. Add a photo of the delivery note below.')
       await reload()
     } catch (e) {
       setError(saveError(e))

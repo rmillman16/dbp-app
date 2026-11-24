@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { deleteRow, loadRows, saveRow, WEATHER, type LabourLine, type SiteDiary } from '../../lib/hs'
 import { exportDiaries } from '../../lib/exportHs'
 import { saveError } from '../../lib/offline'
+import { useOnSynced } from '../../lib/outbox'
 import { todayIso, ukDate } from '../../lib/format'
 import type { Job } from '../../lib/types'
 import HsFiles from './HsFiles'
@@ -49,6 +50,7 @@ export default function SiteDiaries({ job, readOnly }: { job: Job; readOnly: boo
   const [busy, setBusy] = useState(false)
 
   const reload = () => loadRows<SiteDiary>('site_diaries', job.id).then(setRows, (e: Error) => (setError(e.message), setRows([])))
+  useOnSynced(reload)
   useEffect(() => {
     reload()
   }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -69,7 +71,6 @@ export default function SiteDiaries({ job, readOnly }: { job: Job; readOnly: boo
     setMsg(null)
     if (!f.diary_date) return setError('Choose the date.')
     if (!open.id && rows?.some((r) => r.diary_date === f.diary_date)) return setError('There is already a diary for that date: open it from the list.')
-    if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
       const saved = await saveRow<SiteDiary>('site_diaries', job.id, open.id, {
@@ -87,7 +88,7 @@ export default function SiteDiaries({ job, readOnly }: { job: Job; readOnly: boo
         notes: nul(f.notes),
       })
       setOpen({ id: saved.id, form: fromRow(saved) })
-      setMsg('Saved. You can add photos below.')
+      setMsg((saved as { pending?: boolean }).pending ? 'Saved on this device: it will be sent when you have signal. You can add photos below.' : 'Saved. You can add photos below.')
       await reload()
     } catch (e) {
       setError(saveError(e))
