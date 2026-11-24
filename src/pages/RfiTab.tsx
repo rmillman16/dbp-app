@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { formKeys } from '../lib/formKeys'
 import { useNavigate } from 'react-router-dom'
 import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -396,7 +395,7 @@ function CreateRfi({ ctx, onCancel, onCreated }: { ctx: ReturnType<typeof useRfi
   }
 
   return (
-    <form className="rfi-form" onSubmit={(e) => save(e)} {...formKeys}>
+    <form className="rfi-form" onSubmit={(e) => save(e)}>
       <h3 className="sub-head">Create RFI</h3>
       <label>
         Template
@@ -624,7 +623,7 @@ function CreateTenderRfi({ onCancel, onSaved }: { onCancel: () => void; onSaved:
   return (
     <div className="rfi-form">
       <h3 className="sub-head">New tender query (draft)</h3>
-      <div className="form-grid" {...formKeys}>
+      <div className="form-grid">
         <label>
           No.
           <input type="number" value={f.number} onChange={(e) => set('number', e.target.value)} />
