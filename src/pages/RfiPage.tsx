@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { formKeys } from '../lib/formKeys'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ukDate, todayIso } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -298,7 +299,7 @@ export default function RfiPage() {
             )}
           </>
         ) : (
-          <div className="form-grid">
+          <div className="form-grid" {...formKeys}>
             <label className="span-2">
               Title
               <input value={edit.title} onChange={(e) => setEdit({ ...edit, title: e.target.value })} />

@@ -15,7 +15,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
     onChange(cleanHtml(box.current?.innerHTML ?? ''))
   }
   const btn = (label: string, title: string, run: () => void, extra = '') => (
-    <button type="button" className={'rte-btn ' + extra} title={title} aria-label={title} onMouseDown={(e) => e.preventDefault()} onClick={run}>
+    <button type="button" tabIndex={-1} className={'rte-btn ' + extra} title={title} aria-label={title} onMouseDown={(e) => e.preventDefault()} onClick={run}>
       {label}
     </button>
   )

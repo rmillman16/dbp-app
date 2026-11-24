@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import HubBlock from '../components/HubBlock'
 import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { cleanHtml } from '../lib/richText'
 import { ext, extOpenFile, extUpload, getSession, setSession, type ExtAuth, type ExtItem, type ExtListItem } from '../lib/external'
@@ -239,14 +240,7 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
           </h2>
           {sec.projects.map((p) => (
             <div key={p.project} className="ext-table-wrap">
-              <h3 className="ext-proj">
-                {p.project}
-                {p.rows.find((r) => r.hub_url) && (
-                  <a className="ext-hub" href={p.rows.find((r) => r.hub_url)!.hub_url!} target="_blank" rel="noreferrer">
-                    Project hub: drawings and documents ↗
-                  </a>
-                )}
-              </h3>
+              <h3 className="ext-proj">{p.project}</h3>
               <table className="ext-table">
                 <thead>
                   <tr>
@@ -286,6 +280,10 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
             </div>
           ))}
         </div>
+      ))}
+      {/* the project hub, large, at the bottom: one for each job on the list */}
+      {[...new Map(items.filter((i) => i.hub_url).map((i) => [i.hub_url!, i.project])).entries()].map(([url, project]) => (
+        <HubBlock key={url} url={url} project={project} />
       ))}
     </>
   )
@@ -391,13 +389,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
       )}
       <div className="card">
         <p className="muted small">{item.project}</p>
-        {item.hub_url && (
-          <p className="ext-hub-box">
-            <a href={item.hub_url} target="_blank" rel="noreferrer">
-              Project hub: latest drawings and project documents ↗
-            </a>
-          </p>
-        )}
+
         <h1>
           {rfi ? 'RFI' : 'Submittal'} {item.number}: {item.title}
         </h1>
@@ -554,6 +546,7 @@ function ItemView({ auth }: { auth: ExtAuth }) {
           </p>
         )
       )}
+      {item.hub_url && <HubBlock url={item.hub_url} project={item.project} />}
     </>
   )
 }

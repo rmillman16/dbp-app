@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import HubBlock from '../components/HubBlock'
 import { useLocation } from 'react-router-dom'
 import { shrinkImage } from '../lib/image'
 
@@ -81,13 +82,7 @@ export default function SnagExternal() {
               {data.job.ref} {data.job.name}
               {data.job.address ? ` · ${data.job.address.replace(/\n/g, ', ')}` : ''}
             </p>
-            {data.job.hub_url && (
-              <p className="ext-hub-box">
-                <a href={data.job.hub_url} target="_blank" rel="noreferrer">
-                  Project hub: latest drawings and project documents ↗
-                </a>
-              </p>
-            )}
+
             <div className="snag-tabs" role="tablist">
               {([
                 ['todo', 'To do'],
@@ -104,6 +99,7 @@ export default function SnagExternal() {
             {shown.map((s) => (
               <SnagCard key={s.id} s={s} token={token} onChange={load} />
             ))}
+            {data.job.hub_url && <HubBlock url={data.job.hub_url} project={`${data.job.ref} ${data.job.name}`} />}
           </>
         )}
       </main>

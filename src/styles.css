@@ -1416,3 +1416,15 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .ext-hub-box { margin: 6px 0 10px; padding: 9px 12px; background: #eef3fa; border-left: 3px solid #007abe; border-radius: 4px; }
 .ext-hub-box a { color: #007abe; font-weight: 600; text-decoration: none; }
 .ext-hub-box a:hover { text-decoration: underline; }
+
+/* outside pages (24 Nov): plain rows and pills, no yellow or red tints; the project hub large at the bottom */
+.ext-table .ext-row td, .ext-table .ext-row.soon td, .ext-table .ext-row.overdue td, .ext-table .ext-row.quiet td { background: transparent; color: inherit; }
+.ext-table .ext-row:hover td { background: #f4f6fb; }
+.ext-table .ext-row td:first-child, .ext-table .ext-row.soon td:first-child, .ext-table .ext-row.overdue td:first-child, .ext-table .ext-row.quiet td:first-child { box-shadow: none; }
+.ext-table td.ext-due.overdue { color: #c62828; font-weight: 600; }
+.ext-table .q-status { background: #eef3fa; color: #1f1246; font-weight: 600; }
+.ext-main .hub-block, .ext-main-wide .hub-block, .hub-block { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin: 28px 0 8px; padding: 26px 30px; background: #eef3fa; border-left: 6px solid #007abe; border-radius: 10px; }
+.hub-block h2 { margin: 0 0 4px; font-size: 1.5rem; color: #1f1246; }
+.hub-block p { margin: 0; font-size: 1.05rem; color: #1d1d24; }
+.hub-open { background: #1f1246; color: #fff; padding: 16px 30px; border-radius: 8px; font-size: 1.2rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.hub-open:hover { background: #007abe; }
