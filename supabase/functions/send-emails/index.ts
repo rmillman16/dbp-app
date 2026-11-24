@@ -358,7 +358,7 @@ async function sendActions(db: any, getToken: () => Promise<string>, sender: str
   return sent;
 }
 
-// The Monday briefing (script 086): from 5am UK time on a Monday, each du Boulay person gets one friendly email with their week:
+// The Monday briefing (script 086): from 6:30am UK time on a Monday, each du Boulay person gets one friendly email with their week:
 // what is overdue, what falls due in the next 7 days (from their bell) and what they closed last week. Once per person per week
 // (weekly_briefings). Switched off by "email notifications" in My details.
 const BRIEF_GREETINGS = [
@@ -370,10 +370,11 @@ const BRIEF_GREETINGS = [
 // deno-lint-ignore no-explicit-any
 async function sendBriefings(db: any, getToken: () => Promise<string>, sender: string, appUrl: string) {
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map((p) => [p.type, p.value]),
   );
-  const hour = Number(parts.hour);
-  if (parts.weekday !== "Mon" || hour < 5 || hour >= 12) return 0;
+  // from 6:30am UK time on a Monday (the scheduled run picks it up within a couple of minutes), until midday
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  if (parts.weekday !== "Mon" || minutes < 6 * 60 + 30 || minutes >= 12 * 60) return 0;
   const today = `${parts.year}-${parts.month}-${parts.day}`;
   const addDays = (iso: string, n: number) => new Date(new Date(iso + "T00:00:00Z").getTime() + n * 86400000).toISOString().slice(0, 10);
   const weekEnd = addDays(today, 6);

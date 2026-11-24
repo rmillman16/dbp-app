@@ -249,7 +249,7 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          <b>Monday briefing:</b> every Monday morning, from 5am, you get one friendly email with your week: what is overdue, what is due in the next 7 days, how many meeting actions you closed last week, and a button to open your tasks. It is built from the same list as your bell. Switch it off with <b>email notifications</b> in My details.
+          <b>Monday briefing:</b> every Monday morning, from 6:30am, you get one friendly email with your week: what is overdue, what is due in the next 7 days, how many meeting actions you closed last week, and a button to open your tasks. It is built from the same list as your bell. Switch it off with <b>email notifications</b> in My details.
         </p>
         <p>
           <b>Milestone moments:</b> confetti and a banner when you clear the last snag on a job, tick off the last action of a meeting, or empty your My Day list. Nothing animates if your device is set to reduced motion.
