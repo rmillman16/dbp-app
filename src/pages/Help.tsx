@@ -213,6 +213,9 @@ const SECTIONS: Section[] = [
           <b>Orders:</b> the list shows, for each order, its value (including instructed variations), how it stands against the package budget in the procurement schedule (“over” in red, “under” in green), what DBP has certified so far and what has been paid, with a total underneath. Use the buttons (All, Drafts, Placed, Over budget) and the search box to narrow it. Open an order and <b>The money</b> panel gives the full picture: budget, order value, variations, revised value, certified to date, retention held, paid and still to certify. These come from the issued payment notices.
         </p>
         <p>
+          The order itself, and the instruction letter for a subcontract variation, always go out as a <b>PDF</b> on the DBP letterhead, never Word (the <b>Order (PDF)</b> button, the email attachment and the copy saved to the SharePoint folder are all PDFs).
+        </p>
+        <p>
           When you press <b>Place order</b> (or make the email for a draft), the app checks first: a PQQ that isn’t approved or has run out, insurance or other documents that have expired, no value, a value over the package budget, or a package that already has a placed order. Anything serious is listed in amber and you must tick “I’ve seen the warnings” to carry on; smaller points (no delivery date, blank scope, things expiring soon) are shown for information. If everything is fine you just press Place order.
         </p>
       </>

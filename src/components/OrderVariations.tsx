@@ -11,7 +11,7 @@ import {
   loadVarFiles,
   markInstructed,
   openFile,
-  variationDocx,
+  variationPdf,
   type VarFile,
 } from '../lib/orders'
 import { logPqqSent } from '../lib/pqq'
@@ -113,8 +113,8 @@ export default function OrderVariations({
       onMsg('Building the instruction and email (fetching the files)…')
       const all = saved!.filter((x) => x.instructed || x.id === v.id).reduce((s, x) => s + Number(x.value ?? 0), 0)
       const revisedValue = order.order_value != null ? Number(order.order_value) + all : null
-      const letter = await variationDocx({ job, order, company, contact, v, revisedOrderValue: revisedValue, signer: me })
-      const letterName = `${order.order_no ?? 'Order'} ${v.ref ?? 'Variation'} instruction.docx`
+      const letter = await variationPdf({ job, order, company, contact, v, revisedOrderValue: revisedValue, signer: me })
+      const letterName = `${order.order_no ?? 'Order'} ${v.ref ?? 'Variation'} instruction.pdf`
       const where = root ? await writeInto(root, [folder, 'Variations', v.ref || 'variation'], letterName, letter) : ''
       // file the instruction itself with the variation's other files
       const letterFile = new File([letter], letterName, { type: letter.type })

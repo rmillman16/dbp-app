@@ -1,12 +1,13 @@
 // Orders (23 Nov, script 054; was "Payment notices"): order numbers 2611_FISL_001, a package from the
 // procurement schedule with its delivery / start date, appendices (any file, from the standard library in
-// Settings or for this order only), the order itself as a Word letter on the letterhead, and the email to
+// Settings or for this order only), the order itself as a PDF letter (never Word) on the letterhead, and the email to
 // the subcontractor as an Outlook draft (.eml: opens in Outlook ready to send, with every file attached).
 // Placing an order fills in the procurement schedule (the database does it).
 import { supabase } from './supabase'
 import { cached } from './offline'
 import { money, todayIso } from './format'
-import { letterDocx, longDate, ordinalDate, type Block } from './letter'
+import { longDate, ordinalDate, type Block } from './letter'
+import { letterPdf, pdfBlob } from './letterPdf'
 import { addProcPackage, loadProcurement, rowDates } from './procurement'
 import type { Company, Job, Order, Profile } from './types'
 import type { Contact } from '../components/ContactsEditor'
@@ -185,11 +186,12 @@ export async function removeAppendix(a: Appendix) {
   if (!a.standard_id && a.path.startsWith('order/')) await supabase.storage.from('orders').remove([a.path])
 }
 
-// ---------- the order (Word, on the letterhead) ----------
+// ---------- the order (PDF, on the letterhead) ----------
 export const orderFileName = (job: Pick<Job, 'job_no' | 'code'>, order: Pick<Order, 'order_no'>, company: Pick<Company, 'name'> | null) =>
-  `${order.order_no ?? `${job.job_no}_${job.code}`} Order${company ? ' - ' + company.name : ''}.docx`.replace(/[\\/:*?"<>|]/g, '')
+  `${order.order_no ?? `${job.job_no}_${job.code}`} Order${company ? ' - ' + company.name : ''}.pdf`.replace(/[\\/:*?"<>|]/g, '')
 
-export async function orderDocx(args: { job: Job; order: Order; company: Company; contact: Contact | null; packageLabel: string; appendices: Appendix[]; signer: Profile | null }) {
+// Orders always go out as PDF, never Word (24 Nov)
+export async function orderPdf(args: { job: Job; order: Order; company: Company; contact: Contact | null; packageLabel: string; appendices: Appendix[]; signer: Profile | null }) {
   const { job, order, company, contact, packageLabel, appendices, signer } = args
   const address = [company.name, ...(company.address ?? '').split(/\n/).map((s) => s.trim()).filter(Boolean), company.postcode ?? ''].filter(Boolean)
   const rows: string[][] = [
@@ -231,7 +233,7 @@ export async function orderDocx(args: { job: Job; order: Order; company: Company
     { p: 'Signed: ……………………………………………\tDate: ……………………', after: 240, keepNext: true },
     { p: 'Name: ……………………………………………\tPosition: ……………………', after: 0 },
   ]
-  return letterDocx(blocks)
+  return pdfBlob(await letterPdf(blocks, `Order ${order.order_no ?? ''}`))
 }
 
 // ---------- Outlook drafts (.eml) ----------
@@ -335,8 +337,8 @@ export async function markInstructed(id: string) {
   if (r.error) throw fail(r.error)
 }
 
-// the instruction letter (Word, on the letterhead)
-export async function variationDocx(args: {
+// the instruction letter (PDF, on the letterhead)
+export async function variationPdf(args: {
   job: Job
   order: Order
   company: Company
@@ -370,5 +372,5 @@ export async function variationDocx(args: {
     ...(signer?.job_title ? [{ p: signer.job_title, keepNext: true, after: 0 } as Block] : []),
     { p: 'On behalf of du Boulay Projects Limited', after: 0 },
   ]
-  return letterDocx(blocks)
+  return pdfBlob(await letterPdf(blocks, `Variation ${v.ref ?? ''} to order ${order.order_no ?? ''}`))
 }

@@ -20,7 +20,7 @@ import {
   needs054,
   nextOrderNo,
   openFile,
-  orderDocx,
+  orderPdf,
   orderFileName,
   placeOrder,
   removeVarFilesOf,
@@ -715,8 +715,8 @@ export function OrderPage() {
     try {
       const label = await orderFolderName(root, order.folder_no ?? null, company.name, orderLabel(order, company))
       const list = appendices ?? []
-      const docx = await orderDocx({ job, order, company, contact, packageLabel, appendices: list, signer: me })
-      const where = await writeInto(root, [label], orderFileName(job, order, company), docx)
+      const pdf = await orderPdf({ job, order, company, contact, packageLabel, appendices: list, signer: me })
+      const where = await writeInto(root, [label], orderFileName(job, order, company), pdf)
       for (const a of list) await writeInto(root, [label, 'Appendices'], a.file_name, await fileBlob(a.path))
       setMsg(`Saved to SharePoint (${where}) with ${list.length} appendix${list.length === 1 ? '' : 'es'}. OneDrive will upload it.`)
     } catch (e) {
@@ -742,7 +742,7 @@ export function OrderPage() {
     setError(null)
     setBusy('word')
     try {
-      downloadBlob(await orderDocx({ job, order, company, contact, packageLabel, appendices: appendices ?? [], signer: me }), orderFileName(job, order, company))
+      downloadBlob(await orderPdf({ job, order, company, contact, packageLabel, appendices: appendices ?? [], signer: me }), orderFileName(job, order, company))
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -769,7 +769,7 @@ export function OrderPage() {
     try {
       const list = appendices ?? []
       const files = [
-        { name: orderFileName(job, order, company), blob: await orderDocx({ job, order, company, contact, packageLabel, appendices: list, signer: me }) },
+        { name: orderFileName(job, order, company), blob: await orderPdf({ job, order, company, contact, packageLabel, appendices: list, signer: me }) },
         ...(await Promise.all(list.map(async (a) => ({ name: a.file_name, blob: await fileBlob(a.path) })))),
       ]
       const pqqFiles = withPqq ? await pqqPackFiles(pqqPack) : []
@@ -837,7 +837,7 @@ export function OrderPage() {
         </div>
         <div className="button-row">
           <button onClick={wordOrder} disabled={!!busy}>
-            {busy === 'word' ? 'Making…' : 'Order (Word)'}
+            {busy === 'word' ? 'Making…' : 'Order (PDF)'}
           </button>
           {!placed && (
             <button onClick={() => askToPlace('place')} disabled={!!busy}>
