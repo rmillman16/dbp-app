@@ -477,7 +477,14 @@ function QuotationEditor({ job, backTo }: { job: Job | null; backTo?: string }) 
                         </label>
                         {picked && (
                           <textarea
-                            rows={4}
+                            rows={1}
+                            style={{ overflow: 'hidden', resize: 'none' }}
+                            ref={(el) => {
+                              if (el) {
+                                el.style.height = 'auto'
+                                el.style.height = el.scrollHeight + 2 + 'px'
+                              }
+                            }}
                             value={picked.body}
                             onChange={(e) => (setSaved(false), setClauses((cs) => cs.map((x) => (x.clause_id === c.id ? { ...x, body: e.target.value } : x))))}
                           />

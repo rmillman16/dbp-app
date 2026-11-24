@@ -62,7 +62,8 @@ export default function ProjectChecklist({ job }: { job: Job }) {
       if (missing.length && navigator.onLine) {
         const ins = await supabase.from('job_checklist').insert(missing.map((m) => ({ job_id: job.id, ...m }))).select('*')
         if (!ins.error) rows = [...rows, ...(ins.data as Item[])].sort((a, b) => a.sort - b.sort)
-      }
+        else if (live) setError(`Couldn't add the standard checklist items: ${ins.error.message}`)
+      } else if (missing.length && live) setError('The standard checklist items are added when you open this page with a connection.')
       if (live) setItems(rows)
     })()
     return () => {
