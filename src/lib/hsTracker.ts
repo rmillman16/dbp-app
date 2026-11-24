@@ -33,6 +33,7 @@ export interface Report {
   tracker_id: string
   job_id: string
   inspected_on: string
+  inspector: string | null // who did the inspection (script 084)
   outcome: Outcome
   note: string | null
   path: string | null
@@ -110,7 +111,7 @@ export async function deleteTracker(t: Tracker, reports: Report[]) {
 
 // Logs a report that has come in: the file goes into the app's storage and, when the job's synced SharePoint folder is linked (root),
 // into SharePoint too, in "<Inspection name>/<date> <file name>".
-export async function logReport(jobId: string, t: Tracker, v: { inspected_on: string; outcome: Outcome; note: string }, file: File | null, root: FileSystemDirectoryHandle | null): Promise<Report> {
+export async function logReport(jobId: string, t: Tracker, v: { inspected_on: string; inspector: string }, file: File | null, root: FileSystemDirectoryHandle | null): Promise<Report> {
   let path: string | null = null
   let filedTo: string | null = null
   let name: string | null = null
@@ -130,7 +131,7 @@ export async function logReport(jobId: string, t: Tracker, v: { inspected_on: st
       }
     }
   }
-  const r = await supabase.from('hs_reports').insert({ tracker_id: t.id, job_id: jobId, inspected_on: v.inspected_on, outcome: v.outcome, note: v.note.trim() || null, path, file_name: name, filed_to: filedTo }).select('*').single()
+  const r = await supabase.from('hs_reports').insert({ tracker_id: t.id, job_id: jobId, inspected_on: v.inspected_on, inspector: v.inspector.trim() || null, path, file_name: name, filed_to: filedTo }).select('*').single()
   if (r.error) {
     if (path) await supabase.storage.from('hs').remove([path])
     throw fail(r.error)

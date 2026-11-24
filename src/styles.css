@@ -1514,3 +1514,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .hs-folder { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 9px 12px; margin: 8px 0; background: #eef3fa; border-left: 4px solid #007abe; border-radius: 6px; }
 .hs-folder-btns { display: inline-flex; gap: 8px; align-items: center; }
 .hs-log { margin: 6px 0 14px; padding: 4px 14px 12px; border: 1px solid #d9d9e0; border-radius: 8px; }
+
+.hs-log-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+.hs-log-row label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.hs-log-row .rfi-field { margin: 0; }
