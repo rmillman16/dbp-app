@@ -28,6 +28,7 @@ import {
   type ReqMessage,
   type ReqStatus,
   type Requisition,
+  isDefectsJob,
 } from '../lib/requisitions'
 import type { Job } from '../lib/types'
 
@@ -190,7 +191,7 @@ export default function Site() {
                   <td className="stack-title nowrap">
                     <strong>{reqRef(r)}</strong>
                   </td>
-                  <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
+                  <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}{isDefectsJob(jobById.get(r.job_id)) && r.data?.original_job ? <span className="muted small"> · for {String(r.data.original_job)}</span> : null}</td>
                   <td data-label="What">{r.element}</td>
                   <td data-label="Raised by">{r.requested_by === userId ? 'Me' : r.requester_name}</td>
                   <td className="nowrap" data-label="Needed by">
@@ -221,7 +222,7 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
   const [params] = useSearchParams()
   const [jobs, setJobs] = useState<Job[] | null>(null)
   // the date needed (hire: start of the hire period) starts 3 days from now unless changed (22 Nov)
-  const [form, setForm] = useState({ job_id: params.get('job') ?? '', element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
+  const [form, setForm] = useState({ job_id: params.get('job') ?? '', original_job: '', element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -231,10 +232,12 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
     loadSites().then(setJobs, (e: Error) => setError(e.message))
   }, [])
 
+  const defects = isDefectsJob((jobs ?? []).find((j) => j.id === form.job_id))
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError(null)
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
+    if (defects && !form.original_job.trim()) return setError('Say which job the defect work is for.')
     if (form.required_by < todayIso()) return setError(hire ? 'The hire start date is in the past.' : 'The date required by is in the past.')
     if (hire && form.hire_end && form.hire_end < form.required_by) return setError('The hire end date is before the start date.')
     setBusy(true)
@@ -247,12 +250,12 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
           details: form.details.trim(),
           required_by: form.required_by,
           notes: form.notes.trim() || null,
-          data: hire ? { hire_end: form.hire_end || null } : {},
+          data: { ...(hire ? { hire_end: form.hire_end || null } : {}), ...(defects ? { original_job: form.original_job.trim() } : {}) },
         },
         files,
       )
       // keep the site; clear the rest for the next one
-      setForm({ job_id: form.job_id, element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
+      setForm({ job_id: form.job_id, original_job: form.original_job, element: '', details: '', required_by: addDaysIso(todayIso(), 3), hire_end: '', notes: '' })
       setFiles([])
       setSent(r)
       setBusy(false)
@@ -293,6 +296,12 @@ function RequisitionForm({ kind }: { kind: ReqKind }) {
               ))}
             </select>
           </label>
+          {defects && (
+            <label className="span-2">
+              Which job is the defect work for? *
+              <input value={form.original_job} placeholder="Job number and name, e.g. 2188 Kings Cross fit-out (an old job, or one before the app)" onChange={(e) => set('original_job', e.target.value)} required />
+            </label>
+          )}
           {!hire && (
             <label className="span-2">
               Element of work *
@@ -531,7 +540,7 @@ export function BuyerList() {
                 return kind === 'hire' ? (
                   <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
                     {ref}
-                    <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
+                    <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}{isDefectsJob(jobById.get(r.job_id)) && r.data?.original_job ? <span className="muted small"> · for {String(r.data.original_job)}</span> : null}</td>
                     <td data-label="Hire requisition" className="pre clamp">
                       {linkify(r.details)}
                     </td>
@@ -553,7 +562,7 @@ export function BuyerList() {
                 ) : (
                   <tr key={r.id} className="clickable" onClick={() => navigate(`/site/requisitions/${r.id}`)}>
                     {ref}
-                    <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}</td>
+                    <td className="stack-sub">{jobLabel(jobById.get(r.job_id))}{isDefectsJob(jobById.get(r.job_id)) && r.data?.original_job ? <span className="muted small"> · for {String(r.data.original_job)}</span> : null}</td>
                     <td data-label="Element">{r.element}</td>
                     <td data-label="Requested by">{r.requester_name}</td>
                     <td className={`nowrap ${urgent ? 'late' : ''}`} data-label="Required by">
@@ -705,6 +714,12 @@ export function RequisitionPage() {
         <dl className="req-details">
           <dt>Site</dt>
           <dd>{job ? <Link to={`/jobs/${job.id}`}>{jobLabel(job)}</Link> : '—'}</dd>
+          {isDefectsJob(job) && (
+            <>
+              <dt>Defect work for</dt>
+              <dd>{(req.data?.original_job as string) || '—'}</dd>
+            </>
+          )}
           <dt>Status</dt>
           <dd>{statusTag(req.status, req.kind)}</dd>
           {req.kind === 'hire' ? (

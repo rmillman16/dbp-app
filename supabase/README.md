@@ -115,3 +115,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
    - add the header `x-cron-secret` with the same text as `CRON_SECRET`.
 
    This sends off-hire reminders on their day; everything else also goes straight away when it happens.
+| `074_defects_job.sql` | An overarching "0 DEFECTS" job so material / hire requisitions can be raised for defect work on an old job or one before the app (run after 073) | Not run yet |

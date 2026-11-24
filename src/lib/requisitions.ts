@@ -68,7 +68,9 @@ export interface ReqFile {
 }
 
 export const reqRef = (r: Pick<Requisition, 'kind' | 'req_no'>) => `${r.kind === 'hire' ? 'HR' : 'MR'}${String(r.req_no).padStart(4, '0')}`
-export const jobLabel = (j: Pick<Job, 'job_no' | 'code' | 'name'> | undefined) => (j ? `${j.job_no} ${j.code} · ${j.name}` : '—')
+// the overarching "Defects" job (script 074): requisitions on it say which old / pre-system job they are for (data.original_job)
+export const isDefectsJob = (j: Pick<Job, 'job_no' | 'code'> | undefined) => !!j && j.job_no === 0 && j.code === 'DEFECTS'
+export const jobLabel =(j: Pick<Job, 'job_no' | 'code' | 'name'> | undefined) => (j ? `${j.job_no} ${j.code} · ${j.name}` : '—')
 
 const needs032 = (m: string) =>
   /requisition/i.test(m) && /does not exist|schema cache|bucket/i.test(m) ? 'Requisitions need script 032 run in Supabase first (supabase/README.md).' : m
