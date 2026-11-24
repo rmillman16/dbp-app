@@ -31,6 +31,7 @@ export interface ExtItem {
   id: string
   ref?: string
   project: string
+  hub_url?: string | null // the job's project hub link (script 078)
   number: number
   title: string
   body: string | null
@@ -57,6 +58,7 @@ export interface ExtListItem {
   status: string
   due_date: string | null
   project: string
+  hub_url?: string | null
   act: boolean
   snippet?: string
   files?: number

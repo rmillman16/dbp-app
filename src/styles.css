@@ -1409,3 +1409,10 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .checklist-add input { flex: 1; }
 .clause-group { margin-bottom: 12px; }
 .clause-group-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 4px; margin-bottom: 6px; }
+
+/* the project hub link on the outside pages (24 Nov) */
+.ext-hub { margin-left: 12px; font-size: 13px; font-weight: 600; color: #007abe; text-decoration: none; }
+.ext-hub:hover { text-decoration: underline; }
+.ext-hub-box { margin: 6px 0 10px; padding: 9px 12px; background: #eef3fa; border-left: 3px solid #007abe; border-radius: 4px; }
+.ext-hub-box a { color: #007abe; font-weight: 600; text-decoration: none; }
+.ext-hub-box a:hover { text-decoration: underline; }

@@ -41,7 +41,7 @@ interface ExtSnag {
 }
 interface Data {
   company: string
-  job: { name: string; ref: string; address: string }
+  job: { name: string; ref: string; address: string; hub_url?: string | null }
   snags: ExtSnag[]
 }
 type Tab = 'todo' | 'done' | 'complete'
@@ -81,6 +81,13 @@ export default function SnagExternal() {
               {data.job.ref} {data.job.name}
               {data.job.address ? ` · ${data.job.address.replace(/\n/g, ', ')}` : ''}
             </p>
+            {data.job.hub_url && (
+              <p className="ext-hub-box">
+                <a href={data.job.hub_url} target="_blank" rel="noreferrer">
+                  Project hub: latest drawings and project documents ↗
+                </a>
+              </p>
+            )}
             <div className="snag-tabs" role="tablist">
               {([
                 ['todo', 'To do'],

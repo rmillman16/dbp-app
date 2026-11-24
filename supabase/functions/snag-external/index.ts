@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
 
     if (action === "list") {
       const ids = await dirIds(db, ctx);
-      const { data: job } = await db.from("jobs").select("name, job_no, code, site_address").eq("id", ctx.jobId).maybeSingle();
+      const { data: job } = await db.from("jobs").select("name, job_no, code, site_address, hub_url").eq("id", ctx.jobId).maybeSingle();
       const { data: rows } = ids.length
         ? await db.from("snags").select("id, number, title, description, location, status, trade, marked_done_at, done_note, created_at, completed_at").eq("job_id", ctx.jobId).in("assignee_id", ids).order("number")
         : { data: [] };
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       return reply({
         ok: true,
         company: ctx.company,
-        job: { name: job?.name ?? "", ref: `${job?.job_no ?? ""} ${job?.code ?? ""}`.trim(), address: job?.site_address ?? "" },
+        job: { name: job?.name ?? "", ref: `${job?.job_no ?? ""} ${job?.code ?? ""}`.trim(), address: job?.site_address ?? "", hub_url: job?.hub_url ?? null },
         snags: (rows ?? []).map((r: { id: string; number: number }) => ({
           ...r,
           ref: `${job?.job_no ?? ""}_${job?.code ?? ""}_SNAG_${String(r.number).padStart(3, "0")}`,

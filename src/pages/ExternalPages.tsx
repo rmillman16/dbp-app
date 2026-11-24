@@ -239,7 +239,14 @@ function ItemList({ items, to, focus }: { items: ExtListItem[]; to: (i: ExtListI
           </h2>
           {sec.projects.map((p) => (
             <div key={p.project} className="ext-table-wrap">
-              <h3 className="ext-proj">{p.project}</h3>
+              <h3 className="ext-proj">
+                {p.project}
+                {p.rows.find((r) => r.hub_url) && (
+                  <a className="ext-hub" href={p.rows.find((r) => r.hub_url)!.hub_url!} target="_blank" rel="noreferrer">
+                    Project hub: drawings and documents ↗
+                  </a>
+                )}
+              </h3>
               <table className="ext-table">
                 <thead>
                   <tr>
@@ -384,6 +391,13 @@ function ItemView({ auth }: { auth: ExtAuth }) {
       )}
       <div className="card">
         <p className="muted small">{item.project}</p>
+        {item.hub_url && (
+          <p className="ext-hub-box">
+            <a href={item.hub_url} target="_blank" rel="noreferrer">
+              Project hub: latest drawings and project documents ↗
+            </a>
+          </p>
+        )}
         <h1>
           {rfi ? 'RFI' : 'Submittal'} {item.number}: {item.title}
         </h1>
