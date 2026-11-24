@@ -21,13 +21,13 @@ const TABS: { to: string; label: string; soon?: boolean; section?: Section; bree
   { to: 'cashflow', label: 'Cashflow', section: 'job_commercial' },
   { to: 'procurement', label: 'Procurement', section: 'job_procurement' },
   { to: 'sampling', label: 'Sampling', section: 'job_sampling' },
-  { to: 'breeam', label: 'BREEAM', section: 'job_sampling', breeam: true },
   { to: 'eot', label: 'EOT', section: 'job_eot' },
   { to: 'cvr', label: 'CVR', section: 'job_commercial' },
   { to: 'submittals', label: 'Submittals', section: 'job_rfis' },
   { to: 'rfis', label: 'RFIs', section: 'job_rfis' },
   { to: 'progress', label: 'Progress reports', section: 'jobs' },
   { to: 'snagging', label: 'Snagging', section: 'job_rfis' },
+  { to: 'breeam', label: 'BREEAM', section: 'job_sampling', breeam: true },
   { to: 'om', label: 'O&M', section: 'job_om' },
 ]
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { configError, supabase } from './lib/supabase'
@@ -8,48 +8,64 @@ import { RequireAccess as A } from './components/NoAccess'
 import JobsTable from './components/JobsTable'
 import SignIn from './pages/SignIn'
 import Home from './pages/Home'
-import JobForm from './pages/JobForm'
-import JobLayout from './pages/JobLayout'
-import JobOverview from './pages/JobOverview'
-import VariationsRegister from './pages/VariationsRegister'
-import VariationEditor from './pages/VariationEditor'
-import { Contracts } from './pages/Sections'
-import ApplicationsTab from './pages/ApplicationsTab'
-import ApplicationEditor from './pages/ApplicationEditor'
-import SubcontractsTab, { OldOrdersLink, OrderPage } from './pages/Subcontracts'
-import PaymentNoticeEditor from './pages/PaymentNoticeEditor'
-import Contractors from './pages/Contractors'
-import EotTab from './pages/EotTab'
-import CashflowTab from './pages/CashflowTab'
-import ProgrammeTab from './pages/ProgrammeTab'
-import ProgrammeHelp from './pages/ProgrammeHelp'
-import SamplingTab from './pages/SamplingTab'
-import ProcurementTab from './pages/ProcurementTab'
-import CvrTab from './pages/CvrTab'
-import CvrEditor from './pages/CvrEditor'
-import OmTab from './pages/OmTab'
-import RfiTab from './pages/RfiTab'
-import RfiPage from './pages/RfiPage'
-import ProgressReportsTab from './pages/ProgressReportsTab'
-import ProgressReportPage from './pages/ProgressReportPage'
-import SubmittalsTab from './pages/SubmittalsTab'
-import SubmittalPage from './pages/SubmittalPage'
-import EnquiryRfis from './pages/EnquiryRfis'
-import TenderEnquiry from './pages/TenderEnquiry'
-import ExternalRoutes from './pages/ExternalPages'
-import SnagExternal from './pages/SnagExternal'
-import SnaggingTab from './pages/SnaggingTab'
-import BreeamTab from './pages/BreeamTab'
-import { SnagDetail, SnagNew } from './pages/SnagPage'
-import Estimating, { EnquiryForm, EnquiryPage, EnquiryProgramme, EnquiryReturn, EnquiryTender } from './pages/Estimating'
-import Settings from './pages/Settings'
-import Dashboard from './pages/Dashboard'
-import MyDetails from './pages/MyDetails'
-import Site, { BuyerList, HireRequisitionForm, MaterialRequisitionForm, RequisitionPage } from './pages/Site'
-import QuotationsRegister from './pages/QuotationsRegister'
-import QuotationEditor, { EstimatingQuotationEditor } from './pages/QuotationEditor'
-import { MinutesEnquiry, MinutesTab } from './pages/Minutes'
-import MyTasks from './pages/MyTasks'
+
+// Pages load when first opened (a smaller first download), not all at once.
+const JobForm = lazy(() => import('./pages/JobForm'))
+const JobLayout = lazy(() => import('./pages/JobLayout'))
+const JobOverview = lazy(() => import('./pages/JobOverview'))
+const VariationsRegister = lazy(() => import('./pages/VariationsRegister'))
+const VariationEditor = lazy(() => import('./pages/VariationEditor'))
+const Contracts = lazy(() => import('./pages/Sections').then((m) => ({ default: m.Contracts })))
+const ApplicationsTab = lazy(() => import('./pages/ApplicationsTab'))
+const ApplicationEditor = lazy(() => import('./pages/ApplicationEditor'))
+const SubcontractsTab = lazy(() => import('./pages/Subcontracts'))
+const OldOrdersLink = lazy(() => import('./pages/Subcontracts').then((m) => ({ default: m.OldOrdersLink })))
+const OrderPage = lazy(() => import('./pages/Subcontracts').then((m) => ({ default: m.OrderPage })))
+const PaymentNoticeEditor = lazy(() => import('./pages/PaymentNoticeEditor'))
+const Contractors = lazy(() => import('./pages/Contractors'))
+const EotTab = lazy(() => import('./pages/EotTab'))
+const CashflowTab = lazy(() => import('./pages/CashflowTab'))
+const ProgrammeTab = lazy(() => import('./pages/ProgrammeTab'))
+const ProgrammeHelp = lazy(() => import('./pages/ProgrammeHelp'))
+const SamplingTab = lazy(() => import('./pages/SamplingTab'))
+const ProcurementTab = lazy(() => import('./pages/ProcurementTab'))
+const CvrTab = lazy(() => import('./pages/CvrTab'))
+const CvrEditor = lazy(() => import('./pages/CvrEditor'))
+const OmTab = lazy(() => import('./pages/OmTab'))
+const RfiTab = lazy(() => import('./pages/RfiTab'))
+const RfiPage = lazy(() => import('./pages/RfiPage'))
+const ProgressReportsTab = lazy(() => import('./pages/ProgressReportsTab'))
+const ProgressReportPage = lazy(() => import('./pages/ProgressReportPage'))
+const SubmittalsTab = lazy(() => import('./pages/SubmittalsTab'))
+const SubmittalPage = lazy(() => import('./pages/SubmittalPage'))
+const EnquiryRfis = lazy(() => import('./pages/EnquiryRfis'))
+const TenderEnquiry = lazy(() => import('./pages/TenderEnquiry'))
+const ExternalRoutes = lazy(() => import('./pages/ExternalPages'))
+const SnagExternal = lazy(() => import('./pages/SnagExternal'))
+const SnaggingTab = lazy(() => import('./pages/SnaggingTab'))
+const BreeamTab = lazy(() => import('./pages/BreeamTab'))
+const SnagDetail = lazy(() => import('./pages/SnagPage').then((m) => ({ default: m.SnagDetail })))
+const SnagNew = lazy(() => import('./pages/SnagPage').then((m) => ({ default: m.SnagNew })))
+const Estimating = lazy(() => import('./pages/Estimating'))
+const EnquiryForm = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryForm })))
+const EnquiryPage = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryPage })))
+const EnquiryProgramme = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryProgramme })))
+const EnquiryReturn = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryReturn })))
+const EnquiryTender = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryTender })))
+const Settings = lazy(() => import('./pages/Settings'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const MyDetails = lazy(() => import('./pages/MyDetails'))
+const Site = lazy(() => import('./pages/Site'))
+const BuyerList = lazy(() => import('./pages/Site').then((m) => ({ default: m.BuyerList })))
+const HireRequisitionForm = lazy(() => import('./pages/Site').then((m) => ({ default: m.HireRequisitionForm })))
+const MaterialRequisitionForm = lazy(() => import('./pages/Site').then((m) => ({ default: m.MaterialRequisitionForm })))
+const RequisitionPage = lazy(() => import('./pages/Site').then((m) => ({ default: m.RequisitionPage })))
+const QuotationsRegister = lazy(() => import('./pages/QuotationsRegister'))
+const QuotationEditor = lazy(() => import('./pages/QuotationEditor'))
+const EstimatingQuotationEditor = lazy(() => import('./pages/QuotationEditor').then((m) => ({ default: m.EstimatingQuotationEditor })))
+const MinutesEnquiry = lazy(() => import('./pages/Minutes').then((m) => ({ default: m.MinutesEnquiry })))
+const MinutesTab = lazy(() => import('./pages/Minutes').then((m) => ({ default: m.MinutesTab })))
+const MyTasks = lazy(() => import('./pages/MyTasks'))
 
 // The sign-in Supabase keeps on the device (cleared on sign-out).
 function storedSignInEmail(): string | null {
@@ -78,8 +94,8 @@ export default function App() {
   // outside people's pages (/r/<link> and /external): no sign-in, and none of the app around them (script 061)
   const { pathname } = useLocation()
   // a trades person's snag list (/s/<link>): the same, no sign-in (script 070)
-  if (pathname.startsWith('/s/')) return <SnagExternal />
-  if (pathname.startsWith('/r/') || pathname === '/external' || pathname.startsWith('/external/')) return <ExternalRoutes />
+  if (pathname.startsWith('/s/')) return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><SnagExternal /></Suspense>
+  if (pathname.startsWith('/r/') || pathname === '/external' || pathname.startsWith('/external/')) return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><ExternalRoutes /></Suspense>
 
   if (configError) {
     return (
@@ -101,6 +117,7 @@ export default function App() {
   return (
     <AccessProvider>
       <Layout email={email}>
+        <Suspense fallback={<p className="muted">Loading…</p>}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route
@@ -340,6 +357,7 @@ export default function App() {
           <Route path="/project-management" element={<Navigate to="/site" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </Layout>
     </AccessProvider>
   )

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
-import { STATUSES, addItems, deleteItem, loadBreeam, readTracker, updateItem, type BreeamItem, type BreeamStatus } from '../lib/breeam'
+import { STATUSES, addItems, deleteItem, lineKey, loadBreeam, readTracker, scoreOverview, updateItem, type BreeamItem, type BreeamStatus } from '../lib/breeam'
 import { loadXlsx } from '../lib/xlsxLoad'
 
 // Job › BREEAM (script 071): the tracker, worked like the sampling tracker. A dropdown per line, filters by status and category,
@@ -16,6 +16,96 @@ const cellText = (v: unknown): unknown => {
     if (o.hyperlink) return o.hyperlink
   }
   return v
+}
+
+const fmt = (n: number) => String(Math.round(n * 10) / 10)
+
+// The first thing on the page: how close the job is. Per section the credits achieved against targeted and available, with a bar;
+// click a section to filter the lines below to it.
+function ScoreOverview({ score, cat, onPick }: { score: ReturnType<typeof scoreOverview>; cat: string; onPick: (c: string) => void }) {
+  const t = score.total
+  const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0)
+  const toGo = Math.max(0, t.targeted - t.achieved)
+  return (
+    <section className="card breeam-score">
+      <div className="breeam-headline">
+        <div>
+          <strong className="big">{pct(t.achieved, t.targeted)}%</strong>
+          <span>of targeted credits achieved</span>
+        </div>
+        <div>
+          <strong className="big">
+            {fmt(t.achieved)} / {fmt(t.targeted)}
+          </strong>
+          <span>{toGo > 0 ? `${fmt(toGo)} targeted credits still to achieve` : 'all targeted credits achieved'}</span>
+        </div>
+        <div>
+          <strong className="big">{pct(t.targeted, t.available)}%</strong>
+          <span>
+            of available credits targeted ({fmt(t.targeted)} of {fmt(t.available)})
+          </span>
+        </div>
+        <div>
+          <strong className="big">{pct(t.achieved, t.available)}%</strong>
+          <span>of available credits achieved</span>
+        </div>
+        {t.prereqs > 0 && (
+          <div>
+            <strong className="big">
+              {t.prereqsMet} / {t.prereqs}
+            </strong>
+            <span>prerequisites met</span>
+          </div>
+        )}
+      </div>
+      <table className="table breeam-score-table">
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th className="num">Achieved</th>
+            <th className="num">Targeted</th>
+            <th className="num">Available</th>
+            <th className="bar-col">Progress to target</th>
+            <th className="num">Still to get</th>
+          </tr>
+        </thead>
+        <tbody>
+          {score.rows.map((r) => (
+            <tr key={r.category} className={cat === r.category ? 'on' : ''} onClick={() => onPick(r.category)} title="Show just this section">
+              <td>
+                <strong>{r.category}</strong>
+              </td>
+              <td className="num">{fmt(r.achieved)}</td>
+              <td className="num">{fmt(r.targeted)}</td>
+              <td className="num">{fmt(r.available)}</td>
+              <td className="bar-col">
+                <div className="breeam-bar" aria-label={`${pct(r.achieved, r.targeted)}% of target`}>
+                  <i style={{ width: `${Math.min(100, pct(r.achieved, r.targeted))}%` }} />
+                  <span>{pct(r.achieved, r.targeted)}%</span>
+                </div>
+              </td>
+              <td className="num">{fmt(Math.max(0, r.targeted - r.achieved))}</td>
+            </tr>
+          ))}
+          <tr className="total">
+            <td>
+              <strong>Total</strong>
+            </td>
+            <td className="num">{fmt(t.achieved)}</td>
+            <td className="num">{fmt(t.targeted)}</td>
+            <td className="num">{fmt(t.available)}</td>
+            <td className="bar-col">
+              <div className="breeam-bar">
+                <i style={{ width: `${Math.min(100, pct(t.achieved, t.targeted))}%` }} />
+                <span>{pct(t.achieved, t.targeted)}%</span>
+              </div>
+            </td>
+            <td className="num">{fmt(toGo)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  )
 }
 
 export default function BreeamTab() {
@@ -48,11 +138,11 @@ export default function BreeamTab() {
     return true
   })
   const groups = categories.map((c) => ({ c, rows: shown.filter((i) => (i.category || 'Other') === c) })).filter((g) => g.rows.length)
-  const targeted = all.filter((i) => i.status !== 'no_action' && i.status !== 'by_others').reduce((s, i) => s + (i.credits_targeted ?? 0), 0)
-  const achieved = all.filter((i) => i.status === 'completed').reduce((s, i) => s + (i.credits_targeted ?? 0), 0)
+  const score = useMemo(() => scoreOverview(all), [all])
 
   async function change(i: BreeamItem, patch: Partial<BreeamItem>) {
     setError(null)
+    if (patch.status === 'completed' && (i.credits_achieved ?? 0) < (i.credits_targeted ?? 0)) patch = { ...patch, credits_achieved: i.credits_targeted }
     setItems((l) => (l ?? []).map((x) => (x.id === i.id ? { ...x, ...patch } : x)))
     try {
       await updateItem(i.id, patch)
@@ -73,10 +163,11 @@ export default function BreeamTab() {
         return { name: ws.name, rows }
       })
       const { items: read, sheet } = readTracker(sheets)
-      if (!read.length) throw new Error("Couldn't find a tracker in that file. It needs a heading row with words like Ref, Issue / Credit, Status and Responsible.")
+      if (!read.length) throw new Error("Couldn't find a tracker in that file. It needs a heading row with words like Credits Available, Credits Targeted and Credit Criteria.")
       // lines already on the tracker (same ref and wording) aren't added twice
-      const have = new Set(all.map((x) => `${(x.ref ?? '').toLowerCase()}|${x.title.toLowerCase()}`))
-      const fresh = read.filter((x) => !have.has(`${(x.ref ?? '').toLowerCase()}|${x.title.toLowerCase()}`)).map((x, k) => ({ ...x, sort: all.length + k }))
+      const key = (x: { category: string | null; ref: string | null; title: string; criteria: string | null }) => `${lineKey(x)}|${(x.criteria ?? '').slice(0, 40).toLowerCase()}`
+      const have = new Set(all.map(key))
+      const fresh = read.filter((x) => !have.has(key(x))).map((x, k) => ({ ...x, sort: all.length + k }))
       await addItems(job.id, fresh)
       setMsg(`Imported ${fresh.length} line${fresh.length === 1 ? '' : 's'} from "${sheet}"${read.length - fresh.length ? ` (${read.length - fresh.length} already on the tracker)` : ''}.`)
       await reload()
@@ -89,7 +180,7 @@ export default function BreeamTab() {
     if (!draft.title.trim()) return setError('Give the line a title.')
     setBusy(true)
     try {
-      await addItems(job.id, [{ ref: draft.ref.trim() || null, category: draft.category.trim() || null, title: draft.title.trim(), credits_available: null, credits_targeted: null, responsible: null, status: 'not_complete', due_date: null, evidence_link: null, comments: null, sort: all.length }])
+      await addItems(job.id, [{ ref: draft.ref.trim() || null, category: draft.category.trim() || null, title: draft.title.trim(), credits_available: null, credits_targeted: null, credits_achieved: null, criteria: null, evidence: null, prerequisite: false, responsible: null, status: 'not_complete', due_date: null, evidence_link: null, comments: null, sort: all.length }])
       setDraft({ ref: draft.ref.replace(/\d+$/, (n) => String(Number(n) + 1).padStart(n.length, '0')), category: draft.category, title: '' })
       await reload()
     } catch (e) {
@@ -152,6 +243,7 @@ export default function BreeamTab() {
         </div>
       ) : (
         <>
+          <ScoreOverview score={score} cat={cat} onPick={(c) => setCat(cat === c ? '' : c)} />
           <div className="breeam-stats">
             {STATUSES.map(([k, l]) => (
               <button key={k} className={`breeam-stat ${k} ${filter === k ? 'on' : ''}`} onClick={() => setFilter(filter === k ? 'all' : k)}>
@@ -159,12 +251,6 @@ export default function BreeamTab() {
                 <span>{l}</span>
               </button>
             ))}
-            <div className="breeam-stat credits" title="Credits targeted on lines that are not 'by others' or 'no action'; completed ones count as achieved">
-              <strong>
-                {achieved} / {targeted}
-              </strong>
-              <span>credits achieved</span>
-            </div>
           </div>
           <div className="snag-filters">
             <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} aria-label="Status">
@@ -190,19 +276,28 @@ export default function BreeamTab() {
           {groups.map((g) => (
             <section key={g.c} className="card breeam-group">
               <h3>
-                {g.c} <span className="muted small">{g.rows.length}</span>
+                {g.c}{' '}
+                <span className="muted small">
+                  {g.rows.length} line{g.rows.length === 1 ? '' : 's'}
+                  {(() => {
+                    const s = score.rows.find((r) => r.category === g.c)
+                    return s ? ` · ${fmt(s.achieved)} of ${fmt(s.targeted)} targeted credits achieved (${fmt(s.available)} available)` : ''
+                  })()}
+                </span>
               </h3>
-              <div className="table-wrap">
+              <div className="breeam-wrap">
                 <table className="table breeam-table">
                   <thead>
                     <tr>
                       <th>Ref</th>
-                      <th>Issue / credit</th>
-                      <th className="num">Avail.</th>
-                      <th className="num">Target</th>
-                      <th>Responsible</th>
+                      <th>Credit</th>
+                      <th className="num" title="Credits available">Avail.</th>
+                      <th className="num" title="Credits targeted">Target</th>
+                      <th className="num" title="Credits achieved">Achvd</th>
+                      <th>Credit criteria</th>
+                      <th>Evidence required</th>
+                      <th>Action</th>
                       <th>Status</th>
-                      <th>Due</th>
                       <th>Comments</th>
                       <th />
                     </tr>
@@ -216,13 +311,28 @@ export default function BreeamTab() {
                         <td data-label="Issue">
                           <textarea defaultValue={i.title} rows={2} onBlur={(e) => e.target.value.trim() && e.target.value !== i.title && change(i, { title: e.target.value.trim() })} />
                         </td>
-                        <td data-label="Available">
-                          <input type="number" step="0.5" defaultValue={i.credits_available ?? ''} onBlur={(e) => change(i, { credits_available: e.target.value === '' ? null : Number(e.target.value) })} className="b-num" />
+                        {(
+                          [
+                            ['Available', 'credits_available'],
+                            ['Targeted', 'credits_targeted'],
+                            ['Achieved', 'credits_achieved'],
+                          ] as const
+                        ).map(([label, f]) => (
+                          <td key={f} data-label={label}>
+                            {i.prerequisite && i[f] == null ? (
+                              <span className="b-p" title="Prerequisite: a must-have, no credit">P</span>
+                            ) : (
+                              <input type="number" step="0.5" defaultValue={i[f] ?? ''} onBlur={(e) => e.target.value !== String(i[f] ?? '') && change(i, { [f]: e.target.value === '' ? null : Number(e.target.value) })} className="b-num" />
+                            )}
+                          </td>
+                        ))}
+                        <td data-label="Criteria">
+                          <textarea defaultValue={i.criteria ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.criteria ?? '') && change(i, { criteria: e.target.value || null })} />
                         </td>
-                        <td data-label="Targeted">
-                          <input type="number" step="0.5" defaultValue={i.credits_targeted ?? ''} onBlur={(e) => change(i, { credits_targeted: e.target.value === '' ? null : Number(e.target.value) })} className="b-num" />
+                        <td data-label="Evidence">
+                          <textarea defaultValue={i.evidence ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.evidence ?? '') && change(i, { evidence: e.target.value || null })} />
                         </td>
-                        <td data-label="Responsible">
+                        <td data-label="Action">
                           <input defaultValue={i.responsible ?? ''} onBlur={(e) => e.target.value !== (i.responsible ?? '') && change(i, { responsible: e.target.value || null })} />
                         </td>
                         <td data-label="Status">
@@ -234,11 +344,8 @@ export default function BreeamTab() {
                             ))}
                           </select>
                         </td>
-                        <td data-label="Due">
-                          <input type="date" defaultValue={i.due_date ?? ''} onBlur={(e) => e.target.value !== (i.due_date ?? '') && change(i, { due_date: e.target.value || null })} />
-                        </td>
                         <td data-label="Comments">
-                          <textarea defaultValue={i.comments ?? ''} rows={2} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
+                          <textarea defaultValue={i.comments ?? ''} rows={3} onBlur={(e) => e.target.value !== (i.comments ?? '') && change(i, { comments: e.target.value || null })} />
                         </td>
                         <td>
                           <button className="small-button" title="Remove this line" onClick={() => confirm(`Remove ${i.ref ?? 'this line'}?`) && deleteItem(i.id).then(reload, (e) => setError(saveError(e)))}>
