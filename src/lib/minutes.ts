@@ -12,17 +12,25 @@ import { ukDate } from './format'
 
 export const FOOTNOTE_TEXT =
   "Comments or corrections on these notes? Get in touch with whoever sent them to you. If we don't hear back within 72 hours, the notes will be taken as agreed."
-export const POINT_PLACEHOLDER = 'Type a point… @ mention, # heading, ! urgent, £ cost'
+export const POINT_PLACEHOLDER = 'Type a point… @ mention, / link an RFI or snag, # heading, ! urgent, £ cost'
 export const HEADING_PLACEHOLDER = 'Section heading…'
 
 export interface Attendee {
   id: string
   name: string
   initials: string
-  present: boolean // false = referenced only, not at the meeting
+  present: boolean // false = not at the meeting: apologies (below) or referenced only
+  apology?: boolean // not present, and sent apologies (script 085)
   profileId: string | null // a staff login; null = typed in
   company: string | null
   email: string | null
+}
+// a record a point is about (script 085): shown as a link under the point
+export type RefKind = 'rfi' | 'submittal' | 'snag' | 'vo'
+export interface PointRef {
+  kind: RefKind
+  id: string
+  label: string // "RFI 12"
 }
 export interface PointUpdate {
   id: string
@@ -48,6 +56,8 @@ export interface Point {
   updates: PointUpdate[]
   carriedFrom: CarriedFrom | null
   carriedForward: boolean
+  refs?: PointRef[] // RFIs, submittals, snags and variations this point is about (085)
+  doneBy?: string | null // who ticked it done on the project hub (085)
 }
 export interface Meeting {
   id: string
@@ -60,6 +70,10 @@ export interface Meeting {
   points: Point[]
   createdAt: number
   updatedAt: number
+  no?: number | null // Meeting 12: counted per job / estimate, given by the database on first save (085)
+  type?: string | null // a meeting type: see MEETING_TYPES (085)
+  rev?: number // how many times it has been issued (085)
+  locked?: boolean // issued: read-only until amended (085)
 }
 export interface MeetingSummary {
   id: string
@@ -118,6 +132,10 @@ export function newMeeting(owner: MinutesOwner): Meeting {
     points: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    no: null,
+    type: null,
+    rev: 0,
+    locked: false,
   }
 }
 export function newPoint(type: 'note' | 'heading' = 'note'): Point {
@@ -134,6 +152,8 @@ export function newPoint(type: 'note' | 'heading' = 'note'): Point {
     updates: [],
     carriedFrom: null,
     carriedForward: false,
+    refs: [],
+    doneBy: null,
   }
 }
 export function isMeetingEmpty(m: Meeting | null) {
@@ -157,7 +177,47 @@ export function computeInitials(name: string, existing: { initials: string }[]) 
 export const attendeeById = (m: { attendees: Attendee[] }, id: string | null) => (id ? m.attendees.find((a) => a.id === id) : undefined)
 // present !== false so anyone saved without the field counts as attending
 export const presentAttendees = (m: { attendees: Attendee[] }) => m.attendees.filter((a) => a.present !== false)
-export const awayAttendees = (m: { attendees: Attendee[] }) => m.attendees.filter((a) => a.present === false)
+export const awayAttendees = (m: { attendees: Attendee[] }) => m.attendees.filter((a) => a.present === false && !a.apology) // referenced only
+export const apologyAttendees = (m: { attendees: Attendee[] }) => m.attendees.filter((a) => a.present === false && !!a.apology)
+
+// ---------- meeting types and their standing agendas (085) ----------
+// Choosing a type loads its headings; the next meeting of that type starts with them again (after the carried-forward actions).
+export interface MeetingType {
+  key: string
+  label: string
+  headings: string[]
+}
+export const MEETING_TYPES: MeetingType[] = [
+  { key: 'progress', label: 'Progress meeting', headings: ['Health and safety', 'Programme', 'Progress and works planned', 'Design information, RFIs and submittals', 'Procurement', 'Quality and snagging', 'Commercial and variations', 'Any other business', 'Date of next meeting'] },
+  { key: 'design', label: 'Design team meeting', headings: ['Design progress', 'Information required and RFIs', 'Coordination', 'Statutory approvals and building control', 'Programme and deadlines', 'Any other business', 'Date of next meeting'] },
+  { key: 'prestart', label: 'Pre-start meeting', headings: ['Scope and programme', 'Health and safety, RAMS and permits', 'Site set-up, access and logistics', 'Information and approvals', 'Procurement and lead times', 'Quality and sign-off', 'Any other business'] },
+  { key: 'hs', label: 'H&S meeting', headings: ['Accidents, incidents and near misses', 'Inspections and audits', 'RAMS and permits', 'Site conditions and welfare', 'Training and inductions', 'Any other business'] },
+  { key: 'tender', label: 'Tender / pre-contract meeting', headings: ['Scope and clarifications', 'Programme', 'Pricing and commercial', 'Next steps'] },
+]
+export const meetingTypeOf = (key: string | null | undefined) => MEETING_TYPES.find((t) => t.key === key) ?? null
+// the type's headings as empty sections, for a meeting that has none yet
+export const standingHeadings = (key: string | null | undefined): Point[] => (meetingTypeOf(key)?.headings ?? []).map((h) => ({ ...newPoint('heading'), text: h }))
+
+// ---------- numbering (085) ----------
+// Sections count 1, 2, 3 and the points under each 1.1, 1.2...; points before the first heading are section 1 and the first heading
+// then becomes 2. The number is worked out from the order, so it moves if points are reordered; an issued copy keeps its numbers.
+export function numberPoints(points: { id: string; type: 'note' | 'heading' }[]): Map<string, string> {
+  const out = new Map<string, string>()
+  let sec = points.length && points[0].type !== 'heading' ? 1 : 0
+  let n = 0
+  for (const p of points) {
+    if (p.type === 'heading') {
+      sec++
+      n = 0
+      out.set(p.id, String(sec))
+    } else out.set(p.id, `${sec}.${++n}`)
+  }
+  return out
+}
+// "12/4.3": the reference to quote in an email or an RFI
+// issue 1 is Rev A, 2 Rev B...
+export const revLetter = (n: number) => String.fromCharCode(64 + Math.max(1, n))
+export const itemRef =(m: { no?: number | null }, num: string | undefined) => (m.no && num ? `${m.no}/${num}` : (num ?? ''))
 
 type Named = { name: string; initials: string }
 function mentionRe(attendees: Named[]) {
@@ -236,9 +296,11 @@ export const countOpenActions = (m: Meeting | null) => (m ? m.points.filter((p) 
 export function buildNextMeeting(source: Meeting): Meeting {
   const next = newMeeting({ jobId: source.jobId, enquiryId: source.enquiryId, label: source.project } as MinutesOwner)
   next.subtitle = source.subtitle
+  next.type = source.type ?? null
   const ownerIdMap: Record<string, string> = {}
   source.attendees.forEach((a) => {
-    const copy: Attendee = { ...a, id: uid(), present: a.present !== false }
+    // someone who sent apologies is expected back; someone only referenced stays referenced
+    const copy: Attendee = { ...a, id: uid(), present: a.apology ? true : a.present !== false, apology: false }
     next.attendees.push(copy)
     ownerIdMap[a.id] = copy.id
   })
@@ -262,11 +324,14 @@ export function buildNextMeeting(source: Meeting): Meeting {
         dueDate: p.dueDate || null,
         urgent: p.urgent || false,
         updates: p.updates.slice(),
+        refs: (p.refs ?? []).slice(),
         carriedFrom: { meetingId: source.id, pointId: p.id, project: source.project, date: source.date },
       })
       p.carriedForward = true
     })
   }
+  // the type's standing agenda, after the carried-forward actions
+  next.points.push(...standingHeadings(next.type))
   return next
 }
 
@@ -275,20 +340,23 @@ export function buildPlainTextNotes(m: Meeting) {
   const lines: string[] = []
   lines.push(m.project || 'Untitled project')
   if (m.subtitle) lines.push(m.subtitle)
-  lines.push(formatDateNice(m.date))
+  lines.push(formatDateNice(m.date) + (m.no ? ` · Meeting ${m.no}` : '') + (m.rev ? ` · Rev ${revLetter(m.rev)}` : ''))
   const presentNames = presentAttendees(m).map(attendeeLabel).join(', ')
+  const apologyNames = apologyAttendees(m).map(attendeeLabel).join(', ')
   const awayNames = awayAttendees(m).map(attendeeLabel).join(', ')
   if (presentNames) lines.push('Attendees: ' + presentNames)
+  if (apologyNames) lines.push('Apologies: ' + apologyNames)
   if (awayNames) lines.push('Also referenced (not in attendance): ' + awayNames)
   lines.push('')
+  const nums = numberPoints(m.points)
   m.points.forEach((p) => {
-    if (p.type === 'heading') return void lines.push((p.text || '').toUpperCase())
+    if (p.type === 'heading') return void lines.push((nums.get(p.id) ?? '') + '. ' + (p.text || '').toUpperCase())
     const owner = attendeeById(m, p.ownerId)
     const meta: string[] = []
     if (p.urgent) meta.push('URGENT')
     if (owner) meta.push('Owner: ' + owner.name)
     if (p.dueDate) meta.push(dueWord(p) + formatDateShort(p.dueDate))
-    lines.push('- ' + plainMentions(p.text || '', m.attendees) + (meta.length ? '  (' + meta.join(' · ') + ')' : ''))
+    lines.push((nums.get(p.id) ?? '-') + '  ' + plainMentions(p.text || '', m.attendees) + (meta.length ? '  (' + meta.join(' · ') + ')' : ''))
     p.updates.forEach((u) => lines.push('    ' + formatDateShort(u.date) + ': ' + u.text))
   })
   const summary = computeTaskSummary(m)
@@ -332,6 +400,10 @@ interface MeetingRow {
   meeting_date: string
   created_at: string
   updated_at: string
+  meeting_no?: number | null // 085
+  meeting_type?: string | null
+  issued_rev?: number
+  locked?: boolean
 }
 interface AttendeeRow {
   id: string
@@ -342,6 +414,7 @@ interface AttendeeRow {
   company: string | null
   email: string | null
   present: boolean
+  apology?: boolean // 085
   sort: number
 }
 interface PointRow {
@@ -359,6 +432,8 @@ interface PointRow {
   updates: PointUpdate[] | null
   carried_from: CarriedFrom | null
   carried_forward: boolean
+  refs?: PointRef[] | null // 085
+  done_by?: string | null
 }
 
 export const needs045 = (m: string) =>
@@ -373,6 +448,7 @@ const toAttendee = (r: AttendeeRow): Attendee => ({
   name: r.name,
   initials: r.initials,
   present: r.present !== false,
+  apology: !!r.apology,
   profileId: r.profile_id,
   company: r.company,
   email: r.email,
@@ -390,6 +466,8 @@ const toPoint = (r: PointRow): Point => ({
   updates: r.updates ?? [],
   carriedFrom: r.carried_from,
   carriedForward: r.carried_forward,
+  refs: r.refs ?? [],
+  doneBy: r.done_by ?? null,
 })
 
 // every meeting of a job or an estimate, with attendees for the avatars and search
@@ -399,6 +477,7 @@ export async function loadMeetingList(owner: MinutesOwner): Promise<MeetingSumma
     const ms = await must<Omit<MeetingRow, 'created_at'>[]>(owner.jobId ? mq.eq('job_id', owner.jobId) : mq.eq('enquiry_id', owner.enquiryId)).catch((e: Error) => {
       throw new Error(needs045(e.message))
     })
+    sees085(ms[0])
     const as = ms.length
       ? await must<Pick<AttendeeRow, 'id' | 'meeting_id' | 'name' | 'initials' | 'present' | 'sort'>[]>(
           supabase
@@ -440,6 +519,7 @@ export async function loadMeeting(id: string): Promise<Meeting | null> {
       throw new Error(needs045(e.message))
     })
     if (!m) return null
+    sees085(m)
     return {
       id: m.id,
       jobId: m.job_id,
@@ -451,6 +531,10 @@ export async function loadMeeting(id: string): Promise<Meeting | null> {
       points: ps.map(toPoint),
       createdAt: new Date(m.created_at).getTime(),
       updatedAt: new Date(m.updated_at).getTime(),
+      no: m.meeting_no ?? null,
+      type: m.meeting_type ?? null,
+      rev: m.issued_rev ?? 0,
+      locked: !!m.locked,
     } satisfies Meeting
   })
   return remote
@@ -470,10 +554,25 @@ export interface SavedState {
 }
 export const emptySaved = (): SavedState => ({ meeting: '', attendees: new Map(), points: new Map() })
 
+// whether script 085 is in (seen on a loaded meeting): the new columns are only sent then, or when they are used, so minutes keep
+// working before it is run
+let has085 = false
+const sees085 = (r: object | undefined | null) => {
+  if (r && 'meeting_no' in r) has085 = true
+}
+
 function rows(m: Meeting) {
   const attendeeIds = new Set(m.attendees.map((a) => a.id))
   // enquiry_id only when set, so a job's minutes work before script 046
-  const meeting = { id: m.id, job_id: m.jobId, ...(m.enquiryId ? { enquiry_id: m.enquiryId } : {}), project: m.project, subtitle: m.subtitle, meeting_date: m.date || todayISO() }
+  const meeting = {
+    id: m.id,
+    job_id: m.jobId,
+    ...(m.enquiryId ? { enquiry_id: m.enquiryId } : {}),
+    project: m.project,
+    subtitle: m.subtitle,
+    meeting_date: m.date || todayISO(),
+    ...(has085 || m.type ? { meeting_type: m.type ?? null } : {}),
+  }
   const attendees = m.attendees.map((a, i) => ({
     id: a.id,
     meeting_id: m.id,
@@ -483,6 +582,7 @@ function rows(m: Meeting) {
     company: a.company,
     email: a.email,
     present: a.present !== false,
+    ...(has085 || a.apology ? { apology: !!a.apology && a.present === false } : {}),
     sort: i,
   }))
   const points = m.points.map((p, i) => ({
@@ -501,6 +601,7 @@ function rows(m: Meeting) {
     updates: p.updates,
     carried_from: p.carriedFrom,
     carried_forward: p.carriedForward,
+    ...(has085 || p.refs?.length ? { refs: p.refs ?? [] } : {}),
   }))
   return { meeting, attendees, points }
 }
@@ -551,6 +652,117 @@ export async function deleteMeeting(id: string) {
 export async function completeAction(pointId: string, done = true) {
   const { error } = await supabase.rpc('complete_minutes_action', { point: pointId, is_done: done })
   if (error) throw new Error(needs045(error.message))
+}
+
+// =====================================================================
+// Script 085: issuing, links to records, what changed on the hub
+// =====================================================================
+const needs085 = (m: string) =>
+  /issue_minutes|amend_minutes|meeting_issues|meeting_no|meeting_type|issued_rev|locked|apology|refs|done_by/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
+    ? 'This needs script 085 run in Supabase first (supabase/README.md).'
+    : needs045(m)
+
+export interface IssueRecord {
+  id: string
+  rev: number
+  issuedAt: string
+  issuedBy: string
+  sentTo: { name: string; email: string }[]
+  note: string | null
+  snapshot: Meeting
+}
+// issue the minutes: the database keeps exactly this copy as the revision, locks the meeting and queues the outside owners' actions
+export async function issueMinutes(m: Meeting, to: { name: string; email: string }[], note?: string): Promise<number> {
+  const snap = JSON.parse(JSON.stringify(m)) as Meeting
+  snap.rev = (m.rev ?? 0) + 1
+  snap.locked = true
+  const { data, error } = await supabase.rpc('issue_minutes', { p_meeting: m.id, p_snapshot: snap, p_to: to, p_note: note?.trim() || null })
+  if (error) throw new Error(needs085(error.message))
+  return data as number
+}
+export async function amendMinutes(id: string) {
+  const { error } = await supabase.rpc('amend_minutes', { p_meeting: id })
+  if (error) throw new Error(needs085(error.message))
+}
+export async function loadIssues(meetingId: string): Promise<IssueRecord[]> {
+  const { data, error } = await supabase.from('meeting_issues').select('id, rev, issued_at, issued_by_name, sent_to, note, snapshot').eq('meeting_id', meetingId).order('rev', { ascending: false })
+  if (error) throw new Error(needs085(error.message))
+  return (data ?? []).map((r) => ({ id: r.id, rev: r.rev, issuedAt: r.issued_at, issuedBy: r.issued_by_name ?? '', sentTo: r.sent_to ?? [], note: r.note, snapshot: r.snapshot as Meeting }))
+}
+// the number the database gave a new meeting, and its issue state
+export async function loadMeetingMeta(id: string) {
+  const { data } = await supabase.from('meetings').select('meeting_no, issued_rev, locked').eq('id', id).maybeSingle()
+  return data ? { no: (data.meeting_no as number | null) ?? null, rev: (data.issued_rev as number | null) ?? 0, locked: !!data.locked } : null
+}
+// what the project hub changed since the page was opened: actions ticked done by outside people, with their note in the update log
+export async function loadPointStates(meetingId: string) {
+  const { data } = await supabase.from('meeting_points').select('id, done, is_action, updates, done_by').eq('meeting_id', meetingId)
+  return (data ?? []) as { id: string; done: boolean; is_action: boolean; updates: PointUpdate[] | null; done_by: string | null }[]
+}
+
+// ---------- links to records ----------
+export interface LinkRecord extends PointRef {
+  title: string
+  status: string
+}
+const KIND_WORD: Record<RefKind, string> = { rfi: 'RFI', submittal: 'Submittal', snag: 'Snag', vo: 'VO' }
+export const refWord = (k: RefKind) => KIND_WORD[k]
+export const refPath = (jobId: string, r: { kind: RefKind; id: string }) =>
+  `/jobs/${jobId}/${r.kind === 'rfi' ? 'rfis' : r.kind === 'submittal' ? 'submittals' : r.kind === 'snag' ? 'snagging' : 'variations'}/${r.id}`
+// a job's RFIs, submittals, snags and variations, for the "/" picker and for linking "RFI 12" typed in a point
+export async function loadLinkRecords(jobId: string): Promise<LinkRecord[]> {
+  const one = async (kind: RefKind, table: string, numCol: string): Promise<LinkRecord[]> => {
+    const r = await supabase.from(table).select(`id, ${numCol}, title, status`).eq('job_id', jobId)
+    if (r.error || !r.data) return []
+    return (r.data as unknown as Record<string, unknown>[]).map((x) => ({ kind, id: String(x.id), label: `${KIND_WORD[kind]} ${x[numCol]}`, title: String(x.title ?? ''), status: String(x.status ?? '') }))
+  }
+  const all = await Promise.all([one('rfi', 'rfis', 'number'), one('submittal', 'submittals', 'number'), one('snag', 'snags', 'number'), one('vo', 'variations', 'vo_no')])
+  return all.flat()
+}
+// "RFI 12", "Snag 4", "VO 3", "Submittal 7" in the text: the records they name (typing them is enough, no picking needed)
+export function refsInText(text: string, records: LinkRecord[]): PointRef[] {
+  const out: PointRef[] = []
+  const re = /\b(RFI|Submittal|Sub|Snag|VO|Variation)\s*(?:no\.?\s*)?#?0*(\d+)\b/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    const w = m[1].toLowerCase()
+    const kind: RefKind = w === 'rfi' ? 'rfi' : w === 'snag' ? 'snag' : w === 'vo' || w === 'variation' ? 'vo' : 'submittal'
+    const hit = records.find((r) => r.kind === kind && r.label === `${KIND_WORD[kind]} ${Number(m![2])}`)
+    if (hit && !out.some((o) => o.id === hit.id)) out.push({ kind: hit.kind, id: hit.id, label: hit.label })
+  }
+  return out
+}
+
+// ---------- the project team, in one click ----------
+export interface TeamPerson {
+  name: string
+  company: string | null
+  email: string | null
+  profileId: string | null // a staff login (the job's team)
+}
+// the job's own team (staff) and everyone in its project directory, for "Add the project team" (an estimate has its directory only)
+export async function loadProjectPeople(owner: { jobId: string | null; enquiryId: string | null }): Promise<TeamPerson[]> {
+  const out: TeamPerson[] = []
+  if (owner.jobId) {
+    const t = await supabase.from('job_team').select('profile_id').eq('job_id', owner.jobId)
+    for (const r of (t.data ?? []) as { profile_id: string | null }[]) if (r.profile_id) out.push({ name: '', company: null, email: null, profileId: r.profile_id })
+  }
+  const col = owner.jobId ? 'job_id' : 'enquiry_id'
+  const [dir, cos, cts] = await Promise.all([
+    supabase.from('job_directory').select('company_id, contact_id').eq(col, (owner.jobId ?? owner.enquiryId) as string),
+    supabase.from('companies').select('id, name, email'),
+    supabase.from('contacts').select('id, name, email, company_id'),
+  ])
+  const co = new Map(((cos.data ?? []) as { id: string; name: string; email: string | null }[]).map((c) => [c.id, c]))
+  const ct = new Map(((cts.data ?? []) as { id: string; name: string; email: string | null; company_id: string }[]).map((c) => [c.id, c]))
+  for (const d of (dir.data ?? []) as { company_id: string | null; contact_id: string | null }[]) {
+    const c = d.contact_id ? ct.get(d.contact_id) : undefined
+    const company = co.get(d.company_id ?? c?.company_id ?? '')
+    const name = c?.name ?? company?.name
+    if (!name) continue
+    out.push({ name, company: c && company ? company.name : null, email: (c?.email || company?.email || '').trim() || null, profileId: null })
+  }
+  return out
 }
 
 export const minutesBase = (m: { jobId: string | null; enquiryId: string | null }) =>

@@ -77,6 +77,13 @@ export default function Layout({ email, children }: { email: string; children: R
       </NavLink>
     ),
   )
+  // the guide, below Settings: opens in its own tab so it can stay beside the work
+  navItems.push(
+    <a key="help" href="/help" target="_blank" rel="noopener" className="nav-item" title="A guide to using the app (opens in a new tab)">
+      <NavIcon d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01" />
+      Help
+    </a>,
+  )
   const offlinePill = !online && <span className="offline-pill">Offline · showing the last saved copy</span>
 
   return (

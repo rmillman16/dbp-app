@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { buildMinutesPdf, minutesFilename } from '../lib/exportMinutes'
-import { formatDateNice, type Meeting } from '../lib/minutes'
+import { formatDateNice, issueMinutes, revLetter, type Meeting } from '../lib/minutes'
 import type { Company, CompanyType } from '../lib/types'
 
 interface Recipient {
@@ -52,10 +52,13 @@ async function toBase64(b: Blob) {
   return btoa(s)
 }
 
-export default function MinutesEmail({ meeting, hubUrl, onClose, onDone }: { meeting: Meeting; hubUrl: string | null; onClose: () => void; onDone: (msg: string, danger?: boolean) => void }) {
+export default function MinutesEmail({ meeting, hubUrl, onClose, onDone, onIssued, beforeIssue }: { meeting: Meeting; hubUrl: string | null; onClose: () => void; onDone: (msg: string, danger?: boolean) => void; onIssued: (rev: number) => void; beforeIssue: () => Promise<void> }) {
   const [people, setPeople] = useState<Recipient[] | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [subject, setSubject] = useState(`${meeting.project || 'Meeting'} – minutes of ${formatDateNice(meeting.date)}`)
+  // issuing records the revision, keeps a copy of exactly what went out and locks the minutes (script 085)
+  const [issue, setIssue] = useState(true)
+  const nextRev = (meeting.rev ?? 0) + 1
+  const [subject, setSubject] = useState(`${meeting.project || 'Meeting'} – ${meeting.no ? `Meeting ${meeting.no} ` : ''}minutes of ${formatDateNice(meeting.date)}${(meeting.rev ?? 0) > 0 ? ` (Rev ${revLetter(nextRev)})` : ''}`)
   const [message, setMessage] = useState('Please find the minutes of our meeting attached.\n\nIf you have any comments or corrections, let me know. Otherwise they will be taken as agreed in 72 hours.')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,18 +96,27 @@ export default function MinutesEmail({ meeting, hubUrl, onClose, onDone }: { mee
   const chosen = (people ?? []).filter((p) => picked.has(p.key))
 
   async function send() {
-    if (!chosen.length) return setError('Tick at least one person.')
-    if (!navigator.onLine) return setError('You are offline: the minutes can only be emailed with a connection.')
+    if (!chosen.length && !issue) return setError('Tick at least one person.')
+    if (!navigator.onLine) return setError('You are offline: the minutes can only be emailed or issued with a connection.')
     setSending(true)
     setError(null)
     try {
-      const pdf = await buildMinutesPdf(meeting, hubUrl)
-      const r = await supabase.functions.invoke('send-minutes', {
-        body: { to: chosen.map((p) => p.email), subject: subject.trim(), message, filename: minutesFilename(meeting, 'pdf'), pdf: await toBase64(pdf), job_id: meeting.jobId },
-      })
-      if (r.error) throw new Error(r.error.message)
-      if (!r.data?.ok) throw new Error(r.data?.detail ?? 'The email was not sent.')
-      onDone(`Minutes emailed to ${chosen.length} ${chosen.length === 1 ? 'person' : 'people'}.`)
+      // the PDF is of the revision being issued (it carries "Rev A" and the meeting number)
+      const out: Meeting = issue ? { ...meeting, rev: nextRev, locked: true } : meeting
+      if (chosen.length) {
+        const pdf = await buildMinutesPdf(out, hubUrl)
+        const r = await supabase.functions.invoke('send-minutes', {
+          body: { to: chosen.map((p) => p.email), subject: subject.trim(), message, filename: minutesFilename(out, 'pdf'), pdf: await toBase64(pdf), job_id: meeting.jobId },
+        })
+        if (r.error) throw new Error(r.error.message)
+        if (!r.data?.ok) throw new Error(r.data?.detail ?? 'The email was not sent.')
+      }
+      if (issue) {
+        await beforeIssue() // every change so far is saved first, so the issued copy and the outside people's actions match
+        const rev = await issueMinutes(meeting, chosen.map((p) => ({ name: p.name, email: p.email })))
+        onIssued(rev)
+        onDone(chosen.length ? `Issued as Rev ${revLetter(rev)} and emailed to ${chosen.length} ${chosen.length === 1 ? 'person' : 'people'}.` : `Issued as Rev ${revLetter(rev)} (not emailed).`)
+      } else onDone(`Minutes emailed to ${chosen.length} ${chosen.length === 1 ? 'person' : 'people'}.`)
       onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -115,7 +127,7 @@ export default function MinutesEmail({ meeting, hubUrl, onClose, onDone }: { mee
   return (
     <div className="mm-back" onMouseDown={(e) => e.target === e.currentTarget && !sending && onClose()}>
       <div className="mm-panel" role="dialog" aria-label="Email the minutes">
-        <h2>Email these minutes</h2>
+        <h2>{issue ? `Issue these minutes as Rev ${revLetter(nextRev)}` : 'Email these minutes'}</h2>
         <p className="mm-note">
           Check who this goes to. It is sent from the DBP mailbox as a PDF, with you copied in and replies coming to you{hubUrl ? ', and the project hub link at the foot' : ''}.
           {!hubUrl && ' (This job has no project hub link yet: add one in Edit job.)'}
@@ -170,14 +182,21 @@ export default function MinutesEmail({ meeting, hubUrl, onClose, onDone }: { mee
           <textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
         </label>
 
+        <label className="mm-issue">
+          <input type="checkbox" checked={issue} onChange={(e) => setIssue(e.target.checked)} />
+          <span>
+            <b>Issue as Rev {revLetter(nextRev)}</b>: keep a copy of exactly what is sent, record who it went to, lock the minutes, and email outside people their own actions with a link to tick them off. Untick to email a draft without issuing.
+          </span>
+        </label>
+
         {error && <p className="mm-error">{error}</p>}
         <div className="mm-actions">
           <span className="mm-note">{chosen.length ? `Going to ${chosen.length} ${chosen.length === 1 ? 'person' : 'people'}` : 'Nobody ticked'}</span>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={sending}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !chosen.length}>
-            {sending ? 'Sending…' : `Send to ${chosen.length || 'nobody'}`}
+          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || (!chosen.length && !issue)}>
+            {sending ? 'Sending…' : issue ? (chosen.length ? `Issue and send to ${chosen.length}` : 'Issue without emailing') : `Send to ${chosen.length || 'nobody'}`}
           </button>
         </div>
       </div>

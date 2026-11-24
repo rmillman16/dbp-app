@@ -1518,3 +1518,20 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .hs-log-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .hs-log-row label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
 .hs-log-row .rfi-field { margin: 0; }
+/* ---------- 24 Nov: the Help guide (opens in its own tab) ---------- */
+.help-page { display: flex; min-height: 100vh; background: var(--bg, #f6f7fb); }
+.help-menu { width: 270px; flex: 0 0 270px; position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow: auto; padding: 18px 16px; border-right: 1px solid #d9d9e0; background: #fff; display: flex; flex-direction: column; gap: 10px; }
+.help-logo img { height: 30px; }
+.help-menu input[type='search'] { width: 100%; padding: 7px 9px; border: 1px solid #c9d3e3; border-radius: 8px; font: inherit; }
+.help-group { margin: 12px 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #007abe; }
+.help-menu nav a { display: block; padding: 5px 8px; border-radius: 6px; color: #1f1246; text-decoration: none; font-size: 14px; }
+.help-menu nav a:hover, .help-menu nav a.on { background: #eef3fa; }
+.help-main { flex: 1; min-width: 0; max-width: 860px; padding: 24px 28px 80px; }
+.help-section { margin-bottom: 16px; scroll-margin-top: 16px; }
+.help-section h4 { margin: 16px 0 4px; color: #1f1246; }
+.help-section li { margin: 4px 0; }
+@media (max-width: 760px) {
+  .help-page { flex-direction: column; }
+  .help-menu { position: static; width: auto; height: auto; flex: none; border-right: 0; border-bottom: 1px solid #d9d9e0; }
+  .help-main { padding: 16px; }
+}

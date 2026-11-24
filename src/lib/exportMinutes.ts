@@ -8,6 +8,7 @@
 import { downloadBlob } from './letter'
 import { addPdfLink, HUB_LABEL } from './pdfLink'
 import {
+  apologyAttendees,
   attendeeById,
   attendeeLabel,
   awayAttendees,
@@ -16,10 +17,16 @@ import {
   FOOTNOTE_TEXT,
   formatDateNice,
   mentionRuns,
+  numberPoints,
   presentAttendees,
+  revLetter,
   slug,
   type Meeting,
 } from './minutes'
+
+// "MEETING MINUTES · MEETING 12 · REV A": the number and the revision (once issued) are what people quote
+const kicker = (m: Meeting) => ['MEETING MINUTES', m.no ? `MEETING ${m.no}` : '', m.rev ? `REV ${revLetter(m.rev)}` : ''].filter(Boolean).join('  ·  ')
+const refsLine = (p: { refs?: { label: string }[] }) => (p.refs?.length ? 'Re: ' + p.refs.map((r) => r.label).join(', ') : '')
 
 const LOGO_URL = '/minutes/logo-lockup.png'
 const FONT_FILES = {
@@ -46,7 +53,7 @@ async function fetchBytes(url: string) {
   return new Uint8Array(await res.arrayBuffer())
 }
 
-export const minutesFilename = (m: Meeting, ext: 'pdf' | 'docx') => `${slug(m.project)}-${m.date}.${ext}`
+export const minutesFilename = (m: Meeting, ext: 'pdf' | 'docx') => `${slug(m.project)}${m.no ? `-meeting-${m.no}` : ''}-${m.date}${m.rev ? `-rev-${revLetter(m.rev).toLowerCase()}` : ''}.${ext}`
 
 // =====================================================================
 // PDF
@@ -237,15 +244,17 @@ function layoutPdf(doc: import('pdf-lib').PDFDocument, PDFLib: PdfLib, fonts: Fo
     cursorY += targetHPt + 16
   }
 
-  para('MEETING MINUTES', { size: 9.5, bold: true, color: BLUE, tracking: 1.2, after: 3 })
+  para(kicker(meeting), { size: 9.5, bold: true, color: BLUE, tracking: 1.2, after: 3 })
   para(meeting.project || 'Untitled project', { size: 22, bold: true, color: NAVY, after: 2 })
   if (meeting.subtitle) para(meeting.subtitle, { size: 12, italic: true, color: MUTED, after: 4 })
   rule(BLUE, 10, 1.6)
   // a shaded panel with a blue edge: the date and who was there
   const attendeeNames = presentAttendees(meeting).map(attendeeLabel).join(', ')
   const awayNames = awayAttendees(meeting).map(attendeeLabel).join(', ')
+  const apologyNames = apologyAttendees(meeting).map(attendeeLabel).join(', ')
   const panelLines: { t: string; bold?: boolean; italic?: boolean; size: number; color: string }[] = [{ t: formatDateNice(meeting.date), bold: true, size: 11, color: NAVY }]
   if (attendeeNames) wrapLines('Attendees: ' + attendeeNames, false, false, 10, contentW - 28).forEach((t) => panelLines.push({ t, size: 10, color: INK }))
+  if (apologyNames) wrapLines('Apologies: ' + apologyNames, false, false, 10, contentW - 28).forEach((t) => panelLines.push({ t, size: 10, color: INK }))
   if (awayNames) wrapLines('Also referenced (not in attendance): ' + awayNames, false, true, 9, contentW - 28).forEach((t) => panelLines.push({ t, italic: true, size: 9, color: MUTED }))
   const panelH = panelLines.reduce((h, l) => h + l.size * 1.45, 0) + 16
   ensureSpace(panelH + 14)
@@ -262,20 +271,23 @@ function layoutPdf(doc: import('pdf-lib').PDFDocument, PDFLib: PdfLib, fonts: Fo
     cursorY += panelH + 16
   }
 
+  const nums = numberPoints(meeting.points)
   meeting.points.forEach((p, idx) => {
-    if (p.type === 'heading') return sectionHeading(p.text || '', { before: idx === 0 ? 0 : 16 })
+    if (p.type === 'heading') return sectionHeading(`${nums.get(p.id)}  ${p.text || ''}`, { before: idx === 0 ? 0 : 16 })
     const owner = attendeeById(meeting, p.ownerId)
     const metaBits: string[] = []
     if (p.urgent) metaBits.push('URGENT')
     if (owner) metaBits.push('Owner: ' + owner.name)
     if (p.dueDate) metaBits.push(dueWord(p) + formatDateNice(p.dueDate))
+    if (refsLine(p)) metaBits.push(refsLine(p))
     const textColor = p.done ? '#8B97A6' : p.urgent ? '#B3261E' : INK
     const hasMeta = metaBits.length > 0
     const hasUpdates = p.updates.length > 0
-    bulletPara(mentionRuns(p.text || '', meeting.attendees), { bullet: '–', size: 11.5, bold: !!p.urgent, color: textColor, after: hasMeta || hasUpdates ? 2 : 11 })
-    if (hasMeta) para(metaBits.join('  ·  '), { size: 9.5, italic: true, color: MUTED, indent: 13, after: hasUpdates ? 2 : 11 })
+    // the item number (4.3) stands where the bullet was, so a point can be quoted as "4.3"
+    bulletPara(mentionRuns(p.text || '', meeting.attendees), { bullet: nums.get(p.id) ?? '–', bulletGutter: 28, size: 11.5, bold: !!p.urgent, color: textColor, after: hasMeta || hasUpdates ? 2 : 11 })
+    if (hasMeta) para(metaBits.join('  ·  '), { size: 9.5, italic: true, color: MUTED, indent: 28, after: hasUpdates ? 2 : 11 })
     p.updates.forEach((u, i) => {
-      para(formatDateNice(u.date) + ': ' + u.text, { size: 9, italic: true, color: '#6B7B8C', indent: 13, after: i === p.updates.length - 1 ? 11 : 3 })
+      para(formatDateNice(u.date) + ': ' + u.text, { size: 9, italic: true, color: '#6B7B8C', indent: 28, after: i === p.updates.length - 1 ? 11 : 3 })
     })
   })
 
@@ -292,7 +304,7 @@ function layoutPdf(doc: import('pdf-lib').PDFDocument, PDFLib: PdfLib, fonts: Fo
       g.items.forEach((p) => {
         const due = p.dueDate ? '   (' + dueWord(p) + formatDateNice(p.dueDate) + ')' : ''
         const runs = mentionRuns(p.text || '(no description)', meeting.attendees).concat(due ? [{ text: due, bold: false }] : [])
-        bulletPara(runs, { bullet: '–', size: 10.5, color: p.done ? '#8B97A6' : '#14202D', indent: 8, after: 7 })
+        bulletPara(runs, { bullet: nums.get(p.id) ?? '–', bulletGutter: 28, size: 10.5, color: p.done ? '#8B97A6' : '#14202D', indent: 8, after: 7 })
       })
     })
   }
@@ -415,7 +427,7 @@ export async function buildMinutesDocx(meeting: Meeting, hubUrl: string | null =
   const kids: (InstanceType<typeof Paragraph> | InstanceType<typeof Table>)[] = []
 
   if (logo) kids.push(new Paragraph({ spacing: { after: 240 }, children: [new ImageRun({ type: 'png', data: logo, transformation: { width: 160, height: 40 } })] }))
-  kids.push(new Paragraph({ spacing: { after: 40 }, children: [run('MEETING MINUTES', { bold: true, color: B, size: 18 })] }))
+  kids.push(new Paragraph({ spacing: { after: 40 }, children: [run(kicker(meeting), { bold: true, color: B, size: 18 })] }))
   kids.push(new Paragraph({ spacing: { after: 60 }, children: [run(meeting.project || 'Untitled project', { bold: true, color: N, size: 44 })] }))
   if (meeting.subtitle) kids.push(new Paragraph({ spacing: { after: 80 }, children: [run(meeting.subtitle, { italics: true, color: M, size: 24 })] }))
   kids.push(new Paragraph({ spacing: { after: 160 }, border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: B, space: 4 } }, children: [] }))
@@ -425,6 +437,8 @@ export async function buildMinutesDocx(meeting: Meeting, hubUrl: string | null =
   const awayNames = awayAttendees(meeting).map(attendeeLabel).join(', ')
   const panel: InstanceType<typeof Paragraph>[] = [new Paragraph({ spacing: { after: 40 }, children: [run(formatDateNice(meeting.date), { bold: true, color: N, size: 22 })] })]
   if (attendeeNames) panel.push(new Paragraph({ spacing: { after: 40 }, children: [run('Attendees: ', { bold: true, color: N, size: 20 }), run(attendeeNames, { size: 20 })] }))
+  const apologyNames = apologyAttendees(meeting).map(attendeeLabel).join(', ')
+  if (apologyNames) panel.push(new Paragraph({ spacing: { after: 40 }, children: [run('Apologies: ', { bold: true, color: N, size: 20 }), run(apologyNames, { size: 20 })] }))
   if (awayNames) panel.push(new Paragraph({ spacing: { after: 40 }, children: [run('Also referenced (not in attendance): ' + awayNames, { italics: true, color: M, size: 18 })] }))
   kids.push(
     new Table({
@@ -447,9 +461,10 @@ export async function buildMinutesDocx(meeting: Meeting, hubUrl: string | null =
   )
   kids.push(new Paragraph({ spacing: { after: 120 }, children: [] }))
 
+  const nums = numberPoints(meeting.points)
   meeting.points.forEach((p) => {
     if (p.type === 'heading') {
-      kids.push(new Paragraph({ keepNext: true, spacing: { before: 320, after: 120 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: B, space: 3 } }, children: [run((p.text || '').toUpperCase(), { bold: true, color: N, size: 24 })] }))
+      kids.push(new Paragraph({ keepNext: true, spacing: { before: 320, after: 120 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: B, space: 3 } }, children: [run(`${nums.get(p.id)}  ${(p.text || '').toUpperCase()}`, { bold: true, color: N, size: 24 })] }))
       return
     }
     const owner = attendeeById(meeting, p.ownerId)
@@ -457,14 +472,16 @@ export async function buildMinutesDocx(meeting: Meeting, hubUrl: string | null =
     if (p.urgent) metaBits.push('URGENT')
     if (owner) metaBits.push('Owner: ' + owner.name)
     if (p.dueDate) metaBits.push(dueWord(p) + formatDateNice(p.dueDate))
+    if (refsLine(p)) metaBits.push(refsLine(p))
     const color = p.done ? '8B97A6' : p.urgent ? 'B3261E' : I
-    const runs = [run('•  ', { bold: !!p.urgent, color }), ...mentions(p.text || '', { bold: !!p.urgent, color })]
+    // the item number (4.3) stands where the bullet was; a tab lines the text up under itself
+    const runs = [run((nums.get(p.id) ?? '•') + '\t', { bold: true, color: p.urgent ? color : N }), ...mentions(p.text || '', { bold: !!p.urgent, color })]
     if (metaBits.length) runs.push(run('   (' + metaBits.join('  ·  ') + ')', { italics: true, color: M, size: 18 }))
     const hasUpdates = p.updates.length > 0
-    // a real hanging indent: wrapped lines line up under the text, not the bullet
-    kids.push(new Paragraph({ spacing: { after: hasUpdates ? 40 : 200 }, indent: { left: 300, hanging: 300 }, children: runs }))
+    // a real hanging indent: wrapped lines line up under the text, not the number
+    kids.push(new Paragraph({ spacing: { after: hasUpdates ? 40 : 200 }, indent: { left: 560, hanging: 560 }, tabStops: [{ type: TabStopType.LEFT, position: 560 }], children: runs }))
     p.updates.forEach((u, i) => {
-      kids.push(new Paragraph({ spacing: { after: i === p.updates.length - 1 ? 200 : 40 }, indent: { left: 300 }, children: [run(formatDateNice(u.date) + ': ' + u.text, { italics: true, color: M, size: 18 })] }))
+      kids.push(new Paragraph({ spacing: { after: i === p.updates.length - 1 ? 200 : 40 }, indent: { left: 560 }, children: [run(formatDateNice(u.date) + ': ' + u.text, { italics: true, color: M, size: 18 })] }))
     })
   })
 
@@ -493,7 +510,7 @@ export async function buildMinutesDocx(meeting: Meeting, hubUrl: string | null =
                 width: { size: widths[1], type: WidthType.DXA },
                 margins: { top: 70, bottom: 70, left: 100, right: 100 },
                 borders: { top: none, left: none, right: none, bottom: { style: BorderStyle.SINGLE, size: 4, color: hexNo(LINE) } },
-                children: [new Paragraph({ children: mentions(p.text || '(no description)', { size: 20, color: p.done ? '8B97A6' : I }) })],
+                children: [new Paragraph({ children: [run((nums.get(p.id) ?? '') + '  ', { bold: true, color: N, size: 20 }), ...mentions(p.text || '(no description)', { size: 20, color: p.done ? '8B97A6' : I })] })],
               }),
               cell(p.dueDate ? dueWord(p) + formatDateNice(p.dueDate) : '', widths[2], { color: M }),
             ],

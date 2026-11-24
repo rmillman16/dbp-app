@@ -25,7 +25,7 @@ const cors = {
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
-const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due", "rfi_followup", "hs_inspection_due", "hs_inspection_overdue"];
+const KINDS = ["requisition_new", "requisition_query", "requisition_answer", "requisition_update", "off_hire_due", "access_request", "access_request_reply", "minutes_action", "task", "task_done", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry", "rfi_new", "rfi_answered", "rfi_chase", "submittal_new", "submittal_chase", "submittal_response", "report_due", "rfi_followup", "hs_inspection_due", "hs_inspection_overdue", "minutes_action_due", "minutes_action_overdue"];
 // sent on their own day, not when they're made
 const DATED = ["off_hire_due", "task_reminder", "pqq_chase", "pqq_review", "pqq_expiry", "company_doc_expiry"];
 
@@ -281,6 +281,83 @@ async function sendOutside(db: any, getToken: () => Promise<string>, sender: str
   return sent;
 }
 
+// Outside owners' actions from the minutes (script 085): what is queued in action_outbox (issued minutes, due soon, overdue) goes
+// out as ONE email per person, listing their open actions, with their own private link (/a/<token>, made now; only its hash is
+// kept, valid 90 days) where they tick them off. Anything older than 3 days in the queue is dropped.
+// deno-lint-ignore no-explicit-any
+async function sendActions(db: any, getToken: () => Promise<string>, sender: string, appUrl: string) {
+  const { data: rows, error } = await db.from("action_outbox").select("id, point_id, email, kind, created_at").is("sent_at", null).order("created_at").limit(100);
+  if (error || !rows?.length) return 0;
+  const old = new Date(Date.now() - 3 * 86400000).toISOString();
+  // deno-lint-ignore no-explicit-any
+  const byEmail = new Map<string, any[]>();
+  for (const r of rows) byEmail.set(r.email, [...(byEmail.get(r.email) ?? []), r]);
+  let sent = 0;
+  for (const [email, list] of byEmail) {
+    const ids = list.map((r) => r.id);
+    const done = () => db.from("action_outbox").update({ sent_at: new Date().toISOString() }).in("id", ids);
+    if (list.every((r) => r.created_at < old)) { await done(); continue; }
+    const { data: pts } = await db.from("meeting_points").select("id, meeting_id, text, due_date, done, is_action, carried_forward").in("id", [...new Set(list.map((r) => r.point_id))]);
+    // deno-lint-ignore no-explicit-any
+    const open = (pts ?? []).filter((p: any) => p.is_action && !p.done && !p.carried_forward);
+    if (!open.length) { await done(); continue; }
+    const mids = [...new Set(open.map((p: { meeting_id: string }) => p.meeting_id))] as string[];
+    const [ms, ats] = await Promise.all([
+      db.from("meetings").select("id, project, subtitle, meeting_date, meeting_no, jobs(name, status, hub_url)").in("id", mids),
+      db.from("meeting_attendees").select("meeting_id, initials, name, email").in("meeting_id", mids),
+    ]);
+    // deno-lint-ignore no-explicit-any
+    const live = open.filter((p: any) => (ms.data ?? []).some((m: any) => m.id === p.meeting_id && m.jobs?.status !== "archived"));
+    if (!live.length) { await done(); continue; }
+    const me = (ats.data ?? []).find((a: { email: string | null }) => a.email?.trim().toLowerCase() === email);
+    const kinds = list.map((r) => r.kind);
+    const overdue = kinds.includes("overdue");
+    const isNew = kinds.includes("new");
+    const day = (iso: string | null) => (iso ? iso.split("-").reverse().join("/") : "no date");
+    const lines = live
+      // deno-lint-ignore no-explicit-any
+      .sort((a: any, b: any) => (a.due_date ?? "9").localeCompare(b.due_date ?? "9"))
+      // deno-lint-ignore no-explicit-any
+      .map((p: any) => {
+        // deno-lint-ignore no-explicit-any
+        const m = (ms.data ?? []).find((x: any) => x.id === p.meeting_id);
+        let t = String(p.text ?? "").trim() || "(no description)";
+        // deno-lint-ignore no-explicit-any
+        for (const a of (ats.data ?? []).filter((x: any) => x.meeting_id === p.meeting_id)) t = t.replace(new RegExp("@" + String(a.initials).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9])", "gi"), a.name);
+        const late = p.due_date && p.due_date < new Date().toISOString().slice(0, 10);
+        const cell = "padding:6px 8px;border-bottom:1px solid #e3e3ea;vertical-align:top;font-size:14px";
+        return `<tr><td style="${cell}">${esc(t)}<br><span style="color:#777;font-size:12px">${esc(m?.jobs?.name ?? m?.project ?? "")}${m?.subtitle ? " · " + esc(m.subtitle) : ""}</span></td><td style="${cell};white-space:nowrap${late ? ";color:#c00;font-weight:600" : ""}">${day(p.due_date)}${late ? " (overdue)" : ""}</td></tr>`;
+      })
+      .join("");
+    const raw = [...crypto.getRandomValues(new Uint8Array(32))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw)))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const ins = await db.from("action_links").insert({ email, token_hash: hash });
+    if (ins.error) continue;
+    const link = `${appUrl}/a/${raw}`;
+    const first = me?.name ? String(me.name).split(" ")[0] : "";
+    // deno-lint-ignore no-explicit-any
+    const hub = (ms.data ?? []).map((m: any) => m.jobs?.hub_url).find(Boolean);
+    const n = live.length;
+    const intro = overdue ? `You have ${n === 1 ? "an action" : n + " actions"} from our meetings that ${n === 1 ? "is" : "are"} now overdue, or soon will be.` : isNew ? `Here ${n === 1 ? "is the action" : "are the " + n + " actions"} given to you in the minutes of our meeting.` : `${n === 1 ? "An action" : n + " actions"} from our meetings ${n === 1 ? "is" : "are"} due soon.`;
+    const html = `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f1d2b;max-width:600px">
+  <p>${first ? "Dear " + esc(first) + "," : "Hello,"}</p>
+  <p>${esc(intro)}</p>
+  <table style="border-collapse:collapse;width:100%;margin:0 0 16px"><tr><th style="text-align:left;padding:6px 8px;background:#eef3fa;font-size:13px">Action</th><th style="text-align:left;padding:6px 8px;background:#eef3fa;font-size:13px">Due</th></tr>${lines}</table>
+  <p style="margin:0 0 24px">When one is done, open your list and tick it off: you don't need an account.</p>
+  <p style="margin:0 0 24px"><a href="${esc(link)}" style="background:#2b2257;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;display:inline-block">Open my actions</a></p>
+  ${hubFooter(hub)}
+  <p style="font-size:12px;color:#777;margin:0">This link is for you: please don't forward it. If it stops working, ask du Boulay Projects for a new one.</p>
+</div>`;
+    const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${await getToken()}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ message: { subject: `${overdue ? "Overdue: " : ""}${n === 1 ? "Your action" : "Your " + n + " actions"} from the meeting minutes`, body: { contentType: "HTML", content: html }, toRecipients: [{ emailAddress: { address: email } }] }, saveToSentItems: false }),
+    });
+    if (r.ok) { await done(); sent++; }
+  }
+  return sent;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
@@ -320,6 +397,12 @@ Deno.serve(async (req) => {
       /* script 083 not run yet */
     }
 
+    try {
+      await db.rpc("minutes_chase_tick"); // script 085: actions in the minutes coming due / overdue, to their owners
+    } catch {
+      /* script 085 not run yet */
+    }
+
     const tenant = Deno.env.get("MS_TENANT_ID"), client = Deno.env.get("MS_CLIENT_ID"), secret = Deno.env.get("MS_CLIENT_SECRET");
     const sender = Deno.env.get("MAIL_SENDER"), appUrl = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     if (!tenant || !client || !secret || !sender || !appUrl) return reply({ ok: true, sent: 0, detail: "Email isn't set up yet (Microsoft 365 secrets missing): nothing sent." });
@@ -342,6 +425,14 @@ Deno.serve(async (req) => {
       outside = await sendOutside(db, token0, sender, appUrl);
     } catch (e) {
       console.warn("outside emails:", e instanceof Error ? e.message : e);
+    }
+
+    // outside owners' actions from the minutes (script 085)
+    let actionMails = 0;
+    try {
+      actionMails = await sendActions(db, token0, sender, appUrl);
+    } catch (e) {
+      console.warn("action emails:", e instanceof Error ? e.message : e);
     }
 
     // the welcome email to anyone newly added to a job's project directory (script 078)
@@ -381,7 +472,7 @@ Deno.serve(async (req) => {
     const error = news.error ?? dated.error;
     if (error) return reply({ ok: false, detail: error.message });
     const ready = [...(news.data ?? []), ...(dated.data ?? [])];
-    if (ready.length === 0) return reply({ ok: true, sent: 0, welcomes, outside });
+    if (ready.length === 0) return reply({ ok: true, sent: 0, welcomes, outside, actionMails });
 
     const ids = [...new Set(ready.map((n) => n.profile_id as string))];
     const { data: people } = await db.from("profiles").select("id, email, email_notifications").in("id", ids);

@@ -18,6 +18,8 @@ import { exportMinutesDocx, exportMinutesPdf } from '../lib/exportMinutes'
 import { enquiryRef } from '../lib/quotations'
 import { Icon, Mentions, useToast } from '../components/MinutesBits'
 import MinutesEmail from '../components/MinutesEmail'
+import MinutesDraft, { type DraftPoint } from '../components/MinutesDraft'
+import MinutesIssueBar from '../components/MinutesIssue'
 import { useJob } from './JobLayout'
 import { loadEnquiry } from './Estimating'
 import EnquiryHead from '../components/EnquiryHead'
@@ -33,6 +35,15 @@ interface MentionState {
   start: number
   end: number
   candidates: M.Attendee[]
+  left: number
+  top: number
+}
+interface RefState {
+  pointId: string
+  start: number
+  end: number
+  candidates: M.LinkRecord[]
+  idx: number
   left: number
   top: number
 }
@@ -92,7 +103,7 @@ function autosize(el: HTMLTextAreaElement) {
   el.style.height = Math.max(35, el.scrollHeight) + 'px'
 }
 
-function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOnly: boolean; hubUrl: string | null }) {
+function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.MinutesOwner; readOnly: boolean; hubUrl: string | null }) {
   const { meetingId } = useParams()
   const navigate = useNavigate()
   const ownerKey = owner.jobId ?? owner.enquiryId
@@ -103,6 +114,8 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
   const [, setTick] = useState(0)
   const rerender = () => setTick((t) => t + 1)
   const active = activeRef.current
+  // an issued meeting is read-only until it is amended (script 085), as an archived job's is
+  const readOnly = readOnlyProp || !!active?.locked
 
   const [list, setList] = useState<M.MeetingSummary[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -132,6 +145,19 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
   const [attInput, setAttInput] = useState('')
   const [attPick, setAttPick] = useState(-1)
   const [presentToggle, setPresentToggle] = useState(true)
+  const [drafting, setDrafting] = useState(false)
+  const [teamBusy, setTeamBusy] = useState(false)
+  // the job's RFIs, submittals, snags and variations a point can link to (type "/" or "RFI 12")
+  const [records, setRecords] = useState<M.LinkRecord[]>([])
+  const recordsRef = useRef<M.LinkRecord[]>([])
+  recordsRef.current = records
+  const [refPick, setRefPickState] = useState<RefState | null>(null)
+  const refPickRef = useRef<RefState | null>(null)
+  const setRefPick = (r: RefState | null) => {
+    refPickRef.current = r
+    setRefPickState(r)
+  }
+  const numsRef = useRef<Map<string, string>>(new Map())
   const { showToast, toastElement } = useToast()
 
   // saving
@@ -170,6 +196,7 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
         setList([])
       },
     )
+    if (owner.jobId) M.loadLinkRecords(owner.jobId).then((r) => !gone && setRecords(r), () => {})
     cached('minutes:profiles', () => must<StaffProfile[]>(supabase.from('profiles').select('id,full_name,email,initials').order('full_name'))).then(
       (p) => !gone && setProfiles(p),
       () => {},
@@ -208,6 +235,12 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
           if (m.jobId || m.enquiryId) navigate(M.meetingPath(m), { replace: true })
           else navigate(base, { replace: true })
           return
+        }
+        // the number and issue state come from the database, never from an older copy on this device
+        if (useDraft && remote) {
+          m.no = remote.no
+          m.rev = remote.rev
+          m.locked = remote.locked
         }
         savedRef.current.set(m.id, remote ? M.savedStateOf(remote) : M.emptySaved())
         // the project name is the job's / estimate's, kept up to date
@@ -300,6 +333,14 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
         if (isActive()) dirtyRef.current = false
       }
       if (actionsChanged) nudgeEmails()
+      // a new meeting is given its number by the database (script 085)
+      if (target.no == null)
+        M.loadMeetingMeta(target.id).then((meta) => {
+          if (meta?.no && mounted.current) {
+            target.no = meta.no
+            if (isActive()) rerender()
+          }
+        })
       if (!mounted.current) return
       setList((l) => [...(l ?? []).filter((x) => x.id !== target.id), summaryOf(target)])
       if (isActive()) {
@@ -356,12 +397,51 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
     [],
   )
 
+  // what the project hub changed (an outside person ticked an action done) shows here without reloading, while nothing is unsaved
+  useEffect(() => {
+    const check = async () => {
+      const m = activeRef.current
+      if (!m || dirtyRef.current || pendingRef.current.size || !navigator.onLine || document.visibilityState !== 'visible') return
+      if (!(savedRef.current.get(m.id)?.points.size ?? 0)) return
+      const [states, meta] = await Promise.all([M.loadPointStates(m.id).catch(() => []), M.loadMeetingMeta(m.id).catch(() => null)])
+      if (dirtyRef.current || activeRef.current !== m) return
+      let changed = false
+      for (const s of states) {
+        const p = m.points.find((x) => x.id === s.id)
+        if (p && (p.done !== s.done || p.updates.length !== (s.updates ?? []).length)) {
+          p.done = s.done
+          p.isAction = s.is_action
+          p.updates = s.updates ?? []
+          p.doneBy = s.done_by
+          changed = true
+        }
+      }
+      if (meta && ((m.rev ?? 0) !== meta.rev || !!m.locked !== meta.locked)) {
+        m.rev = meta.rev
+        m.locked = meta.locked
+        changed = true
+      }
+      if (changed) {
+        savedRef.current.set(m.id, M.savedStateOf(m))
+        rerender()
+      }
+    }
+    const t = window.setInterval(check, 45000)
+    document.addEventListener('visibilitychange', check)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', check)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // clicks outside close the menus and the @ list
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement
       if (!exportWrapRef.current?.contains(t) && !emailWrapRef.current?.contains(t)) setMenu(null)
       if (mentionRef.current && !t.closest('.mention-dropdown') && !t.closest('.point-edit-area')) setMention(null)
+      if (refPickRef.current && !t.closest('.mention-dropdown') && !t.closest('.point-edit-area')) setRefPick(null)
     }
     document.addEventListener('click', onClick)
     return () => document.removeEventListener('click', onClick)
@@ -380,7 +460,7 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
 
   function startNextMeeting() {
     const source = activeRef.current
-    if (!source || readOnly) return
+    if (!source || readOnlyProp) return
     flushSave()
     const carrying = M.countOpenActions(source)
     const next = M.buildNextMeeting(source) // marks the carried points on the source
@@ -618,10 +698,122 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
     scheduleSave()
     rerender()
   }
+  // in attendance → apologies → referenced only → in attendance
   function toggleAttendeePresence(a: M.Attendee) {
-    a.present = !(a.present !== false)
+    if (a.present !== false) {
+      a.present = false
+      a.apology = true
+    } else if (a.apology) a.apology = false
+    else {
+      a.present = true
+      a.apology = false
+    }
     scheduleSave()
     rerender()
+  }
+  // everyone in the project directory, and the job's own team, in one click
+  async function addTeam() {
+    const m = activeRef.current
+    if (!m) return
+    setTeamBusy(true)
+    try {
+      const people = await M.loadProjectPeople(owner)
+      let added = 0
+      for (const p of people) {
+        const email = (p.email ?? '').toLowerCase()
+        const prof = p.profileId ? profiles.find((x) => x.id === p.profileId) : email ? profiles.find((x) => (x.email ?? '').toLowerCase() === email) : undefined
+        let att: M.Attendee
+        if (prof) {
+          if (m.attendees.some((a) => a.profileId === prof.id)) continue
+          const name = prof.full_name || prof.email || 'Unnamed'
+          att = { id: M.uid(), name, initials: staffInitials(prof, name, m.attendees), present: true, apology: false, profileId: prof.id, company: null, email: prof.email }
+        } else {
+          if (!p.name || p.profileId) continue
+          if (m.attendees.some((a) => (email && (a.email ?? '').toLowerCase() === email) || a.name.toLowerCase() === p.name.toLowerCase())) continue
+          att = { id: M.uid(), name: p.name, initials: M.computeInitials(p.name, m.attendees), present: true, apology: false, profileId: null, company: p.company, email: p.email }
+        }
+        m.attendees.push(att)
+        added++
+      }
+      if (added) {
+        scheduleSave()
+        rerender()
+      }
+      showToast(added ? `Added ${added} ${added === 1 ? 'person' : 'people'}. Click the tick beside a name to mark apologies.` : 'Everyone on the project is already here.')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e), true)
+    }
+    setTeamBusy(false)
+  }
+  // a meeting type loads its standing headings
+  function applyType(key: string) {
+    const m = activeRef.current
+    if (!m) return
+    m.type = key || null
+    const have = new Set(m.points.filter((p) => p.type === 'heading').map((p) => p.text.trim().toLowerCase()))
+    const add = M.standingHeadings(key).filter((h) => !have.has(h.text.toLowerCase()))
+    if (add.length && (!m.points.length || confirm(`Add the ${M.meetingTypeOf(key)?.label.toLowerCase()} headings at the end of these minutes?`))) m.points.push(...add)
+    if (!m.subtitle.trim() && key) m.subtitle = M.meetingTypeOf(key)?.label ?? ''
+    scheduleSave()
+    rerender()
+  }
+  // the drafted points, from notes or a transcript: under the matching heading if there is one, else with a new heading at the end
+  function addDraftPoints(list: DraftPoint[]) {
+    const m = activeRef.current
+    if (!m) return
+    const groups: { heading: DraftPoint | null; notes: DraftPoint[] }[] = []
+    let cur: { heading: DraftPoint | null; notes: DraftPoint[] } = { heading: null, notes: [] }
+    groups.push(cur)
+    for (const d of list) {
+      if (d.type === 'heading') {
+        cur = { heading: d, notes: [] }
+        groups.push(cur)
+      } else cur.notes.push(d)
+    }
+    const toPoint = (d: DraftPoint): M.Point => ({
+      ...M.newPoint('note'),
+      text: d.text,
+      isAction: d.action,
+      ownerId: d.action && d.owner ? (m.attendees.find((a) => a.initials === d.owner)?.id ?? null) : null,
+      dueDate: d.action ? d.due : null,
+      urgent: d.urgent,
+      refs: M.refsInText(d.text, recordsRef.current).map((r) => ({ kind: r.kind, id: r.id, label: r.label })),
+    })
+    for (const g of groups) {
+      const pts = g.notes.map(toPoint)
+      if (!g.heading) {
+        m.points.push(...pts)
+        continue
+      }
+      const at = m.points.findIndex((p) => p.type === 'heading' && p.text.trim().toLowerCase() === g.heading!.text.trim().toLowerCase())
+      if (at >= 0) {
+        let end = at + 1
+        while (end < m.points.length && m.points[end].type !== 'heading') end++
+        m.points.splice(end, 0, ...pts)
+      } else m.points.push({ ...M.newPoint('heading'), text: g.heading.text }, ...pts)
+    }
+    scheduleSave()
+    rerender()
+    showToast('Draft added. Check the owners and dates.')
+  }
+  // every change so far is saved (used before issuing, so the issued copy matches the database)
+  async function settleSave() {
+    window.clearTimeout(saveTimer.current)
+    const m = activeRef.current
+    if (m && dirtyRef.current) saveNow(m)
+    await chain.current
+  }
+  function amend() {
+    const m = activeRef.current
+    if (!m) return
+    M.amendMinutes(m.id).then(
+      () => {
+        m.locked = false
+        rerender()
+        showToast(`Unlocked: issue it again to send Rev ${M.revLetter((m.rev ?? 0) + 1)}.`)
+      },
+      (e: Error) => showToast(e.message, true),
+    )
   }
   function removeAttendee(a: M.Attendee) {
     const m = activeRef.current!
@@ -629,7 +821,8 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
     scheduleSave()
     rerender()
   }
-  function attendeeChip(a: M.Attendee, isPresent: boolean) {
+  function attendeeChip(a: M.Attendee, state: 'present' | 'apology' | 'away') {
+    const isPresent = state === 'present'
     return (
       <span key={a.id} className={'attendee-chip' + (isPresent ? '' : ' not-present')} title={a.profileId ? `Staff login${a.email ? ' · ' + a.email : ''}` : a.email || undefined}>
         <span className="avatar">{a.initials}</span>
@@ -642,11 +835,11 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
             <button
               className="ac-toggle-presence"
               type="button"
-              aria-label={`Mark ${a.name}${isPresent ? ' as not in attendance' : ' as in attendance'}`}
-              title={isPresent ? 'In attendance — click to mark as referenced only' : 'Not in attendance — click to mark as attending'}
+              aria-label={`Change ${a.name}'s attendance`}
+              title={state === 'present' ? 'In attendance — click to mark as apologies' : state === 'apology' ? 'Apologies — click to mark as referenced only' : 'Referenced only — click to mark as attending'}
               onClick={() => toggleAttendeePresence(a)}
             >
-              {isPresent ? Icon.check() : <Icon.info />}
+              {state === 'present' ? Icon.check() : state === 'apology' ? <b className="ac-ap">Ap</b> : <Icon.info />}
             </button>
             <button className="ac-remove" type="button" aria-label={`Remove ${a.name}`} onClick={() => removeAttendee(a)}>
               {Icon.x()}
@@ -831,10 +1024,50 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
     point.text = ta.value
     scheduleSave()
   }
+  // "/" then a few letters (or "/rfi 12") offers the job's RFIs, submittals, snags and variations to link the point to
+  function handleRefTyping(point: M.Point, ta: HTMLTextAreaElement) {
+    const caret = ta.selectionStart
+    const match = ta.value.slice(0, caret).match(/(?:^|\s)\/([^\s/]*(?:\s[^\s/]*){0,2})$/)
+    if (!match || !recordsRef.current.length) return refPickRef.current ? setRefPick(null) : undefined
+    const words = match[1].toLowerCase().split(/\s+/).filter(Boolean)
+    const candidates = recordsRef.current
+      .filter((r) => words.every((w) => `${r.label} ${r.title}`.toLowerCase().includes(w)))
+      .sort((a, b) => Number(/open|out|incomplete|draft/i.test(b.status)) - Number(/open|out|incomplete|draft/i.test(a.status)))
+      .slice(0, 8)
+    const rect = ta.getBoundingClientRect()
+    setRefPick({ pointId: point.id, start: caret - match[1].length - 1, end: caret, candidates, idx: 0, left: rect.left, top: rect.bottom + 4 })
+  }
+  function applyRefSelection(rec: M.LinkRecord, ta: HTMLTextAreaElement, point: M.Point) {
+    const rp = refPickRef.current
+    if (!rp) return
+    const before = ta.value.slice(0, rp.start)
+    const after = ta.value.slice(rp.end)
+    const insert = rec.label + ' '
+    ta.value = before + insert + after
+    const pos = (before + insert).length
+    ta.focus()
+    ta.setSelectionRange(pos, pos)
+    setRefPick(null)
+    autosize(ta)
+    point.text = ta.value
+    addRef(point, rec)
+    scheduleSave()
+    rerender()
+  }
+  function addRef(point: M.Point, rec: M.PointRef) {
+    if ((point.refs ?? []).some((r) => r.id === rec.id)) return
+    point.refs = [...(point.refs ?? []), { kind: rec.kind, id: rec.id, label: rec.label }]
+  }
+  // "RFI 12", "Snag 4"... typed in the text link themselves
+  function autoLink(point: M.Point) {
+    M.refsInText(point.text, recordsRef.current).forEach((r) => addRef(point, r))
+  }
   function commit(point: M.Point, ta: HTMLTextAreaElement) {
     point.text = ta.value
+    autoLink(point)
     // only this point's own commit may close the editor (a late blur from a previous point mustn't)
     const wasEditing = editingRef.current === point.id
+    if (refPickRef.current) setRefPick(null)
     closeMention()
     if (wasEditing) {
       setEditing(null)
@@ -846,7 +1079,9 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
   function commitAndAdvance(point: M.Point, ta: HTMLTextAreaElement) {
     const m = activeRef.current!
     point.text = ta.value
+    autoLink(point)
     closeMention()
+    if (refPickRef.current) setRefPick(null)
     const idx = m.points.findIndex((p) => p.id === point.id)
     const isBlank = !ta.value.trim()
     if (isBlank && !point.isAction) {
@@ -887,6 +1122,7 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
             const converted = applyLinePrefixShortcuts(point, ta)
             autosize(ta)
             handleMentionTyping(point, ta)
+            handleRefTyping(point, ta)
             // keep what's typed on every keystroke, so a crash or refresh loses almost nothing
             point.text = ta.value
             scheduleSave()
@@ -895,12 +1131,25 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
           onBlur={(e) => {
             const ta = e.currentTarget
             window.setTimeout(() => {
-              if (mentionRef.current?.pointId === point.id && document.activeElement?.closest('.mention-dropdown')) return
+              if ((mentionRef.current?.pointId === point.id || refPickRef.current?.pointId === point.id) && document.activeElement?.closest('.mention-dropdown')) return
               commit(point, ta)
             }, 120)
           }}
           onKeyDown={(e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
             const ta = e.currentTarget
+            const rp = refPickRef.current
+            if (rp && rp.pointId === point.id) {
+              if (e.key === 'Escape') return setRefPick(null)
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault()
+                const n = rp.candidates.length || 1
+                return setRefPick({ ...rp, idx: (rp.idx + (e.key === 'ArrowDown' ? 1 : n - 1)) % n })
+              }
+              if ((e.key === 'Enter' || e.key === 'Tab') && rp.candidates[rp.idx]) {
+                e.preventDefault()
+                return applyRefSelection(rp.candidates[rp.idx], ta, point)
+              }
+            }
             const ms = mentionRef.current
             if (ms && ms.pointId === point.id) {
               if (e.key === 'Escape') return closeMention()
@@ -931,6 +1180,18 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
           }}
         >
           @
+        </button>
+        <button
+          type="button"
+          className="mention-quick-btn"
+          aria-label="Link an RFI, submittal, snag or variation"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (editTaRef.current) insertAtCursor(editTaRef.current, editTaRef.current.value && !/\s$/.test(editTaRef.current.value) ? ' /' : '/')
+          }}
+        >
+          /
         </button>
       </div>
     )
@@ -977,6 +1238,11 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
           (editing ? ' editing' : '')
         }
       >
+        {numsRef.current.get(point.id) && (
+          <span className="point-no" title={`Reference ${M.itemRef(m, numsRef.current.get(point.id))}: quote this in emails and RFIs`}>
+            {numsRef.current.get(point.id)}
+          </span>
+        )}
         {marker}
         <div className="point-body">
           {editing ? (
@@ -1049,6 +1315,40 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
                   )}
                 </>
               )}
+            </div>
+          )}
+          {/* the records this point is about, and who ticked it done on the project hub */}
+          {!isHeading && ((point.refs ?? []).length > 0 || point.doneBy) && (
+            <div className="point-refs">
+              {(point.refs ?? []).map((r) => {
+                const rec = records.find((x) => x.id === r.id)
+                return (
+                  <span key={r.id} className="chip chip-ref">
+                    {owner_jobId ? (
+                      <Link to={M.refPath(owner_jobId, r)} title={rec?.title || undefined}>
+                        {r.label}
+                      </Link>
+                    ) : (
+                      r.label
+                    )}
+                    {rec?.status && <span className="chip-ref-status">{rec.status}</span>}
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        aria-label={`Remove the link to ${r.label}`}
+                        onClick={() => {
+                          point.refs = (point.refs ?? []).filter((x) => x.id !== r.id)
+                          scheduleSave()
+                          rerender()
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                )
+              })}
+              {point.doneBy && <span className="chip chip-hub">Ticked off on the project hub by {point.doneBy}</span>}
             </div>
           )}
           {/* an action's running log of what happened, which travels with it to the next meeting */}
@@ -1215,7 +1515,10 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
   const openCount = M.countOpenActions(active)
   const present = active ? M.presentAttendees(active) : []
   const away = active ? M.awayAttendees(active) : []
+  const apologies = active ? M.apologyAttendees(active) : []
   const editingPoint = mention && active ? active.points.find((p) => p.id === mention.pointId) : undefined
+  const owner_jobId = owner.jobId
+  numsRef.current = active ? M.numberPoints(active.points) : new Map()
 
   return (
     <div className={'mint in-owner' + (full ? ' mint-full' : '')}>
@@ -1250,6 +1553,12 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
             <path d={full ? 'M8 3v5H3M17 8h-5V3M12 17v-5h5M3 12h5v5' : 'M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5'} />
           </svg>
         </button>
+        {!readOnly && (
+          <button className="btn btn-ghost" type="button" title="Paste rough notes or a Teams transcript and get a first draft of the minutes" onClick={() => setDrafting(true)}>
+            <Icon.pencil />
+            Draft from notes
+          </button>
+        )}
         {!readOnly && (
           <button className="btn btn-ghost" type="button" title="Save now" onClick={manualSave}>
             <Icon.save />
@@ -1303,7 +1612,7 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
             <div className="export-menu" role="menu" data-readonly-ok>
               <button type="button" role="menuitem" onClick={() => (setMenu(null), setEmailing(true))}>
                 <Icon.mail />
-                Email the minutes (PDF) to the team…
+                Issue / email the minutes (PDF)…
               </button>
               <button type="button" role="menuitem" onClick={copyNotes}>
                 <Icon.copy />
@@ -1370,6 +1679,23 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
                     }}
                   />
                   <div className="letterhead-meta">
+                    {active.no ? (
+                      <span className="meeting-no" title="Meeting number: quote it with the item number, for example 12/4.3">
+                        Meeting {active.no}
+                        {active.rev ? ` · Rev ${M.revLetter(active.rev)}` : ''}
+                      </span>
+                    ) : null}
+                    <label className="date-field">
+                      <span className="field-label">Type</span>
+                      <select aria-label="Meeting type" value={active.type ?? ''} disabled={readOnly} onChange={(e) => applyType(e.target.value)}>
+                        <option value="">No type</option>
+                        {M.MEETING_TYPES.map((t) => (
+                          <option key={t.key} value={t.key}>
+                            {t.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="date-field">
                       <span className="field-label">Date</span>
                       <input
@@ -1387,11 +1713,15 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
                   </div>
                 </div>
 
+                <MinutesIssueBar meeting={active} archived={readOnlyProp} hubUrl={hubUrl} onAmend={amend} onToast={showToast} />
+
                 <div className="attendees-block">
                   <div className="field-label">Attendees</div>
-                  <div className="attendee-chips">{present.map((a) => attendeeChip(a, true))}</div>
+                  <div className="attendee-chips">{present.map((a) => attendeeChip(a, 'present'))}</div>
+                  {apologies.length > 0 && <div className="attendee-group-label">Apologies</div>}
+                  <div className="attendee-chips">{apologies.map((a) => attendeeChip(a, 'apology'))}</div>
                   {away.length > 0 && <div className="attendee-group-label">Not in attendance — referenced only</div>}
-                  <div className="attendee-chips">{away.map((a) => attendeeChip(a, false))}</div>
+                  <div className="attendee-chips">{away.map((a) => attendeeChip(a, 'away'))}</div>
                   {!readOnly && (
                     <>
                       <div className="attendee-add attendee-add-wrap">
@@ -1446,7 +1776,12 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
                           </div>
                         )}
                       </div>
-                      <div className="attendee-hint">Staff logins come up as you type. Anyone else: Name, Company, email.</div>
+                      <div className="attendee-hint">
+                        Staff logins come up as you type. Anyone else: Name, Company, email.{' '}
+                        <button type="button" className="link-button small" disabled={teamBusy} onClick={addTeam} title="Adds the job's team and everyone in its project directory; then click the tick beside a name to mark apologies">
+                          {teamBusy ? 'Adding…' : '+ Add the whole project team'}
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -1494,7 +1829,7 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
                   </div>
                 )}
 
-                {!M.isMeetingEmpty(active) && !readOnly && (
+                {!M.isMeetingEmpty(active) && !readOnlyProp && (
                   <div className="next-meeting-row">
                     <button className="btn btn-primary" type="button" onClick={startNextMeeting}>
                       Next meeting
@@ -1539,7 +1874,54 @@ function MinutesApp({ owner, readOnly, hubUrl }: { owner: M.MinutesOwner; readOn
           )}
         </div>
       )}
-      {emailing && active && <MinutesEmail meeting={active} hubUrl={hubUrl} onClose={() => setEmailing(false)} onDone={(msg, danger) => showToast(msg, danger)} />}
+      {refPick && active && (
+        <div className="mention-dropdown" style={{ left: refPick.left, top: refPick.top }}>
+          {refPick.candidates.length ? (
+            refPick.candidates.map((r, i) => (
+              <button
+                key={r.id}
+                type="button"
+                className={i === refPick.idx ? 'active' : undefined}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  const p = active.points.find((x) => x.id === refPick.pointId)
+                  if (editTaRef.current && p) applyRefSelection(r, editTaRef.current, p)
+                }}
+              >
+                <b>{r.label}</b>
+                <span className="md-sub">
+                  {r.title.slice(0, 40)} · {r.status}
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="md-empty">No matching RFI, submittal, snag or variation</div>
+          )}
+        </div>
+      )}
+      {drafting && active && (
+        <MinutesDraft meeting={active} headings={M.meetingTypeOf(active.type)?.headings ?? []} onAdd={addDraftPoints} onClose={() => setDrafting(false)} />
+      )}
+      {emailing && active && (
+        <MinutesEmail
+          meeting={active}
+          hubUrl={hubUrl}
+          onClose={() => setEmailing(false)}
+          onDone={(msg, danger) => showToast(msg, danger)}
+          beforeIssue={settleSave}
+          onIssued={(rev) => {
+            active.rev = rev
+            active.locked = true
+            M.loadMeetingMeta(active.id).then((meta) => {
+              if (meta?.no && !active.no) {
+                active.no = meta.no
+                rerender()
+              }
+            })
+            rerender()
+          }}
+        />
+      )}
       {toastElement}
     </div>
   )

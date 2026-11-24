@@ -56,6 +56,7 @@ const EnquiryProgramme = lazy(() => import('./pages/Estimating').then((m) => ({ 
 const EnquiryReturn = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryReturn })))
 const EnquiryTender = lazy(() => import('./pages/Estimating').then((m) => ({ default: m.EnquiryTender })))
 const Settings = lazy(() => import('./pages/Settings'))
+const Help = lazy(() => import('./pages/Help'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const MyDetails = lazy(() => import('./pages/MyDetails'))
 const Site = lazy(() => import('./pages/Site'))
@@ -104,7 +105,7 @@ export default function App() {
   const { pathname } = useLocation()
   // a trades person's snag list (/s/<link>): the same, no sign-in (script 070)
   if (pathname.startsWith('/s/')) return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><SnagExternal /></Suspense>
-  if (pathname.startsWith('/r/') || pathname === '/external' || pathname.startsWith('/external/')) return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><ExternalRoutes /></Suspense>
+  if (pathname.startsWith('/r/') || pathname.startsWith('/a/') || pathname === '/external' || pathname.startsWith('/external/')) return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><ExternalRoutes /></Suspense>
 
   if (configError) {
     return (
@@ -122,6 +123,8 @@ export default function App() {
   // this device carries on with the saved copy until the connection returns.
   const email = session?.user.email ?? (!navigator.onLine ? storedSignInEmail() : null)
   if (email == null) return <SignIn />
+  // the guide opens in its own tab, without the app's menu (Help, below Settings)
+  if (pathname === '/help') return <Suspense fallback={<div className="centre-page muted">Loading…</div>}><Help /></Suspense>
 
   return (
     <AccessProvider>

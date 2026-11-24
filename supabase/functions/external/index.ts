@@ -432,6 +432,115 @@ async function snagRows(db: DB, email: string) {
   return out;
 }
 
+// ---------- meeting actions (script 085) ----------
+// An outside person who owns an action in the minutes (an attendee typed in with their email address) sees it with their RFIs and
+// submittals, can tick it done or add a note, and the minutes update. Same layout as the RFI list. Without script 085, none.
+const DAY = 86400000;
+const dmy = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
+// item numbers as the minutes show them: sections 1, 2, 3 and 1.1, 1.2 under them (points before the first heading are section 1)
+function numberPoints(points: { id: string; type: string }[]) {
+  const out = new Map<string, string>();
+  let sec = points.length && points[0].type !== "heading" ? 1 : 0;
+  let n = 0;
+  for (const p of points) {
+    if (p.type === "heading") {
+      sec++;
+      n = 0;
+      out.set(p.id, String(sec));
+    } else out.set(p.id, `${sec}.${++n}`);
+  }
+  return out;
+}
+// deno-lint-ignore no-explicit-any
+async function myActionItems(db: DB, email: string, only?: string): Promise<{ items: any[]; author: string } | null> {
+  const e = email.trim().toLowerCase();
+  const { data: atts, error: ae } = await db.from("meeting_attendees").select("id, meeting_id, name, company, email").ilike("email", e);
+  if (ae) return null;
+  const mine = (atts ?? []).filter((a: { email: string | null }) => a.email?.trim().toLowerCase() === e);
+  if (!mine.length) return { items: [], author: "" };
+  let q = db.from("meeting_points").select("id, meeting_id, text, due_date, done, done_at, done_by, urgent, is_action, carried_forward, owner_attendee_id, updates").in("owner_attendee_id", mine.map((a: { id: string }) => a.id)).eq("type", "note");
+  if (only) q = q.eq("id", only);
+  const { data: pts, error } = await q;
+  if (error) return null;
+  const since = Date.now() - 30 * DAY;
+  // deno-lint-ignore no-explicit-any
+  const live = (pts ?? []).filter((p: any) => !p.carried_forward && ((p.is_action && !p.done) || (p.done && (!p.done_at || new Date(p.done_at).getTime() >= since))));
+  if (!live.length) return { items: [], author: mine[0].company ? `${mine[0].name} (${mine[0].company})` : mine[0].name };
+  const mids = [...new Set(live.map((p: { meeting_id: string }) => p.meeting_id))] as string[];
+  const [ms, all, atAll] = await Promise.all([
+    db.from("meetings").select("id, job_id, project, subtitle, meeting_date, meeting_no, created_by, jobs(name, job_no, code, status, hub_url)").in("id", mids),
+    db.from("meeting_points").select("id, meeting_id, type, sort").in("meeting_id", mids).order("sort"),
+    db.from("meeting_attendees").select("meeting_id, initials, name").in("meeting_id", mids),
+  ]);
+  // deno-lint-ignore no-explicit-any
+  const items: any[] = [];
+  for (const p of live) {
+    // deno-lint-ignore no-explicit-any
+    const m = (ms.data ?? []).find((x: any) => x.id === p.meeting_id);
+    if (!m || m.jobs?.status === "archived") continue;
+    const nums = numberPoints((all.data ?? []).filter((x: { meeting_id: string }) => x.meeting_id === m.id));
+    let text = String(p.text ?? "").trim() || "(no description)";
+    for (const a of (atAll.data ?? []).filter((x: { meeting_id: string }) => x.meeting_id === m.id).sort((x: { initials: string }, y: { initials: string }) => y.initials.length - x.initials.length)) {
+      text = text.replace(new RegExp("@" + String(a.initials).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?![A-Za-z0-9])", "gi"), a.name);
+    }
+    const num = nums.get(p.id) ?? "";
+    const j = m.jobs;
+    const me = mine.find((a: { id: string }) => a.id === p.owner_attendee_id) ?? mine[0];
+    items.push({
+      kind: "action",
+      id: p.id,
+      ref: `${j ? `${j.job_no}_${j.code}` : "MIN"}_M${m.meeting_no ?? 0}_${num}`,
+      number: 0,
+      title: text,
+      status: p.done ? "closed" : "open",
+      due_date: p.due_date,
+      project: j?.name ?? m.project ?? "",
+      hub_url: j?.hub_url ?? null,
+      snippet: `From ${m.subtitle || "the meeting"} on ${dmy(m.meeting_date)}${m.meeting_no ? ` (meeting ${m.meeting_no}, item ${num})` : ""}`,
+      trade: null,
+      files: 0,
+      state: p.done ? "done" : "with_you",
+      act: !p.done,
+      urgent: !!p.urgent,
+      done_by: p.done_by ?? null,
+      updates: Array.isArray(p.updates) ? p.updates : [],
+      can_act: !p.done,
+      can_undo: !!p.done && !!p.done_by && p.done_by === (me.company ? `${me.name} (${me.company})` : me.name),
+      meeting: { subtitle: m.subtitle ?? "", date: m.meeting_date, no: m.meeting_no ?? null, created_by: m.created_by, job_id: m.job_id },
+    });
+  }
+  return { items, author: mine[0].company ? `${mine[0].name} (${mine[0].company})` : mine[0].name };
+}
+// who is asking: a sign-in session, a private link from an RFI email, or the link in an actions email (/a/<token>)
+async function emailFor(db: DB, b: Record<string, string>, ip: string): Promise<string> {
+  if (b.atoken) {
+    const t = String(b.atoken);
+    if (!TOKEN.test(t)) {
+      await limit(db, "badtoken", ip, 30, 60);
+      throw new Fail(404, "This link isn't valid. Please copy the whole link, or ask du Boulay Projects for a new one.");
+    }
+    const { data: l } = await db.from("action_links").select("id, email, expires_at, revoked_at, use_count").eq("token_hash", await sha256(t)).maybeSingle();
+    if (!l) {
+      await limit(db, "badtoken", ip, 30, 60);
+      throw new Fail(404, "This link isn't valid. Please copy the whole link, or ask du Boulay Projects for a new one.");
+    }
+    if (l.revoked_at) throw new Fail(410, "This link has been withdrawn. Please ask du Boulay Projects for a new one.");
+    if (new Date(l.expires_at) < new Date()) throw new Fail(410, "This link has expired. Please ask du Boulay Projects for a new one.");
+    await db.from("action_links").update({ last_used_at: new Date().toISOString(), use_count: (l.use_count ?? 0) + 1 }).eq("id", l.id);
+    return l.email;
+  }
+  if (b.session) {
+    const sess = String(b.session);
+    if (!TOKEN.test(sess)) throw new Fail(401, "Please sign in again.");
+    const { data: s } = await db.from("external_sessions").select("email, expires_at").eq("token_hash", await sha256(sess)).maybeSingle();
+    if (!s || new Date(s.expires_at) < new Date()) throw new Fail(401, "Your sign-in has expired. Please sign in again.");
+    return s.email;
+  }
+  const c = await byToken(db, String(b.token ?? ""), ip);
+  if (!c.email) throw new Fail(404, "That item isn't available to you.");
+  return c.email;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return reply({ ok: false, error: "Not found." }, 404);
@@ -454,7 +563,7 @@ Deno.serve(async (req) => {
       await limit(db, "code-email", email, 5, 60);
       if (!Deno.env.get("MS_CLIENT_ID") || !Deno.env.get("MAIL_SENDER")) return reply({ ok: false, error: "Email sign-in isn't switched on yet. Please use the link in your email from du Boulay Projects." }, 503);
       // the same answer whether or not the address is known, so nobody can find out who is on a job
-      if ((await findAccess(db, email)).length) {
+      if ((await findAccess(db, email)).length || ((await myActionItems(db, email).catch(() => null))?.items.length ?? 0) > 0) {
         const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
         await db.from("external_codes").delete().eq("email", email);
         await db.from("external_codes").insert({ email, code_hash: await sha256(`${code}:${email}`) });
@@ -486,14 +595,74 @@ Deno.serve(async (req) => {
       if (!TOKEN.test(sess)) throw new Fail(401, "Please sign in again.");
       const { data: s } = await db.from("external_sessions").select("email, expires_at").eq("token_hash", await sha256(sess)).maybeSingle();
       if (!s || new Date(s.expires_at) < new Date()) throw new Fail(401, "Your sign-in has expired. Please sign in again.");
-      return reply({ ok: true, email: s.email, items: [...(await listItems(db, await findAccess(db, s.email))), ...(await snagRows(db, s.email).catch(() => []))] });
+      return reply({ ok: true, email: s.email, items: [...(await listItems(db, await findAccess(db, s.email))), ...(await snagRows(db, s.email).catch(() => [])), ...((await myActionItems(db, s.email).catch(() => null))?.items ?? [])] });
     }
     if (action === "list_link") {
       // everything for the person a private link was made for
       const c = await byToken(db, String(b.token ?? ""), ip);
       await log(c, "list");
       const acc = c.email ? await findAccess(db, c.email) : [{ kind: c.kind, itemId: c.itemId, personRow: c.personRow, role: c.role }];
-      return reply({ ok: true, email: c.email, name: c.name, focus: { kind: c.kind, id: c.itemId }, items: [...(await listItems(db, acc)), ...(c.email ? await snagRows(db, c.email).catch(() => []) : [])] });
+      return reply({ ok: true, email: c.email, name: c.name, focus: { kind: c.kind, id: c.itemId }, items: [...(await listItems(db, acc)), ...(c.email ? await snagRows(db, c.email).catch(() => []) : []), ...(c.email ? ((await myActionItems(db, c.email).catch(() => null))?.items ?? []) : [])] });
+    }
+
+    // ----- meeting actions (script 085): the same person by session, RFI link or the link in an actions email -----
+    if (action === "list_actions") {
+      const email = await emailFor(db, b as Record<string, string>, ip);
+      const r = await myActionItems(db, email);
+      return reply({ ok: true, email, name: r?.author ?? "", items: r?.items ?? [] });
+    }
+    if (action.startsWith("action_")) {
+      const email = await emailFor(db, b as Record<string, string>, ip);
+      await limit(db, "action", email, 120, 60);
+      const id = String(b.id ?? "");
+      if (!/^[0-9a-f-]{36}$/.test(id)) throw new Fail(404, "That action isn't available to you.");
+      const r = await myActionItems(db, email, id);
+      const it = r?.items[0];
+      if (!r || !it) throw new Fail(404, "That action isn't available to you.");
+      if (action === "action_view") {
+        await log(null, "action_view", email);
+        return reply({ ok: true, item: it, you: r.author });
+      }
+      const note = String(b.note ?? "").trim().slice(0, 1000);
+      const today = new Date().toISOString().slice(0, 10);
+      const addUpdate = (text: string) => [...(it.updates as unknown[]), { id: crypto.randomUUID(), date: today, text }];
+      if (action === "action_note") {
+        if (!note) throw new Fail(400, "Please write a note.");
+        const up = await db.from("meeting_points").update({ updates: addUpdate(`${r.author}: ${note}`) }).eq("id", id);
+        if (up.error) throw new Fail(500, "Couldn't save that. Please try again.");
+        return reply({ ok: true });
+      }
+      if (action === "action_done") {
+        if (it.done_by !== null && it.state === "done") throw new Fail(409, "This action has already been ticked off.");
+        if (!it.can_act) throw new Fail(409, "This action has already been ticked off.");
+        const text = `Marked done on the project hub by ${r.author}${note ? ": " + note : ""}`;
+        // only if it is still open (two people ticking at once: the first wins)
+        const up = await db.from("meeting_points").update({ done: true, is_action: false, done_by: r.author, updates: addUpdate(text) }).eq("id", id).eq("done", false).select("id");
+        if (up.error) throw new Fail(500, "Couldn't save that. Please try again.");
+        if (!up.data?.length) throw new Fail(409, "This action has already been ticked off.");
+        // the person who ran the meeting is told on their bell
+        if (it.meeting.created_by) {
+          await db.from("notifications").insert({
+            profile_id: it.meeting.created_by,
+            job_id: it.meeting.job_id,
+            kind: "minutes_action_ext_done",
+            title: `${r.author} ticked off an action: ${String(it.title).slice(0, 120)}`,
+            detail: `From the minutes${it.meeting.subtitle ? " (" + it.meeting.subtitle + ")" : ""}, ${dmy(it.meeting.date)}${note ? ". Note: " + note : ""}`,
+            link: it.meeting.job_id ? `/jobs/${it.meeting.job_id}/minutes` : "/tasks",
+            source_table: "meeting_points",
+            source_id: id,
+          });
+        }
+        await log(null, "action_done", email);
+        return reply({ ok: true });
+      }
+      if (action === "action_undo") {
+        if (!it.can_undo) throw new Fail(409, "This action can't be re-opened here. Please contact du Boulay Projects.");
+        const up = await db.from("meeting_points").update({ done: false, is_action: true, done_by: null, updates: addUpdate(`Re-opened on the project hub by ${r.author}`) }).eq("id", id).eq("done", true);
+        if (up.error) throw new Fail(500, "Couldn't save that. Please try again.");
+        return reply({ ok: true });
+      }
+      throw new Fail(404, "Not found.");
     }
 
     // ----- one item: by private link or by sign-in -----

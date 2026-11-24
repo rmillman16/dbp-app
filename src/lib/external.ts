@@ -50,7 +50,7 @@ export interface ExtItem {
   revisions?: { id: string; rev: number; rev_label?: string | null; submitted_on: string | null; due_date: string | null; outcome: string | null; response_notes: string | null; responded_by: string | null; responded_on: string | null; files: ExtFile[] }[]
 }
 export interface ExtListItem {
-  kind: 'rfi' | 'submittal' | 'snag' // a snag is one company's snag list on a job, opened with its own private link
+  kind: 'rfi' | 'submittal' | 'snag' | 'action' // an action is one from the meeting minutes (script 085); a snag is one company's snag list on a job, opened with its own private link
   snag_token?: string
   id: string
   ref?: string

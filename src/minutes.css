@@ -1864,3 +1864,39 @@
 .mm-error { color: #b3261e; margin: 0; font-size: 13px; }
 .mm-actions { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .mm-actions .mm-note { margin-right: auto; }
+/* ---------- 24 Nov: numbering, links to records, types, issue record, draft (script 085) ---------- */
+.mint .point { padding-left: 82px; }
+.mint .point-marker { left: 48px; }
+.mint .point-no { position: absolute; left: 4px; top: 10px; width: 38px; text-align: right; font-size: 11.5px; line-height: 16px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.mint .point-heading .point-no { font-weight: 700; color: var(--accent); }
+@media (max-width: 620px) {
+  .mint .point { padding-left: 58px; }
+  .mint .point-marker { left: 28px; }
+  .mint .point-no { left: 0; width: 24px; font-size: 10.5px; }
+}
+.mint .point-refs { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.mint .chip.chip-ref { background: var(--accent-soft); color: var(--accent); gap: 6px; }
+.mint .chip.chip-ref a { color: inherit; font-weight: 600; text-decoration: none; }
+.mint .chip.chip-ref a:hover { text-decoration: underline; }
+.mint .chip-ref-status { opacity: 0.7; font-size: 11px; text-transform: capitalize; }
+.mint .chip.chip-ref button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; font-size: 14px; line-height: 1; opacity: 0.6; }
+.mint .chip.chip-hub { background: var(--good-soft, #e4f4ea); color: var(--good); }
+.mint .meeting-no { font-weight: 700; color: var(--accent); margin-right: 14px; align-self: flex-end; }
+.mint .letterhead-meta { flex-wrap: wrap; align-items: flex-end; }
+.mint .date-field select { font: inherit; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--paper-raised, #fff); color: var(--ink); }
+.mint .attendee-chip .ac-ap { font-size: 10px; }
+.issue-bar { border: 1px solid #c9d3e3; border-left: 4px solid #007abe; background: #eef3fa; color: #1f1246; border-radius: 8px; padding: 9px 12px; margin: 0 0 14px; font-size: 13.5px; }
+.issue-bar.is-amending { border-left-color: #c77700; background: #fff6e5; }
+.issue-bar-row { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.issue-bar-btns { display: flex; gap: 6px; }
+.issue-history { margin-top: 8px; overflow-x: auto; }
+.issue-history table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.issue-history th, .issue-history td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid #d9d9e0; }
+.mm-wide { width: min(820px, 100%); }
+.mm-paste { font: inherit; font-size: 13.5px; padding: 9px; border: 1px solid #c9d3e3; border-radius: 8px; resize: vertical; }
+.mm-draft-list { max-height: 380px; padding: 4px 0; }
+.mm-draft-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 10px; font-size: 13.5px; cursor: pointer; }
+.mm-draft-row.is-heading { background: #eef3fa; color: #1f1246; margin-top: 4px; }
+.mm-draft-row.is-off { opacity: 0.45; }
+.mm-draft-meta { color: #007abe; font-size: 12.5px; }
+.mm-issue { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; background: #eef3fa; border-radius: 8px; padding: 8px 10px; }

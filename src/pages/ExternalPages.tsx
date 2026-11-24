@@ -3,6 +3,7 @@ import HubBlock from '../components/HubBlock'
 import { Link, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 import { cleanHtml } from '../lib/richText'
 import { ext, extOpenFile, extUpload, getSession, setSession, type ExtAuth, type ExtItem, type ExtListItem } from '../lib/external'
+import ActionView from './ActionExternal'
 
 // Outside people's pages (script 061): no login, no Microsoft account, and nothing of the rest of the app. Everything goes
 // through the "external" Edge Function. /r/<token> is one item by private link; /external is the email-code page.
@@ -33,6 +34,8 @@ export default function ExternalRoutes() {
     <Routes>
       <Route path="/r/:token" element={<LinkHome />} />
       <Route path="/r/:token/:kind/:id" element={<ByLink />} />
+      <Route path="/a/:token" element={<ActionsHome />} />
+      <Route path="/a/:token/action/:id" element={<ActionByEmailLink />} />
       <Route path="/external" element={<ExternalHome />} />
       <Route path="/external/:kind/:id" element={<BySession />} />
       <Route path="*" element={<Shell><p>This page doesn't exist.</p></Shell>} />
@@ -70,8 +73,40 @@ function LinkHome() {
     </Shell>
   )
 }
+// the link in an actions email (/a/<token>): just that person's actions from the meeting minutes
+function ActionsHome() {
+  const { token } = useParams()
+  const [data, setData] = useState<{ items: ExtListItem[]; name: string } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    ext<{ items: ExtListItem[]; name: string }>({ action: 'list_actions', atoken: token }).then(setData, (e: Error) => setError(e.message))
+  }, [token])
+  return (
+    <Shell>
+      <h1>{data?.name ? `${data.name.split(' ')[0]}, your actions from the meetings` : 'Your actions from the meetings'}</h1>
+      {error && <p className="error">{error}</p>}
+      {!data && !error && <p className="muted">Loading…</p>}
+      {data && data.items.length === 0 && <p>You have no actions at the moment.</p>}
+      {data && data.items.length > 0 && <ItemList items={data.items} to={(i) => `/a/${token}/action/${i.id}`} />}
+    </Shell>
+  )
+}
+function ActionByEmailLink() {
+  const { token, id } = useParams()
+  return (
+    <Shell>
+      <ActionView auth={{ atoken: token! }} id={id!} back={{ to: `/a/${token}`, label: '← All your actions' }} />
+    </Shell>
+  )
+}
 function ByLink() {
   const { token, kind, id } = useParams()
+  if (kind === 'action')
+    return (
+      <Shell>
+        <ActionView auth={{ token: token! }} id={id!} back={{ to: `/r/${token}`, label: '← All your RFIs and submittals' }} />
+      </Shell>
+    )
   if (kind !== 'rfi' && kind !== 'submittal') return <Shell><p>This page doesn't exist.</p></Shell>
   return (
     <Shell>
@@ -85,6 +120,12 @@ function ByLink() {
 function BySession() {
   const { kind, id } = useParams()
   const session = getSession()
+  if (session && kind === 'action')
+    return (
+      <Shell>
+        <ActionView auth={{ session }} id={id!} back={{ to: '/external', label: '← Everything for you' }} />
+      </Shell>
+    )
   if (!session || (kind !== 'rfi' && kind !== 'submittal')) {
     return (
       <Shell>
@@ -229,14 +270,14 @@ function ItemList({ items, to: toItem, focus }: { items: ExtListItem[]; to: (i: 
   const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
   // RFIs and submittals apart, and each split by project (a client or contractor can be on several jobs)
   const sortRows = (a: ExtListItem, b: ExtListItem) => Number(b.act) - Number(a.act) || (a.due_date ?? '9').localeCompare(b.due_date ?? '9') || b.number - a.number
-  const sections = (['rfi', 'submittal', 'snag'] as const)
+  const sections = (['rfi', 'submittal', 'snag', 'action'] as const)
     .map((kind) => {
       const mine = items.filter((i) => i.kind === kind)
       const projects = [...new Set(mine.map((i) => i.project))]
         .map((p) => ({ project: p, rows: mine.filter((i) => i.project === p).sort(sortRows) }))
         // the project with most waiting for them first
         .sort((a, b) => b.rows.filter((r) => r.act).length - a.rows.filter((r) => r.act).length || a.project.localeCompare(b.project))
-      return { kind, label: kind === 'rfi' ? 'RFIs' : kind === 'submittal' ? 'Submittals' : 'Snags', count: mine.length, waiting: mine.filter((i) => i.act).length, projects }
+      return { kind, label: kind === 'rfi' ? 'RFIs' : kind === 'submittal' ? 'Submittals' : kind === 'snag' ? 'Snags' : 'Actions from meetings', count: mine.length, waiting: mine.filter((i) => i.act).length, projects }
     })
     .filter((s) => s.count > 0)
   return (
