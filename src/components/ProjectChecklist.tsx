@@ -27,19 +27,15 @@ const STANDARD: { key: string; category: string; title: string }[] = [
   { key: 'pd', category: HS, title: 'Principal Designer appointed' },
   { key: 'pc', category: HS, title: 'Principal Contractor appointed' },
   { key: 'cpp', category: HS, title: 'Construction phase plan prepared' },
-  { key: 'rams', category: HS, title: 'RAMS reviewed and approved for the works' },
-  { key: 'induct', category: HS, title: 'Site induction in place' },
-  { key: 'welfare', category: HS, title: 'Welfare facilities arranged' },
-  { key: 'fire', category: HS, title: 'Fire plan and emergency procedures in place' },
+  { key: 'induct', category: HS, title: 'Inndex set up' },
+  { key: 'fire', category: HS, title: 'Fire plan' },
   { key: 'asbestos', category: HS, title: 'Asbestos survey seen (refurbishment / demolition)' },
   { key: 'hsfile', category: HS, title: 'Health and safety file started' },
   { key: 'bc', category: COMP, title: 'Building Control approval in place' },
-  { key: 'pw', category: COMP, title: 'Party wall awards agreed' },
   { key: 'insurance', category: COMP, title: 'Insurances in place (CAR, public and employers liability)' },
   { key: 'permits', category: COMP, title: 'Licences and permits (highways, hoarding, skips)' },
   { key: 'noise', category: COMP, title: 'Noise and working-hours consents (s61)' },
   { key: 'waste', category: COMP, title: 'Site waste management plan' },
-  { key: 'competence', category: COMP, title: 'Operative competence and CSCS checks' },
 ]
 
 export default function ProjectChecklist({ job }: { job: Job }) {
@@ -57,6 +53,15 @@ export default function ProjectChecklist({ job }: { job: Job }) {
         return
       }
       let rows = r.data as Item[]
+      // tidy checklists made before the list changed: drop removed standard items, rename reworded ones
+      const std = new Map(STANDARD.map((s) => [s.key, s]))
+      const gone = rows.filter((x) => !x.custom && !std.has(x.key))
+      const renamed = rows.filter((x) => !x.custom && std.has(x.key) && std.get(x.key)!.title !== x.title)
+      if (navigator.onLine) {
+        if (gone.length) await supabase.from('job_checklist').delete().in('id', gone.map((x) => x.id))
+        for (const x of renamed) await supabase.from('job_checklist').update({ title: std.get(x.key)!.title }).eq('id', x.id)
+      }
+      rows = rows.filter((x) => x.custom || std.has(x.key)).map((x) => (!x.custom && std.has(x.key) ? { ...x, title: std.get(x.key)!.title } : x))
       const have = new Set(rows.map((x) => x.key))
       const missing = STANDARD.map((s, i) => ({ ...s, sort: i })).filter((s) => !have.has(s.key))
       if (missing.length && navigator.onLine) {
