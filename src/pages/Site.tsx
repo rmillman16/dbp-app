@@ -1,3 +1,4 @@
+import { exportRequisitions } from '../lib/exportRequisitions'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { Link, NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -469,6 +470,9 @@ export function BuyerList() {
               </option>
             ))}
           </select>
+          <button type="button" disabled={shown.length === 0} onClick={() => exportRequisitions(kind, shown, jobs).catch((e: Error) => setError(e.message))}>
+            Export Excel
+          </button>
           <div className="segmented">
             {FILTERS[kind].map(([f, label]) => (
               <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
@@ -679,11 +683,11 @@ export function RequisitionPage() {
     }
     setBusy(false)
   }
-  async function attach(list: File[]) {
+  async function attach(list: File[], kind: 'request' | 'order' = 'request') {
     if (!req) return
     setError(null)
     try {
-      for (const f of list) await addFile(req, f)
+      for (const f of list) await addFile(req, f, kind)
       load()
     } catch (err) {
       setError(saveError(err))
@@ -762,9 +766,9 @@ export function RequisitionPage() {
           )}
           <dt>Attachments</dt>
           <dd>
-            {files.length === 0 && <span className="muted">None</span>}
+            {files.filter((f) => f.kind !== 'order').length === 0 && <span className="muted">None</span>}
             <ul className="req-files">
-              {files.map((f) => (
+              {files.filter((f) => f.kind !== 'order').map((f) => (
                 <li key={f.id}>
                   <button className="link-button" onClick={() => open(f)}>
                     {f.name}
@@ -775,8 +779,38 @@ export function RequisitionPage() {
                 </li>
               ))}
             </ul>
-            <AddFiles onFiles={attach} label="+ Add file" />
+            <AddFiles onFiles={(l) => attach(l)} label="+ Add file" />
           </dd>
+          {(asBuyer || files.some((f) => f.kind === 'order')) && (
+            <>
+              <dt>Order documents</dt>
+              <dd>
+                {files.filter((f) => f.kind === 'order').length === 0 && <span className="muted">None yet</span>}
+                <ul className="req-files">
+                  {files
+                    .filter((f) => f.kind === 'order')
+                    .map((f) => (
+                      <li key={f.id}>
+                        <button className="link-button" onClick={() => open(f)}>
+                          {f.name}
+                        </button>{' '}
+                        {asBuyer && (
+                          <button className="link-button small muted" onClick={() => confirm(`Remove ${f.name}?`) && removeFile(f).then(load, (e: Error) => setError(saveError(e)))}>
+                            Remove
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+                {asBuyer && (
+                  <>
+                    <AddFiles onFiles={(l) => attach(l, 'order')} label="+ Add receipt / order document" />
+                    <p className="muted small">Add these before setting the status to Ordered: they are emailed to {req.requester_name ?? 'the requester'} with the notice. Anything added later can still be opened here.</p>
+                  </>
+                )}
+              </dd>
+            </>
+          )}
         </dl>
       </section>
 

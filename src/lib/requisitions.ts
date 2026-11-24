@@ -64,6 +64,7 @@ export interface ReqFile {
   requisition_id: string
   path: string
   name: string
+  kind: 'request' | 'order' // order = the buyer's receipt / order documents (script 075), emailed to the requester when ordered
   created_at: string
 }
 
@@ -165,12 +166,12 @@ export async function postMessage(req: Requisition, body: string) {
   return r.data as ReqMessage
 }
 
-export async function addFile(req: Requisition, file: File) {
+export async function addFile(req: Requisition, file: File, kind: 'request' | 'order' = 'request') {
   const safe = file.name.replace(/[^\w.\- ]+/g, '_')
   const path = `${req.job_id}/${req.id}/${Date.now()}-${safe}`
   const up = await supabase.storage.from('requisitions').upload(path, file, { contentType: file.type || undefined })
   if (up.error) throw new Error(needs032(up.error.message))
-  const r = await supabase.from('requisition_files').insert({ requisition_id: req.id, path, name: file.name }).select('*').single()
+  const r = await supabase.from('requisition_files').insert({ requisition_id: req.id, path, name: file.name, ...(kind === 'order' ? { kind } : {}) }).select('*').single()
   if (r.error) throw new Error(needs032(r.error.message))
   return r.data as ReqFile
 }

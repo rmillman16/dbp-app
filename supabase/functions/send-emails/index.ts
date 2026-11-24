@@ -1,5 +1,5 @@
 // Supabase Edge Function: emails people their new notifications (22 Nov). Short notices only: what's
-// waiting and a link into the app; no attachments, prices or documents. Sent from DBP's Microsoft 365
+// waiting and a link into the app; no prices or documents, with one exception (24 Nov): when a requisition is set to Ordered, the buyer's order documents (receipt, order confirmation: requisition_files kind "order", script 075) are attached for the requester. Sent from DBP's Microsoft 365
 // mailbox through Microsoft Graph (IT sets this up: docs/questions-for-IT.md §2).
 //
 // Runs every couple of minutes (Supabase › Integrations › Cron) and is also nudged by the app straight
@@ -54,6 +54,28 @@ function emailHtml(title: string, detail: string | null, link: string) {
 </div>`;
 }
 
+// The buyer's order documents for an ordered requisition (script 075), as Microsoft Graph file attachments. Graph takes about 4 MB in
+// one request, so up to ~2.5 MB of files go on the email; any beyond that are named in the email and stay in the app.
+// deno-lint-ignore no-explicit-any
+async function orderDocuments(db: any, requisitionId: string) {
+  const { data: r } = await db.from("requisitions").select("status").eq("id", requisitionId).maybeSingle();
+  if (r?.status !== "ordered") return { attach: [] as unknown[], left: [] as string[] };
+  const { data: files } = await db.from("requisition_files").select("path, name").eq("requisition_id", requisitionId).eq("kind", "order").order("created_at");
+  const attach: unknown[] = [];
+  const left: string[] = [];
+  let total = 0;
+  for (const f of files ?? []) {
+    const dl = await db.storage.from("requisitions").download(f.path);
+    if (dl.error || !dl.data) { left.push(f.name); continue; }
+    const bytes = new Uint8Array(await dl.data.arrayBuffer());
+    if (total + bytes.length > 2_500_000) { left.push(f.name); continue; }
+    total += bytes.length;
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    attach.push({ "@odata.type": "#microsoft.graph.fileAttachment", name: f.name, contentType: dl.data.type || "application/octet-stream", contentBytes: btoa(bin) });
+  }
+  return { attach, left };
+}
 async function graphToken(tenant: string, client: string, secret: string) {
   const r = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
     method: "POST",
@@ -266,7 +288,7 @@ Deno.serve(async (req) => {
 
     const since = new Date(Date.now() - 2 * 86400000).toISOString();
     const today = new Date().toISOString().slice(0, 10);
-    const cols = "id, profile_id, kind, title, detail, due_date, link, job_id, source_id";
+    const cols = "id, profile_id, kind, title, detail, due_date, link, job_id, source_id, source_table";
     const [news, dated] = await Promise.all([
       db
         .from("notifications")
@@ -310,14 +332,24 @@ Deno.serve(async (req) => {
         continue;
       }
       const link = appUrl + (n.link ?? (n.job_id ? `/jobs/${n.job_id}` : "/"));
+      let docs: { attach: unknown[]; left: string[] } = { attach: [], left: [] };
+      if (n.kind === "requisition_update" && n.source_table === "requisitions" && n.source_id) {
+        try {
+          docs = await orderDocuments(db, n.source_id);
+        } catch (e) {
+          console.warn("order documents:", e instanceof Error ? e.message : e);
+        }
+      }
+      const detail = [n.detail, docs.attach.length ? `${docs.attach.length} order document${docs.attach.length === 1 ? "" : "s"} attached.` : null, docs.left.length ? `Too large to attach (open them in the app): ${docs.left.join(", ")}` : null].filter(Boolean).join("\n") || null;
       const r = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           message: {
             subject: `DBP app: ${n.title}`,
-            body: { contentType: "HTML", content: emailHtml(n.title, n.detail, link) },
+            body: { contentType: "HTML", content: emailHtml(n.title, detail, link) },
             toRecipients: [{ emailAddress: { address: p.email } }],
+            ...(docs.attach.length ? { attachments: docs.attach } : {}),
           },
           saveToSentItems: false,
         }),
