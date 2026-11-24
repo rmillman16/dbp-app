@@ -37,6 +37,9 @@ interface ExtSnag {
   status: 'incomplete' | 'complete'
   marked_done_at: string | null
   done_note: string | null
+  rejected_at?: string | null // sent back by du Boulay Projects (script 079)
+  reject_note?: string | null
+  reject_count?: number
   photos: Pic[]
   proof: Pic[]
 }
@@ -58,6 +61,27 @@ export default function SnagExternal() {
   useEffect(() => {
     load()
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
+  // keep it up to date: a colleague who marks a snag done (or du Boulay Projects sending one back) shows here within half a minute,
+  // and straight away when you come back to this page
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'visible') call<Data>({ action: 'list', token }).then(setData, () => {})
+    }
+    const t = window.setInterval(refresh, 30000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(t)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [token])
+  // back to where they came from: the outside hub (all their RFIs, submittals and snags)
+  const back = (() => {
+    try {
+      return sessionStorage.getItem('extBack') || '/external'
+    } catch {
+      return '/external'
+    }
+  })()
 
   const n = (t: Tab) => data?.snags.filter((s) => stateOf(s) === t).length ?? 0
   const shown = (data?.snags ?? []).filter((s) => stateOf(s) === tab)
@@ -77,6 +101,11 @@ export default function SnagExternal() {
         {!data && !error && <p className="muted">Loading…</p>}
         {data && (
           <>
+            <p>
+              <a className="snag-back" href={back}>
+                ← Back to all your RFIs, submittals and snags
+              </a>
+            </p>
             <h1>{data.company}: your snags</h1>
             <p className="muted">
               {data.job.ref} {data.job.name}
@@ -177,6 +206,11 @@ function SnagCard({ s, token, onChange }: { s: ExtSnag; token: string; onChange:
         </div>
       </div>
       {s.description && <p>{s.description}</p>}
+      {st === 'todo' && !!s.reject_count && s.reject_note && (
+        <p className="snag-rejected">
+          <strong>Sent back{s.rejected_at ? ' on ' + ukDate(s.rejected_at) : ''}:</strong> {s.reject_note}
+        </p>
+      )}
       {(s.photos.length > 0 || s.proof.length > 0) &&
         (urls ? (
           <div className="snag-thumbs">

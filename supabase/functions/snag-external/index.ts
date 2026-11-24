@@ -109,16 +109,21 @@ Deno.serve(async (req) => {
     if (action === "list") {
       const ids = await dirIds(db, ctx);
       const { data: job } = await db.from("jobs").select("name, job_no, code, site_address, hub_url").eq("id", ctx.jobId).maybeSingle();
-      const { data: rows } = ids.length
-        ? await db.from("snags").select("id, number, title, description, location, status, trade, marked_done_at, done_note, created_at, completed_at").eq("job_id", ctx.jobId).in("assignee_id", ids).order("number")
-        : { data: [] };
-      const snagIds = (rows ?? []).map((r: { id: string }) => r.id);
+      // every snag given to this company on the job, so a colleague's tick shows for everyone; the "sent back" columns are script 079
+      // (without it the list still works, just without them)
+      let rows: { id: string; number: number }[] = [];
+      if (ids.length) {
+        const base = "id, number, title, description, location, status, trade, marked_done_at, marked_done_by, done_note, created_at, completed_at";
+        const r1 = await db.from("snags").select(`${base}, rejected_at, reject_note, reject_count`).eq("job_id", ctx.jobId).in("assignee_id", ids).order("number");
+        rows = (r1.error ? (await db.from("snags").select(base).eq("job_id", ctx.jobId).in("assignee_id", ids).order("number")).data : r1.data) ?? [];
+      }
+      const snagIds = rows.map((r) => r.id);
       const { data: files } = snagIds.length ? await db.from("snag_files").select("id, snag_id, kind, name").in("snag_id", snagIds).order("created_at") : { data: [] };
       return reply({
         ok: true,
         company: ctx.company,
         job: { name: job?.name ?? "", ref: `${job?.job_no ?? ""} ${job?.code ?? ""}`.trim(), address: job?.site_address ?? "", hub_url: job?.hub_url ?? null },
-        snags: (rows ?? []).map((r: { id: string; number: number }) => ({
+        snags: rows.map((r) => ({
           ...r,
           ref: `${job?.job_no ?? ""}_${job?.code ?? ""}_SNAG_${String(r.number).padStart(3, "0")}`,
           photos: (files ?? []).filter((f: { snag_id: string; kind: string }) => f.snag_id === r.id && f.kind === "raised").map((f: { id: string; name: string }) => ({ id: f.id, name: f.name })),
@@ -155,6 +160,8 @@ Deno.serve(async (req) => {
     if (action === "mark_done") {
       const snag = await mySnag(db, ctx, String(b.snag_id ?? ""));
       if (snag.status !== "incomplete") throw new Fail(409, "This snag is already complete.");
+      // someone else on the team got there first: it is already marked done for everyone
+      if (snag.marked_done_at) throw new Fail(409, "Someone from your company has already marked this as done. It is waiting to be checked.");
       await limit(db, "snag-done", ctx.linkId, 200, 60);
       const note = String(b.note ?? "").trim().slice(0, 1000);
       const files = (Array.isArray(b.files) ? b.files : []).slice(0, 6) as { path?: string; name?: string }[];

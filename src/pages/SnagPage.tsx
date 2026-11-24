@@ -17,6 +17,7 @@ import {
   snagPhotoUrl,
   snagRef,
   stateOf,
+  sendBackSnag,
   updateSnag,
   type Assignee,
   type Snag,
@@ -205,6 +206,7 @@ export function SnagDetail() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [reason, setReason] = useState<string | null>(null) // the reason for sending it back; null = not sending back
 
   const load = () =>
     loadSnag(snagId!).then(
@@ -323,11 +325,42 @@ export function SnagDetail() {
             >
               ✓ Checked: complete
             </button>
-            <button disabled={busy} onClick={() => run(async () => void (await updateSnag(snag.id, { marked_done_at: null, marked_done_by: null, done_note: null })), 'Sent back: it shows as to do again.')}>
-              Send back
+            <button disabled={busy} onClick={() => setReason(reason === null ? '' : null)}>
+              Not done / not good enough: send back
             </button>
           </div>
+          {reason !== null && (
+            <div className="snag-sendback">
+              <label>
+                What needs doing before it can be signed off? The trade sees this.
+                <textarea rows={3} autoFocus value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Paint is patchy at the left of the door: needs a second coat" />
+              </label>
+              <div className="snag-save">
+                <button
+                  className="primary"
+                  disabled={busy || !reason.trim()}
+                  onClick={() =>
+                    run(async () => {
+                      await sendBackSnag(snag, reason)
+                      setReason(null)
+                    }, 'Sent back: it is on the trade’s to do list again, with your reason.')
+                  }
+                >
+                  Send it back
+                </button>
+                <button disabled={busy} onClick={() => setReason(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {snag.reject_count ? <p className="muted small">Sent back {snag.reject_count} time{snag.reject_count === 1 ? '' : 's'} before.</p> : null}
         </div>
+      )}
+      {st === 'todo' && !!snag.reject_count && snag.reject_note && (
+        <p className="snag-rejected">
+          <strong>Sent back{snag.rejected_at ? ` on ${ukDate(snag.rejected_at.slice(0, 10))}` : ''}:</strong> {snag.reject_note}
+        </p>
       )}
       {st !== 'check' && proof.length > 0 && (
         <div className="rfi-field">

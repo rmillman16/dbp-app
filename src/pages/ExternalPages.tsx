@@ -216,6 +216,15 @@ function ItemList({ items, to: toItem, focus }: { items: ExtListItem[]; to: (i: 
   const navigate = useNavigate()
   // a snag row opens the snag page (/s/<token>) for that company's snags on the job
   const to = (i: ExtListItem) => (i.kind === 'snag' ? `/s/${i.snag_token}` : toItem(i))
+  // so the snag page can take them back here
+  const remember = (i: ExtListItem) => {
+    if (i.kind !== 'snag') return
+    try {
+      sessionStorage.setItem('extBack', location.pathname)
+    } catch {
+      /* private browsing: the back link falls back to the sign-in page */
+    }
+  }
   const waiting = items.filter((i) => i.act).length
   const late = items.filter((i) => dueTone(i.due_date, i.act) === 'overdue').length
   // RFIs and submittals apart, and each split by project (a client or contractor can be on several jobs)
@@ -257,9 +266,9 @@ function ItemList({ items, to: toItem, focus }: { items: ExtListItem[]; to: (i: 
                   {p.rows.map((i) => {
                     const tone = dueTone(i.due_date, i.act)
                     return (
-                      <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => navigate(to(i))}>
+                      <tr key={i.kind + i.id} className={`ext-row ${tone || (i.act ? '' : 'quiet')}`} onClick={() => (remember(i), navigate(to(i)))}>
                         <td className="ext-ref">
-                          <Link to={to(i)} onClick={(e) => e.stopPropagation()}>
+                          <Link to={to(i)} onClick={(e) => (e.stopPropagation(), remember(i))}>
                             {i.ref ?? `${i.kind === 'rfi' ? 'RFI' : i.kind === 'snag' ? 'Snags' : 'Sub'} ${i.number}`}
                           </Link>
                         </td>

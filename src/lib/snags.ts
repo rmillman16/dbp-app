@@ -20,12 +20,15 @@ export interface Snag {
   marked_done_by: string | null
   done_note: string | null
   completed_at: string | null
+  rejected_at?: string | null // sent back by the approver (script 079)
+  reject_note?: string | null
+  reject_count?: number
   created_at: string
 }
 export interface SnagFile {
   id: string
   snag_id: string
-  kind: 'raised' | 'proof'
+  kind: 'raised' | 'proof' | 'previous' // previous = the proof from an attempt that was sent back
   name: string
   path: string
   uploaded_by: string | null
@@ -109,6 +112,20 @@ export async function createSnag(n: NewSnag, photos: File[]) {
   for (const p of photos) await addSnagPhoto(snag.id, p, 'raised')
   return snag
 }
+// The approver finds it isn't done, or isn't good enough: it goes back to "to do" on the trade's list with the reason, and the photos
+// from that attempt are kept as "previous" (script 079).
+export async function sendBackSnag(snag: Pick<Snag, 'id' | 'reject_count'>, reason: string) {
+  const r = await supabase
+    .from('snags')
+    .update({ marked_done_at: null, marked_done_by: null, done_note: null, rejected_at: new Date().toISOString(), reject_note: reason.trim(), reject_count: (snag.reject_count ?? 0) + 1 })
+    .eq('id', snag.id)
+    .select('*')
+    .single()
+  if (r.error) throw new Error(/reject_|schema cache/i.test(r.error.message) ? 'Sending a snag back needs script 079 run in Supabase first (supabase/README.md).' : needs070(r.error.message))
+  await supabase.from('snag_files').update({ kind: 'previous' }).eq('snag_id', snag.id).eq('kind', 'proof')
+  return r.data as Snag
+}
+
 export async function updateSnag(id: string, patch: Partial<Pick<Snag, 'title' | 'description' | 'location' | 'status' | 'assignee_id' | 'trade' | 'marked_done_at' | 'marked_done_by' | 'done_note' | 'raised_by'>>) {
   const r = await supabase.from('snags').update(patch).eq('id', id).select('*').single()
   if (r.error) throw fail(r.error)
