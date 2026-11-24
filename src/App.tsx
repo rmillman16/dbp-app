@@ -4,6 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { configError, supabase } from './lib/supabase'
 import Layout from './components/Layout'
 import { AccessProvider } from './lib/access'
+import { prefetchPages } from './lib/prefetch'
 import { RequireAccess as A } from './components/NoAccess'
 import JobsTable from './components/JobsTable'
 import SignIn from './pages/SignIn'
@@ -90,6 +91,12 @@ export default function App() {
     const { data } = supabase.auth.onAuthStateChange((_event, s) => setSession(s))
     return () => data.subscription.unsubscribe()
   }, [])
+
+  // once signed in, fetch the other pages quietly (desktop or a fast connection only)
+  const signedIn = !!session
+  useEffect(() => {
+    if (signedIn) prefetchPages()
+  }, [signedIn])
 
   // outside people's pages (/r/<link> and /external): no sign-in, and none of the app around them (script 061)
   const { pathname } = useLocation()
