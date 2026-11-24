@@ -229,6 +229,7 @@ export interface Application {
   deposit: number | null // less deposits received
   retention_pct: number | null
   practical_completion: boolean
+  final_account?: boolean // this is the final account: the project is finished off (script 087)
   previously_paid: number | null
   vat_pct: number
   client_certified: number | null

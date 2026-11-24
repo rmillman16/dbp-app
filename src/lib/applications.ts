@@ -113,7 +113,8 @@ async function insertApplication(row: Partial<Application>, lines: ApplicationLi
 
 // Next application: percentages carried forward from the previous one (they're cumulative);
 // "less previous paid" starts at what's been paid so far (or the previous total claimed).
-export async function createApplication(job: Job, sowRevisionId: string, apps: Application[]) {
+// Once practical completion has been reached it stays reached: later applications carry it on (retention stays halved).
+export async function createApplication(job: Job, sowRevisionId: string, apps: Application[], opts: { practicalCompletion?: boolean; finalAccount?: boolean } = {}) {
   const prev = latestRevisions(apps).pop() ?? null
   let lines: ApplicationLine[] = []
   let previouslyPaid = 0
@@ -131,6 +132,9 @@ export async function createApplication(job: Job, sowRevisionId: string, apps: A
       valuation_date: todayIso(),
       sow_revision_id: sowRevisionId,
       retention_pct: job.retention_pct,
+      practical_completion: !!(opts.practicalCompletion ?? prev?.practical_completion),
+      // only sent when ticked, so applications still work before script 087
+      ...(opts.finalAccount ? { final_account: true } : {}),
       previously_paid: previouslyPaid,
       materials_on_site: prev?.materials_on_site ?? 0,
       vat_pct: 20,

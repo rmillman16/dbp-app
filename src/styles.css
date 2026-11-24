@@ -1544,3 +1544,4 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .confetti { position: absolute; top: -14px; width: 9px; height: 14px; border-radius: 2px; animation: confetti-fall linear forwards; }
 @keyframes confetti-fall { to { top: 105vh; margin-left: 40px; } }
 @keyframes celebrate-pop { from { transform: translateX(-50%) scale(0.7); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+.app-new { border: 1px solid #c9d3e3; border-left: 4px solid #007abe; background: #eef3fa; border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 4px; }

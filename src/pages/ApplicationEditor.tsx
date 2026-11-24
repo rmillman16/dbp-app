@@ -9,6 +9,7 @@ import { exportApplication } from '../lib/exportApplication'
 import { APP_STATUS_LABELS, type Application, type ApplicationLine, type AppStatus, type SowLine } from '../lib/types'
 import { useJob } from './JobLayout'
 import Loading from '../components/Loading'
+import { celebrate } from '../lib/celebrate'
 
 const r2 = (n: number) => Math.round(n * 100) / 100
 const pctText = (p: number | null | undefined) => (p == null ? '' : String(Math.round(p * 10000) / 100))
@@ -180,7 +181,20 @@ export default function ApplicationEditor() {
             <Num label="Retention %" value={app.retention_pct} onChange={(v) => setA('retention_pct', v)} />
             <label className="check">
               <span>
-                <input type="checkbox" checked={app.practical_completion} onChange={(e) => setA('practical_completion', e.target.checked)} /> Practical completion (retention halved)
+                <input
+                  type="checkbox"
+                  checked={app.practical_completion}
+                  onChange={(e) => {
+                    setA('practical_completion', e.target.checked)
+                    if (e.target.checked) celebrate('Practical completion achieved!', 'Retention is halved on this application.')
+                  }}
+                />{' '}
+                Practical completion (retention halved)
+              </span>
+            </label>
+            <label className="check">
+              <span>
+                <input type="checkbox" checked={!!app.final_account} onChange={(e) => setA('final_account', e.target.checked)} /> This is the final account (the project is finished off)
               </span>
             </label>
             <Num label="Less deposits £" value={app.deposit} onChange={(v) => setA('deposit', v)} />
