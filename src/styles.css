@@ -1468,3 +1468,33 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .usage-table td.usage-bar { width: 34%; }
 .usage-table td.usage-bar i { display: block; height: 10px; background: #007abe; border-radius: 3px; min-width: 2px; }
 .usage-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Job › H&S (24 Nov) */
+.hs-views { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.hs-views button { border: 1px solid #c9d3e3; background: #fff; border-radius: 999px; padding: 7px 16px; cursor: pointer; font: inherit; color: #1f1246; }
+.hs-views button.on { background: #1f1246; color: #fff; border-color: #1f1246; }
+.hs-list tr.clickable { cursor: pointer; }
+.hs-list tr.clickable:hover td { background: #f4f6fb; }
+.hs-clip { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hs-late { color: #b3261e; font-weight: 600; }
+.hs-chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 10px; background: #eef3fa; color: #1f1246; white-space: nowrap; }
+.hs-chip.ok, .hs-chip.satisfactory { background: #e2f0d9; color: #2e7d32; }
+.hs-chip.damaged, .hs-chip.short, .hs-chip.actions { background: #fce4d6; color: #a04a00; }
+.hs-chip.rejected, .hs-chip.unsatisfactory { background: #f3e1e1; color: #b3261e; }
+.head-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hs-labour input { width: 100%; }
+.hs-labour td.num input { max-width: 90px; text-align: right; }
+.hs-checklist { list-style: none; margin: 0 0 8px; padding: 0; border: 1px solid #d9d9e0; border-radius: 8px; }
+.hs-checklist li { padding: 8px 12px; border-bottom: 1px solid #ececf2; }
+.hs-checklist li:last-child { border-bottom: none; }
+.hs-checklist li.fail { background: #fdf0f0; }
+.hs-q { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hs-seg { display: inline-flex; border: 1px solid #c9d3e3; border-radius: 8px; overflow: hidden; flex: none; }
+.hs-seg button { border: none; background: #fff; padding: 6px 14px; cursor: pointer; font: inherit; font-size: 13px; }
+.hs-seg button + button { border-left: 1px solid #c9d3e3; }
+.hs-seg button.pass.on { background: #2e7d32; color: #fff; }
+.hs-seg button.fail.on { background: #c62828; color: #fff; }
+.hs-seg button.na.on { background: #6b6b78; color: #fff; }
+.hs-note, .hs-own-q { width: 100%; margin-top: 6px; }
+.hs-own-q { margin-top: 0; flex: 1; min-width: 200px; }
+.hs-doc { display: inline-block; padding: 8px 10px; background: #eef3fa; border-radius: 6px; font-size: 12px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }

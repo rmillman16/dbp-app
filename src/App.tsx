@@ -45,6 +45,7 @@ const TenderEnquiry = lazy(() => import('./pages/TenderEnquiry'))
 const ExternalRoutes = lazy(() => import('./pages/ExternalPages'))
 const SnagExternal = lazy(() => import('./pages/SnagExternal'))
 const SnaggingTab = lazy(() => import('./pages/SnaggingTab'))
+const HsTab = lazy(() => import('./pages/HsTab'))
 const BreeamTab = lazy(() => import('./pages/BreeamTab'))
 const SnagDetail = lazy(() => import('./pages/SnagPage').then((m) => ({ default: m.SnagDetail })))
 const SnagNew = lazy(() => import('./pages/SnagPage').then((m) => ({ default: m.SnagNew })))
@@ -196,6 +197,7 @@ export default function App() {
             <Route path="submittals/:submittalId" element={<SubmittalPage />} />
             <Route path="rfis/:rfiId" element={<RfiPage />} />
             <Route path="breeam" element={<BreeamTab />} />
+            <Route path="hs" element={<HsTab />} />
             <Route path="snagging" element={<SnaggingTab />} />
             <Route path="snagging/new" element={<SnagNew />} />
             <Route path="snagging/:snagId" element={<SnagDetail />} />

@@ -19,6 +19,7 @@ import ProjectChecklist from '../components/ProjectChecklist'
 export default function JobOverview() {
   const { job } = useJob()
   const navigate = useNavigate()
+  const { can: canSee } = useAccess()
   const [vos, setVos] = useState<VoWithLines[] | null>(null)
   useEffect(() => {
     loadJobVariations(job).then(setVos, () => setVos([]))
@@ -108,7 +109,7 @@ export default function JobOverview() {
       </div>
 
       {/* H&S and compliance checklist: F10 etc (script 076), at the bottom and closed until opened */}
-      <ProjectChecklist job={job} />
+      {canSee('job_checklist') && <ProjectChecklist job={job} />}
     </div>
   )
 }
@@ -267,8 +268,8 @@ function ModuleCards({ job }: { job: Job }) {
       get<{ kind: string; status: string }>(supabase.from('requisitions').select('kind, status').eq('job_id', jobId)),
       can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('rfis').select('status, due_date').eq('job_id', jobId)) : null,
       can('job_rfis') ? get<{ status: string; due_date: string | null }>(supabase.from('submittals').select('status, due_date').eq('job_id', jobId)) : null,
-      can('jobs') ? get<{ report_no: number; period_end: string | null; status: string }>(supabase.from('progress_reports').select('report_no, period_end, status').eq('job_id', jobId).order('report_no', { ascending: false }).limit(1)) : null,
-      can('job_rfis') ? get<{ status: string; marked_done_at: string | null }>(supabase.from('snags').select('status, marked_done_at').eq('job_id', jobId)) : null,
+      can('job_progress') ? get<{ report_no: number; period_end: string | null; status: string }>(supabase.from('progress_reports').select('report_no, period_end, status').eq('job_id', jobId).order('report_no', { ascending: false }).limit(1)) : null,
+      can('job_snagging') ? get<{ status: string; marked_done_at: string | null }>(supabase.from('snags').select('status, marked_done_at').eq('job_id', jobId)) : null,
     ]).then(([prog, proc, samples, meetings, reqs, rfis, subs, reports, snags]) => {
       const done = ['ordered', 'on_site', 'complete', 'covered', 'nothing_to_order']
       setM({

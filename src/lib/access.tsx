@@ -33,6 +33,11 @@ export type Section =
   | 'job_minutes'
   | 'job_om'
   | 'job_rfis'
+  | 'job_snagging'
+  | 'job_hs'
+  | 'job_breeam'
+  | 'job_progress'
+  | 'job_checklist'
   | 'estimating'
   | 'contracts'
   | 'site'
@@ -50,6 +55,11 @@ export const SECTIONS: [Section, string, string][] = [
   ['job_eot', 'Job › EOT', ''],
   ['job_om', 'Job › O&M', 'Each job’s O&M tracker, file sections and the client’s O&M manual PDF; O&M reminders'],
   ['job_rfis', 'Job › RFIs & submittals', 'Each job’s RFIs (and, later, submittals): create, answer, close, chase, export'],
+  ['job_snagging', 'Job › Snagging', 'Each job’s snag lists: raise, assign to trades, check what they say is done, send back; the trades’ private snag links'],
+  ['job_hs', 'Job › H&S', 'Each job’s site diaries, delivery notes and H&S inspections (with photos and actions)'],
+  ['job_breeam', 'Job › BREEAM', 'Each job’s BREEAM tracker and evidence'],
+  ['job_progress', 'Job › Progress reports', 'Each job’s progress reports: write, approve, issue'],
+  ['job_checklist', 'Job › Project checklist', 'The H&S and compliance checklist at the bottom of each job’s Overview (F10, construction phase plan…)'],
   ['job_minutes', 'Job › Minutes', 'Meeting minutes on each job (an estimate’s minutes follow Estimating). Everyone sees their own actions in Tasks'],
   ['estimating', 'Estimating', ''],
   ['contracts', 'Contracts', 'EOT clauses and wording'],
