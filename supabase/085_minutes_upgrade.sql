@@ -23,7 +23,7 @@ alter table meetings add column if not exists locked boolean not null default fa
 
 -- older meetings: numbered by when they were made, per job / estimate
 with n as (
-  select id, row_number() over (partition by coalesce(job_id, enquiry_id) order by created_at, id) as rn from meetings where meeting_no is null
+  select id, row_number() over (partition by coalesce(job_id, enquiry_id) order by created_at, id) as rn from meetings where meeting_no is null and (job_id is not null or enquiry_id is not null)   -- a meeting with neither can't be updated (check constraint meetings_job_or_enquiry)
 )
 update meetings m set meeting_no = n.rn from n where n.id = m.id;
 
