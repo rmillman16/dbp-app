@@ -22,6 +22,7 @@ Running list of what the DBP app needs from IT. Newest additions at the top of e
 ## 2. Microsoft 365 app registration (Microsoft Graph)
 **What for:** (a) save exports (VO sheets, quotations, applications, payment notices) straight into each job's SharePoint site in the right folder; (b) put monthly valuation dates (and later other reminders) straight into users' Outlook calendars. Until then, exports download and calendar dates come as a file to open in Outlook.
 - [ ] Approve an app registration in Entra ID with access limited to the job SharePoint sites (`Sites.Selected`) and calendar write for signed-in users (`Calendars.ReadWrite`, delegated).
+- [ ] **O&M file attachments (Richard, 25 Nov): waiting on this.** The O&M tab should let people attach a file to a line (instead of pasting a link), saved into a per-job O&M folder the app creates in SharePoint (folder chosen at the top of the page), and the client O&M PDF pulls from that folder. Needs the app registration to be able to **write files and create folders** on the job sites (`Sites.Selected` with write, or `Files.ReadWrite`-style access limited to those sites), not just read.
 - [ ] Agree how the app signs users in to Microsoft (single sign-on with work accounts would also replace separate app passwords).
 - [ ] **For material / hire requisitions (agreed with Richard 22 Nov): "Sign in with Microsoft"** so site managers raise requisitions with their DBP account, with no app passwords and no accounts to set up.
   - Register a **single-tenant** app in Entra ID (DBP accounts only).
