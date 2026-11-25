@@ -14,10 +14,13 @@ import { SiteNav } from './Site'
 interface Location {
   id: string
   name: string
+  prefix?: string | null // 092
   notes: string | null
 }
 interface Item {
   id: string
+  code?: string | null // 092: W6-0001
+  archived?: boolean
   location_id: string
   name: string
   category: string | null
@@ -123,7 +126,9 @@ export default function Inventory() {
   async function addLocation() {
     const name = window.prompt('Name of the new location (e.g. Workshop 7, Store container)')?.trim()
     if (!name) return
-    const r = await supabase.from('inventory_locations').insert({ name }).select('*').single()
+    const prefix = window.prompt('A short code for items kept here (e.g. W7). Item codes will read W7-0001…', name.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase())?.trim().toUpperCase()
+    if (!prefix) return
+    const r = await supabase.from('inventory_locations').insert({ name, prefix }).select('*').single()
     if (r.error) return setError(saveError(r.error))
     setLocs([...(locs ?? []), r.data as Location])
     setLoc((r.data as Location).id)
@@ -155,7 +160,7 @@ export default function Inventory() {
                 {locs.map((l) => (
                   <button key={l.id} className={loc === l.id ? 'on' : ''} onClick={() => setLoc(l.id)}>
                     {l.name}
-                    <span className="seg-count">{items.filter((i) => i.location_id === l.id).length}</span>
+                    <span className="seg-count">{items.filter((i) => i.location_id === l.id && !i.archived).length}</span>
                   </button>
                 ))}
               </div>
@@ -178,7 +183,10 @@ export default function Inventory() {
 function Stock({ locId, items, categories, admin, reload, setError }: { locId: string; items: Item[]; categories: string[]; admin: boolean; reload: () => void; setError: (m: string | null) => void }) {
   const [q, setQ] = useState('')
   const [adding, setAdding] = useState(false)
-  const shown = items.filter((i) => `${i.name} ${i.category ?? ''}`.toLowerCase().includes(q.toLowerCase()))
+  const [editId, setEditId] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
+  const archivedCount = items.filter((i) => i.archived).length
+  const shown = items.filter((i) => (showArchived || !i.archived) && `${i.code ?? ''} ${i.name} ${i.category ?? ''}`.toLowerCase().includes(q.toLowerCase()))
 
   async function saveQty(i: Item, v: string) {
     if (num(v) === i.quantity) return
@@ -188,6 +196,14 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
   }
   async function saveCategory(i: Item, v: string) {
     const r = await supabase.from('inventory_items').update({ category: v || null }).eq('id', i.id)
+    if (r.error) setError(saveError(r.error))
+    else reload()
+  }
+  async function restore(i: Item) {
+    const ans = window.prompt(`How many ${i.name} (${i.code ?? ''}) have we got now?`, '1')
+    if (ans === null) return
+    if (!(Number(ans) > 0)) return setError('Enter a quantity above zero.')
+    const r = await supabase.from('inventory_items').update({ archived: false, quantity: Number(ans) }).eq('id', i.id)
     if (r.error) setError(saveError(r.error))
     else reload()
   }
@@ -207,13 +223,22 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
             + Item
           </button>
         )}
+        {admin && archivedCount > 0 && (
+          <label className="check">
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show archived ({archivedCount})
+          </label>
+        )}
       </div>
+      {editId && items.find((x) => x.id === editId) && (
+        <AddItem key={editId} locId={locId} item={items.find((x) => x.id === editId)} categories={categories} onDone={() => { setEditId(null); reload() }} setError={setError} />
+      )}
       {adding && <AddItem locId={locId} categories={categories} onDone={() => { setAdding(false); reload() }} setError={setError} />}
-      {items.length === 0 && <p className="muted">Nothing in this location yet.{admin ? ' Use + Item to add the first.' : ''}</p>}
+      {items.filter((i) => !i.archived).length === 0 && <p className="muted">Nothing in this location yet.{admin ? ' Use + Item to add the first.' : ''}</p>}
       {shown.length > 0 && (
         <table className="table stack">
           <thead>
             <tr>
+              <th>Code</th>
               <th>Item</th>
               <th>Category</th>
               <th>In stock</th>
@@ -222,9 +247,19 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
           </thead>
           <tbody>
             {shown.map((i) => (
-              <tr key={i.id}>
+              <tr key={i.id} style={i.archived ? { opacity: 0.55 } : undefined}>
+                <td className="nowrap" data-label="Code">
+                  <code>{i.code ?? ''}</code>
+                </td>
                 <td className="stack-title">
-                  <strong>{i.name}</strong>
+                  {admin ? (
+                    <button className="link-button" title="Click to edit this item" onClick={() => { setEditId(i.id); setAdding(false); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
+                      <strong>{i.name}</strong>
+                    </button>
+                  ) : (
+                    <strong>{i.name}</strong>
+                  )}{' '}
+                  {i.archived && <span className="tag ir-cancelled">Archived</span>}
                   {i.notes && <div className="muted small">{i.notes}</div>}
                 </td>
                 <td className="stack-sub" data-label="Category">
@@ -240,6 +275,11 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
                 </td>
                 {admin && (
                   <td>
+                    {i.archived && (
+                      <button className="link-button small" onClick={() => restore(i)}>
+                        Restore
+                      </button>
+                    )}{' '}
                     <button className="link-button small" onClick={() => remove(i)}>
                       Remove
                     </button>
@@ -254,18 +294,22 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
   )
 }
 
-function AddItem({ locId, categories, onDone, setError }: { locId: string; categories: string[]; onDone: () => void; setError: (m: string | null) => void }) {
-  const [f, setF] = useState({ name: '', category: '', quantity: '1', unit: 'nr', notes: '' })
+function AddItem({ locId, item, categories, onDone, setError }: { locId: string; item?: Item; categories: string[]; onDone: () => void; setError: (m: string | null) => void }) {
+  const [f, setF] = useState(
+    item
+      ? { name: item.name, category: item.category ?? '', quantity: String(item.quantity), unit: item.unit, notes: item.notes ?? '' }
+      : { name: '', category: '', quantity: '1', unit: 'nr', notes: '' },
+  )
   async function submit(e: FormEvent) {
     e.preventDefault()
-    const r = await supabase.from('inventory_items').insert({
-      location_id: locId,
+    const fields = {
       name: f.name.trim(),
       category: f.category.trim() || null,
       quantity: num(f.quantity),
       unit: f.unit.trim() || 'nr',
       notes: f.notes.trim() || null,
-    })
+    }
+    const r = item ? await supabase.from('inventory_items').update(fields).eq('id', item.id) : await supabase.from('inventory_items').insert({ location_id: locId, ...fields })
     if (r.error) setError(saveError(r.error))
     else onDone()
   }
@@ -294,7 +338,7 @@ function AddItem({ locId, categories, onDone, setError }: { locId: string; categ
         </label>
       </div>
       <div className="button-row">
-        <button className="button primary">Add to inventory</button>
+        <button className="button primary">{item ? 'Save changes' : 'Add to inventory'}</button>
         <button type="button" className="button" onClick={onDone}>
           Cancel
         </button>
@@ -337,9 +381,10 @@ export function InventoryRequestForm() {
   const picked = items.filter((i) => num(qty[i.id]) > 0)
   const shown = items.filter(
     (i) =>
+      !i.archived &&
       (!onlyPicked || num(qty[i.id]) > 0) &&
       (!cat || i.category === cat) &&
-      `${i.name} ${i.category ?? ''} ${locName.get(i.location_id) ?? ''}`.toLowerCase().includes(q.toLowerCase()),
+      `${i.code ?? ''} ${i.name} ${i.category ?? ''} ${locName.get(i.location_id) ?? ''}`.toLowerCase().includes(q.toLowerCase()),
   )
 
   async function submit(e: FormEvent) {
@@ -426,6 +471,7 @@ export function InventoryRequestForm() {
           <table className="table stack">
             <thead>
               <tr>
+                <th>Code</th>
                 <th>Item</th>
                 <th>Category</th>
                 <th>Location</th>
@@ -436,6 +482,9 @@ export function InventoryRequestForm() {
             <tbody>
               {shown.map((i) => (
                 <tr key={i.id} className={num(qty[i.id]) > 0 ? 'picked' : ''}>
+                  <td className="nowrap" data-label="Code">
+                    <code>{i.code ?? ''}</code>
+                  </td>
                   <td className="stack-title">
                     <strong>{i.name}</strong>
                     {i.notes && <div className="muted small">{i.notes}</div>}
@@ -556,6 +605,7 @@ function Requests({ admin, items, locs, reload }: { admin: boolean; items: Item[
     const r = await supabase.rpc('inventory_line_outcome', { line: l.id, outcome: kind, amount: n })
     if (r.error) return setError(/does not exist|schema cache/i.test(r.error.message) ? 'Returns and losses need script 091 run in Supabase first (supabase/README.md).' : saveError(r.error))
     setError(null)
+    if (kind === 'lost' && r.data === true) window.alert(`That was the last ${l.item_name}, so it has been archived. It is kept (with its code) in Inventory › Show archived, ready to restore if we get another.`)
     await load()
     reload()
   }
