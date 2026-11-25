@@ -203,9 +203,6 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
             + Item
           </button>
         )}
-        <Link to="/site/inventory/request" className="button primary small-button">
-          Request items to site
-        </Link>
       </div>
       {adding && <AddItem locId={locId} categories={categories} onDone={() => { setAdding(false); reload() }} setError={setError} />}
       {items.length === 0 && <p className="muted">Nothing in this location yet.{admin ? ' Use + Item to add the first.' : ''}</p>}
