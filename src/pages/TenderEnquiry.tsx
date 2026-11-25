@@ -209,14 +209,14 @@ export default function TenderEnquiry() {
       <ol className="tg-steps">
         {STEPS.map((s, i) => (
           <li key={s} className={step === i + 1 ? 'on' : step > i + 1 ? 'done' : ''}>
-            <button type="button" disabled={i + 1 > step && !step1Ok} onClick={() => setStep(i + 1)}>
+            <button type="button" disabled={i + 1 > step && !step1Ok} onClick={() => (setError(null), setStep(i + 1))}>
               <span>0{i + 1}</span> {s}
             </button>
           </li>
         ))}
       </ol>
       <p className="muted small">Nothing is sent from here: it makes an Outlook draft for each contractor, for you to check and send.</p>
-      {error && <p className="error">{error}</p>}
+      <Toast message={error} onClose={() => setError(null)} />
 
       {step === 1 && (
         <div className="tg-cols">
@@ -347,7 +347,7 @@ export default function TenderEnquiry() {
                 {scopeBusy ? 'Reading the drawings… this can take a minute or two' : f.scope.trim() ? 'Draft the scope again from the drawings' : 'Draft the scope of works from the drawings'}
               </button>
             </div>
-            {scopeErr && <p className="span-2 error">{scopeErr}</p>}
+            <Toast message={scopeErr} onClose={() => setScopeErr(null)} />
             <label className="span-2">
               Scope of works {f.scope.trim() && <small className="muted">(a draft: check it against the drawings and edit)</small>}
               <textarea rows={14} value={f.scope} onChange={(e) => set('scope', e.target.value)} placeholder="Draft it from the drawings above, or type it yourself." />
@@ -487,12 +487,164 @@ export default function TenderEnquiry() {
       )}
 
       <div className="button-row tg-nav">
-        {step > 1 && <button onClick={() => setStep(step - 1)}>← Back</button>}
+        {step > 1 && <button onClick={() => (setError(null), setStep(step - 1))}>← Back</button>}
         {step < 4 && (
           <button className="primary" onClick={next}>
             Next →
           </button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// An error message that never covers the form: a small note pinned to the bottom corner that scrolls if it is long and can be closed.
+function Toast({ message, onClose }: { message: string | null; onClose: () => void }) {
+  if (!message) return null
+  return (
+    <div className="tg-toast" role="alert">
+      <span>{message}</span>
+      <button type="button" onClick={onClose} aria-label="Close">
+        ✕
+      </button>
+    </div>
+  )
+}
+
+// ---------- an enquiry sent outside the app ----------
+// Logs a package that was sent by email, phone or in person without using the generator, so it is chased and priced in the tracker.
+function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDone: () => void; onCancel: () => void }) {
+  const { me } = useAccess()
+  const [trades, setTrades] = useState<string[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [pkg, setPkg] = useState('')
+  const [sentOn, setSentOn] = useState(todayIso())
+  const [ret, setRet] = useState(enquiry?.due_date ?? '')
+  const [link, setLink] = useState('')
+  const [notes, setNotes] = useState('')
+  const [search, setSearch] = useState('')
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [others, setOthers] = useState<{ name: string; email: string }[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    loadTrades().then(setTrades, () => setTrades([]))
+    supabase.from('companies').select('*').order('name').then((r) => setCompanies(((r.data ?? []) as Company[]).filter((c) => c.type === 'subcontractor' || c.type === 'supplier')))
+  }, [])
+  const q = search.trim().toLowerCase()
+  const shown = companies.filter((c) => picked.has(c.id) || !q || `${c.name} ${c.trade ?? ''}`.toLowerCase().includes(q))
+  const toggle = (id: string) =>
+    setPicked((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+
+  async function save() {
+    if (!enquiry) return
+    const named = others.filter((o) => o.name.trim())
+    if (!pkg.trim()) return setError('Enter the package (the trade you asked them to price).')
+    if (!ret) return setError('Enter the date the tenders are due back.')
+    if (picked.size + named.length === 0) return setError('Pick at least one contractor, or add one who is not on Supply Chain.')
+    setBusy(true)
+    setError(null)
+    try {
+      if (!trades.some((t) => t.toLowerCase() === pkg.trim().toLowerCase())) await addTrade(pkg.trim()).catch(() => null)
+      const invites: Omit<TenderInvite, 'id' | 'package_id'>[] = [
+        ...companies
+          .filter((c) => picked.has(c.id))
+          .map((c) => ({ company_id: c.id, contact_id: null, name: c.name, email: c.email ?? null })),
+        ...named.map((o) => ({ company_id: null, contact_id: null, name: o.name.trim(), email: o.email.trim() || null })),
+      ].map((x) => ({ ...x, status: 'sent' as InviteStatus, sent_on: sentOn || null, chased_count: 0, last_chased_on: null, quote_amount: null, quote_received_on: null, notes: null }))
+      await createPackage(
+        {
+          enquiry_id: enquiry.id,
+          package: pkg.trim(),
+          return_date: ret,
+          job_address: (enquiry.site_address ?? '').replace(/\s*\n\s*/g, ', ') || null,
+          main_contract: enquiry.main_contract ?? null,
+          sub_contract: enquiry.sub_contract ?? null,
+          summary: enquiry.summary ?? null,
+          scope: null,
+          notes: ['Sent outside the app.', notes.trim()].filter(Boolean).join(' '),
+          documents_link: link.trim() || null,
+          sender_name: me?.full_name ?? null,
+          sender_phone: me?.phone ?? null,
+          email_subject: null,
+          email_body: null,
+        },
+        invites,
+      )
+      onDone()
+    } catch (e) {
+      setError(saveError(e))
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div className="tt-package tt-manual">
+      <h3 className="sub-head">Log an enquiry sent outside the app</h3>
+      <p className="muted small">For a package you emailed, phoned or handed over yourself. It goes into the tracker as Sent, so you can chase it and enter their prices like the others.</p>
+      <div className="tg-form">
+        <label>
+          Package *
+          <input list="manual-trades" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="e.g. Mechanical" />
+          <datalist id="manual-trades">
+            {trades.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+        </label>
+        <label>
+          Sent on
+          <input type="date" value={sentOn} onChange={(e) => setSentOn(e.target.value)} />
+        </label>
+        <label>
+          Return by *
+          <input type="date" value={ret} onChange={(e) => setRet(e.target.value)} />
+        </label>
+        <label>
+          Documents link (optional)
+          <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" />
+        </label>
+        <label className="span-2">
+          Notes (optional)
+          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="How it was sent, who you spoke to…" />
+        </label>
+      </div>
+      <h4 className="sub-head">Who it went to</h4>
+      <input className="search" placeholder="Search subcontractors and suppliers" value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="tt-manual-list">
+        {shown.length === 0 && <p className="muted small">No match on Supply Chain: add them below.</p>}
+        {shown.map((c) => (
+          <label key={c.id} className="check">
+            <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} /> {c.name} {c.trade && <span className="muted small">· {c.trade}</span>}
+          </label>
+        ))}
+      </div>
+      {others.map((o, i) => (
+        <div key={i} className="tt-manual-other">
+          <input placeholder="Company name" value={o.name} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+          <input placeholder="Email (optional)" value={o.email} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+          <button type="button" className="small-button" onClick={() => setOthers(others.filter((_, j) => j !== i))}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <button type="button" className="link-button small" onClick={() => setOthers([...others, { name: '', email: '' }])}>
+        + Someone who is not on Supply Chain
+      </button>
+      <Toast message={error} onClose={() => setError(null)} />
+      <div className="button-row">
+        <button className="primary" disabled={busy} onClick={save}>
+          {busy ? 'Saving…' : `Add to the tracker (${picked.size + others.filter((o) => o.name.trim()).length})`}
+        </button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </div>
   )
@@ -508,6 +660,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
   const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<View>('waiting')
   const [search, setSearch] = useState('')
+  const [manual, setManual] = useState(false)
   const today = todayIso()
 
   const load = () => loadTracker().then(setData, (e: Error) => setError(e.message))
@@ -549,11 +702,27 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
       <div className="pane-head">
         <h2>{enquiryId ? 'Tender enquiries to contractors' : 'Tender tracker'}</h2>
         {enquiryId && (
-          <Link to={`/estimating/e/${enquiryId}/tender/new`} className="button primary">
-            + Send tender enquiries
-          </Link>
+          <div className="button-row">
+            <button type="button" className="button" onClick={() => setManual(true)} title="Record a package you sent by email, phone or in person without using the generator">
+              + Log an enquiry sent outside the app
+            </button>
+            <Link to={`/estimating/e/${enquiryId}/tender/new`} className="button primary">
+              + Send tender enquiries
+            </Link>
+          </div>
         )}
       </div>
+      {manual && enquiryId && (
+        <ManualEnquiry
+          enquiry={enq[enquiryId]}
+          onCancel={() => setManual(false)}
+          onDone={() => {
+            setManual(false)
+            setView('all')
+            load()
+          }}
+        />
+      )}
       <p className="muted small">
         {enquiryId
           ? 'Each package you send out for pricing, and where each contractor has got to. Change a status as replies come in, chase from here, and enter their price when it arrives.'

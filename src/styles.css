@@ -1607,3 +1607,13 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tag.ir-cancelled { background: #eee; color: #777; }
 
 .table tr.picked td { background: #f1f7ff; }
+
+/* enquiry generator errors (25 Nov): a small closable note in the corner, never a box over the form */
+.tg-toast { position: fixed; right: 16px; bottom: 76px; z-index: 50; max-width: min(420px, calc(100vw - 32px)); max-height: 140px; overflow: auto; display: flex; gap: 10px; align-items: flex-start; background: var(--red-bg); color: var(--red); border: 1px solid var(--red); border-radius: 8px; padding: 8px 10px; font-size: .88rem; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.tg-toast span { flex: 1; overflow-wrap: anywhere; }
+.tg-toast button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0 2px; }
+.tender-gen dd .error { background: none; padding: 0; }
+.tt-manual { background: var(--bg, #fff); }
+.tt-manual-list { max-height: 220px; overflow: auto; display: grid; gap: 4px; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--line, #e3e3ec); border-radius: 6px; }
+.tt-manual-other { display: flex; gap: 8px; margin: 6px 0; }
+.tt-manual-other input { flex: 1; }
