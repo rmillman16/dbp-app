@@ -62,6 +62,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const MyDetails = lazy(() => import('./pages/MyDetails'))
 const Site = lazy(() => import('./pages/Site'))
 const Inventory = lazy(() => import('./pages/Inventory'))
+const InventoryRequestForm = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.InventoryRequestForm })))
 const BuyerList = lazy(() => import('./pages/Site').then((m) => ({ default: m.BuyerList })))
 const HireRequisitionForm = lazy(() => import('./pages/Site').then((m) => ({ default: m.HireRequisitionForm })))
 const MaterialRequisitionForm = lazy(() => import('./pages/Site').then((m) => ({ default: m.MaterialRequisitionForm })))
@@ -341,6 +342,14 @@ export default function App() {
             element={
               <A section="site">
                 <Site />
+              </A>
+            }
+          />
+          <Route
+            path="/site/inventory/request"
+            element={
+              <A section="site" what="the inventory">
+                <InventoryRequestForm />
               </A>
             }
           />

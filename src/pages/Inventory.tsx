@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from 'react-router-dom'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { supabase } from '../lib/supabase'
 import { cached, must, saveError } from '../lib/offline'
@@ -172,11 +173,8 @@ export default function Inventory() {
 // ---------- one location's stock, with the request basket ----------
 function Stock({ locId, items, categories, admin, reload, setError }: { locId: string; items: Item[]; categories: string[]; admin: boolean; reload: () => void; setError: (m: string | null) => void }) {
   const [q, setQ] = useState('')
-  const [basket, setBasket] = useState<Record<string, string>>({})
   const [adding, setAdding] = useState(false)
-  const [asking, setAsking] = useState(false)
   const shown = items.filter((i) => `${i.name} ${i.category ?? ''}`.toLowerCase().includes(q.toLowerCase()))
-  const picked = items.filter((i) => num(basket[i.id]) > 0)
 
   async function saveQty(i: Item, v: string) {
     if (num(v) === i.quantity) return
@@ -205,6 +203,9 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
             + Item
           </button>
         )}
+        <Link to="/site/inventory/request" className="button primary small-button">
+          Request items to site
+        </Link>
       </div>
       {adding && <AddItem locId={locId} categories={categories} onDone={() => { setAdding(false); reload() }} setError={setError} />}
       {items.length === 0 && <p className="muted">Nothing in this location yet.{admin ? ' Use + Item to add the first.' : ''}</p>}
@@ -215,7 +216,6 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
               <th>Item</th>
               <th>Category</th>
               <th>In stock</th>
-              <th>Request</th>
               {admin && <th />}
             </tr>
           </thead>
@@ -237,18 +237,6 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
                   )}{' '}
                   {i.unit}
                 </td>
-                <td data-label="Request">
-                  <input
-                    type="number"
-                    min="0"
-                    max={i.quantity}
-                    step="any"
-                    style={{ width: 90 }}
-                    placeholder="0"
-                    value={basket[i.id] ?? ''}
-                    onChange={(e) => setBasket({ ...basket, [i.id]: e.target.value })}
-                  />
-                </td>
                 {admin && (
                   <td>
                     <button className="link-button small" onClick={() => remove(i)}>
@@ -261,14 +249,6 @@ function Stock({ locId, items, categories, admin, reload, setError }: { locId: s
           </tbody>
         </table>
       )}
-      {picked.length > 0 && !asking && (
-        <div className="button-row" style={{ marginTop: 12 }}>
-          <button className="button primary" onClick={() => setAsking(true)}>
-            Request {picked.length} item{picked.length === 1 ? '' : 's'} to site…
-          </button>
-        </div>
-      )}
-      {asking && <RequestForm picked={picked.map((i) => ({ item: i, quantity: num(basket[i.id]) }))} onCancel={() => setAsking(false)} onDone={() => { setAsking(false); setBasket({}); reload() }} />}
     </>
   )
 }
@@ -322,20 +302,37 @@ function AddItem({ locId, categories, onDone, setError }: { locId: string; categ
   )
 }
 
-// ---------- ask for the picked items to be sent to a site ----------
-function RequestForm({ picked, onCancel, onDone }: { picked: { item: Item; quantity: number }[]; onCancel: () => void; onDone: () => void }) {
+// ---------- the request form (its own link, like the material requisition): choose the site, build a shopping list ----------
+export function InventoryRequestForm() {
+  const [params] = useSearchParams()
   const [jobs, setJobs] = useState<Job[] | null>(null)
-  const [f, setF] = useState({ job_id: '', required_by: addDaysIso(todayIso(), 2), notes: '' })
+  const [items, setItems] = useState<Item[]>([])
+  const [locs, setLocs] = useState<Location[]>([])
+  const [f, setF] = useState({ job_id: params.get('job') ?? '', required_by: addDaysIso(todayIso(), 2), notes: '' })
+  const [list, setList] = useState<{ id: string; qty: string }[]>([])
+  const [pick, setPick] = useState('')
+  const [pickQty, setPickQty] = useState('1')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<Request | null>(null)
   useEffect(() => {
     loadSites().then(setJobs, (e: Error) => setError(e.message))
+    cached('inv-locations', () => must<Location[]>(supabase.from('inventory_locations').select('*').order('name'))).then(setLocs, (e: Error) => setError(needs090(e.message)))
+    cached('inv-items', () => must<Item[]>(supabase.from('inventory_items').select('*').order('name'))).then(setItems, () => {})
   }, [])
+  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
 
+  function addToList() {
+    if (!pick || num(pickQty) <= 0) return
+    const have = list.find((l) => l.id === pick)
+    setList(have ? list.map((l) => (l.id === pick ? { ...l, qty: String(num(l.qty) + num(pickQty)) } : l)) : [...list, { id: pick, qty: pickQty }])
+    setPick('')
+    setPickQty('1')
+  }
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    if (!list.length) return setError('Add at least one item to the list.')
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
@@ -349,65 +346,132 @@ function RequestForm({ picked, onCancel, onDone }: { picked: { item: Item; quant
         .single()
       if (r.error) throw new Error(needs090(r.error.message))
       const req = r.data as Request
-      const l = await supabase.from('inventory_request_lines').insert(picked.map((p) => ({ request_id: req.id, item_id: p.item.id, item_name: p.item.name, unit: p.item.unit, quantity: p.quantity })))
-      if (l.error) throw new Error(l.error.message)
+      const rows = list.map((l) => ({ request_id: req.id, item_id: l.id, item_name: itemById.get(l.id)?.name ?? '', unit: itemById.get(l.id)?.unit ?? 'nr', quantity: num(l.qty) }))
+      const ins = await supabase.from('inventory_request_lines').insert(rows)
+      if (ins.error) throw new Error(ins.error.message)
       setSent(req)
+      setList([])
+      setF({ ...f, notes: '' })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
       setError(saveError(err))
     }
     setBusy(false)
   }
+  const locName = (id: string) => locs.find((l) => l.id === id)?.name ?? ''
 
-  if (sent)
-    return (
-      <div className="success-banner" role="status">
-        <strong>✓ {irRef(sent)} sent to the stores.</strong> You can follow it under Requests.
-        <button type="button" className="link-button small" onClick={onDone}>
-          OK
-        </button>
-      </div>
-    )
   return (
-    <form className="card form" onSubmit={submit}>
-      <h3>Request to site</h3>
-      <ul>
-        {picked.map((p) => (
-          <li key={p.item.id}>
-            {p.quantity} {p.item.unit} · {p.item.name}
-          </li>
-        ))}
-      </ul>
-      <div className="form-grid">
-        <label className="span-2">
-          Site name *
-          <select value={f.job_id} onChange={(e) => setF({ ...f, job_id: e.target.value })} required>
-            <option value="">{jobs ? 'Choose the site…' : 'Loading…'}</option>
-            {(jobs ?? []).map((j) => (
-              <option key={j.id} value={j.id}>
-                {jobLabel(j)}
-              </option>
-            ))}
-          </select>
-        </label>
+    <>
+      <SiteNav />
+      {sent && (
+        <div className="success-banner" role="status">
+          <strong>✓ {irRef(sent)} sent to the stores.</strong> Add another below, or follow it under <Link to="/site/inventory">Inventory › Requests</Link>.
+          <button type="button" className="link-button small" onClick={() => setSent(null)} aria-label="Close">
+            ✕
+          </button>
+        </div>
+      )}
+      <form className="card form req-form" onSubmit={submit}>
+        <h2>Inventory request</h2>
+        <p className="muted small intro">Choose the site, then build a shopping list from our stock. Your name is added for you.</p>
+        <div className="form-grid">
+          <label className="span-2">
+            Site name *
+            <select value={f.job_id} onChange={(e) => setF({ ...f, job_id: e.target.value })} required>
+              <option value="">{jobs ? 'Choose the site…' : 'Loading…'}</option>
+              {(jobs ?? []).map((j) => (
+                <option key={j.id} value={j.id}>
+                  {jobLabel(j)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Needed on site by *
+            <input type="date" min={todayIso()} value={f.required_by} onChange={(e) => setF({ ...f, required_by: e.target.value })} required />
+          </label>
+        </div>
+
+        <h3>Shopping list</h3>
+        <div className="form-grid">
+          <label className="span-2">
+            Item from the inventory
+            <select value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">Choose an item…</option>
+              {locs.map((l) => (
+                <optgroup key={l.id} label={l.name}>
+                  {items
+                    .filter((i) => i.location_id === l.id)
+                    .map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.name} ({i.quantity} {i.unit} in stock)
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <label>
+            Quantity
+            <input type="number" min="0" step="any" value={pickQty} onChange={(e) => setPickQty(e.target.value)} />
+          </label>
+          <div>
+            <button type="button" className="button" onClick={addToList} disabled={!pick}>
+              + Add to list
+            </button>
+          </div>
+        </div>
+        {list.length === 0 ? (
+          <p className="muted">Nothing on the list yet.</p>
+        ) : (
+          <table className="table stack">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>From</th>
+                <th>Quantity</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((l) => {
+                const it = itemById.get(l.id)
+                const over = it && num(l.qty) > it.quantity
+                return (
+                  <tr key={l.id}>
+                    <td className="stack-title">
+                      <strong>{it?.name}</strong>
+                    </td>
+                    <td className="stack-sub" data-label="From">
+                      {it ? locName(it.location_id) : ''}
+                    </td>
+                    <td data-label="Quantity" className="nowrap">
+                      <input type="number" min="0" step="any" style={{ width: 90 }} value={l.qty} onChange={(e) => setList(list.map((x) => (x.id === l.id ? { ...x, qty: e.target.value } : x)))} /> {it?.unit}
+                      {over && <div className="muted small">Only {it?.quantity} in stock</div>}
+                    </td>
+                    <td>
+                      <button type="button" className="link-button small" onClick={() => setList(list.filter((x) => x.id !== l.id))}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
         <label>
-          Needed on site by
-          <input type="date" min={todayIso()} value={f.required_by} onChange={(e) => setF({ ...f, required_by: e.target.value })} />
-        </label>
-        <label className="span-2">
           Notes
           <input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Anything the stores should know" />
         </label>
-      </div>
-      {error && <p className="error">{error}</p>}
-      <div className="button-row">
-        <button className="button primary" disabled={busy}>
-          {busy ? 'Sending…' : 'Send request'}
-        </button>
-        <button type="button" className="button" onClick={onCancel}>
-          Cancel
-        </button>
-      </div>
-    </form>
+        {error && <p className="error">{error}</p>}
+        <div className="button-row">
+          <button className="button primary" disabled={busy}>
+            {busy ? 'Sending…' : 'Send request'}
+          </button>
+        </div>
+      </form>
+    </>
   )
 }
 

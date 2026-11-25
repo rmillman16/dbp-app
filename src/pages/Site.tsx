@@ -59,12 +59,19 @@ export function SiteNav() {
             <small>Plant from our hire company partners</small>
           </span>
         </NavLink>
+        <NavLink to="/site/inventory/request" className="req-big-button">
+          <span className="req-big-icon">🧰</span>
+          <span>
+            <strong>Inventory request</strong>
+            <small>Items from our stock to site</small>
+          </span>
+        </NavLink>
       </div>
       <nav className="pills">
         <NavLink to="/site" end className="pill">
           Requisitions for my sites
         </NavLink>
-        <NavLink to="/site/inventory" className="pill">
+        <NavLink to="/site/inventory" end className="pill">
           Inventory
         </NavLink>
         {can('buyer_material') && (
