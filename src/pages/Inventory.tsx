@@ -44,6 +44,8 @@ interface Line {
   item_name: string
   unit: string
   quantity: number
+  returned_qty: number // 091
+  lost_qty: number
 }
 const IR_LABELS: Record<IrStatus, string> = { new: 'New', ready: 'Ready to collect', issued: 'Issued', cancelled: 'Cancelled' }
 const irRef = (r: Pick<Request, 'req_no'>) => `IR${String(r.req_no).padStart(4, '0')}`
@@ -133,14 +135,16 @@ export default function Inventory() {
       <section className="card">
         <div className="pane-head">
           <h2>Inventory</h2>
+          {!admin && (
           <span className="segmented">
             <button className={tab === 'stock' ? 'on' : ''} onClick={() => setTab('stock')}>
               Stock
             </button>
             <button className={tab === 'requests' ? 'on' : ''} onClick={() => setTab('requests')}>
-              Requests
+              My requests
             </button>
           </span>
+          )}
         </div>
         {error && <p className="error">{error}</p>}
         {!locs && !error && <Loading />}
@@ -164,7 +168,7 @@ export default function Inventory() {
             {loc && <Stock key={loc} locId={loc} categories={categoryList(items)} items={items.filter((i) => i.location_id === loc)} admin={admin} reload={load} setError={setError} />}
           </>
         )}
-        {locs && tab === 'requests' && <Requests admin={admin} items={items} locs={locs} reload={load} />}
+        {locs && tab === 'requests' && !admin && <Requests admin={false} items={items} locs={locs} reload={load} />}
       </section>
     </>
   )
@@ -476,6 +480,43 @@ export function InventoryRequestForm() {
   )
 }
 
+// ---------- Site › Inventory Req - ADMIN: every inventory request, marked Ready / Issued, with returns and losses ----------
+export function InventoryAdmin() {
+  const { can } = useAccess()
+  const [locs, setLocs] = useState<Location[] | null>(null)
+  const [items, setItems] = useState<Item[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const load = async () => {
+    try {
+      const [l, i] = await Promise.all([
+        must<Location[]>(supabase.from('inventory_locations').select('*').order('name')),
+        must<Item[]>(supabase.from('inventory_items').select('*').order('name')),
+      ])
+      setLocs(l)
+      setItems(i)
+    } catch (e) {
+      setError(needs090((e as Error).message))
+    }
+  }
+  useEffect(() => {
+    load()
+  }, [])
+  return (
+    <>
+      <SiteNav />
+      <section className="card">
+        <div className="pane-head">
+          <h2>Inventory Req - ADMIN</h2>
+        </div>
+        {!can('buyer_inventory') && <p className="muted">This list is for the people who run the inventory.</p>}
+        {error && <p className="error">{error}</p>}
+        {!locs && !error && <Loading />}
+        {locs && can('buyer_inventory') && <Requests admin items={items} locs={locs} reload={load} />}
+      </section>
+    </>
+  )
+}
+
 // ---------- requests: mine (everyone) or all (inventory admins) ----------
 function Requests({ admin, items, locs, reload }: { admin: boolean; items: Item[]; locs: Location[]; reload: () => void }) {
   const [rows, setRows] = useState<Request[] | null>(null)
@@ -490,6 +531,7 @@ function Requests({ admin, items, locs, reload }: { admin: boolean; items: Item[
     const r = await supabase.from('inventory_requests').select('*').order('req_no', { ascending: false })
     if (r.error) return setError(needs090(r.error.message))
     const l = await supabase.from('inventory_request_lines').select('*')
+    if (l.error) return setError(needs090(l.error.message))
     setRows(r.data as Request[])
     setLines((l.data ?? []) as Line[])
   }
@@ -504,12 +546,25 @@ function Requests({ admin, items, locs, reload }: { admin: boolean; items: Item[
     await load()
     reload() // issuing changes the stock
   }
+  // returned: back into the stock; lost: stays off it (it came off when the request was issued)
+  async function outcome(l: Line, kind: 'returned' | 'lost') {
+    const out = l.quantity - l.returned_qty - l.lost_qty
+    const ans = window.prompt(`How many ${l.item_name} ${kind === 'returned' ? 'have come back (they go back into the stock)' : 'are lost (they stay off the stock)'}? Still out: ${out} ${l.unit}`, String(out))
+    if (ans === null) return
+    const n = Number(ans)
+    if (!(n > 0)) return setError('Enter a quantity above zero.')
+    const r = await supabase.rpc('inventory_line_outcome', { line: l.id, outcome: kind, amount: n })
+    if (r.error) return setError(/does not exist|schema cache/i.test(r.error.message) ? 'Returns and losses need script 091 run in Supabase first (supabase/README.md).' : saveError(r.error))
+    setError(null)
+    await load()
+    reload()
+  }
 
   return (
     <>
       {error && <p className="error">{error}</p>}
       {!rows && !error && <Loading />}
-      {rows && rows.length === 0 && <p className="muted">No inventory requests yet. Tick quantities in the Stock tab to ask for items to site.</p>}
+      {rows && rows.length === 0 && <p className="muted">No inventory requests yet.</p>}
       {rows && rows.length > 0 && (
         <table className="table stack">
           <thead>
@@ -533,12 +588,34 @@ function Requests({ admin, items, locs, reload }: { admin: boolean; items: Item[
                 <td data-label="Items">
                   {lines
                     .filter((l) => l.request_id === r.id)
-                    .map((l) => (
-                      <div key={l.id}>
-                        {l.quantity} {l.unit} · {l.item_name}
-                        {l.item_id && itemLoc.get(l.item_id) ? <span className="muted small"> ({itemLoc.get(l.item_id)})</span> : null}
-                      </div>
-                    ))}
+                    .map((l) => {
+                      const out = l.quantity - (l.returned_qty ?? 0) - (l.lost_qty ?? 0)
+                      return (
+                        <div key={l.id}>
+                          {l.quantity} {l.unit} · {l.item_name}
+                          {l.item_id && itemLoc.get(l.item_id) ? <span className="muted small"> ({itemLoc.get(l.item_id)})</span> : null}
+                          {r.status === 'issued' && (
+                            <span className="small">
+                              {' '}
+                              — {out > 0 ? <b>{out} still out</b> : 'all accounted for'}
+                              {l.returned_qty > 0 && <span className="muted"> · {l.returned_qty} returned</span>}
+                              {l.lost_qty > 0 && <span className="muted"> · {l.lost_qty} lost</span>}
+                              {admin && out > 0 && (
+                                <>
+                                  {' '}
+                                  <button className="link-button small" onClick={() => outcome(l, 'returned')}>
+                                    Returned
+                                  </button>{' '}
+                                  <button className="link-button small" onClick={() => outcome(l, 'lost')}>
+                                    Lost
+                                  </button>
+                                </>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
                   {r.notes && <div className="muted small">{r.notes}</div>}
                 </td>
                 <td data-label="Raised by">{r.requester_name}</td>

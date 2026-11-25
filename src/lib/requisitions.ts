@@ -25,7 +25,7 @@ export const OPEN_STATUSES: ReqStatus[] = ['new', 'query', 'answered', 'ordered'
 export const statusLabel = (s: ReqStatus, kind: ReqKind) => (kind === 'hire' && s === 'delivered' ? 'On hire' : REQ_STATUS_LABELS[s])
 export const statusesFor = (kind: ReqKind) => (Object.keys(REQ_STATUS_LABELS) as ReqStatus[]).filter((s) => kind === 'hire' || s !== 'off_hired')
 // the back ends' names (22 Nov)
-export const ADMIN_LIST_NAME: Record<ReqKind, string> = { material: 'Material Req - ADMIN', hire: 'Hire Req - ADMIN' }
+export const ADMIN_LIST_NAME: Record<ReqKind | 'inventory', string> = { material: 'Material Req - ADMIN', hire: 'Hire Req - ADMIN', inventory: 'Inventory Req - ADMIN' }
 
 export interface Requisition {
   id: string

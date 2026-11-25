@@ -132,3 +132,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `082_accident_reports.sql` | Job › H&S › Accidents: the standard accident / incident report (numbered A001…, RIDDOR, corrective actions, photos; only admins can delete) (run after 081) | Not run yet |
 | `083_inspection_tracker.sql` | Job › H&S › Inspections as a tracker for other parties' inspections: how often, reports logged with the file, next due, reminders and weekly chasing to the PMs (run after 082; then redeploy `send-emails`) | Not run yet |
 | `090_inventory.sql` | Site › Inventory: locations (first: Workshop 6), items with stock, requests to site (IR0001…); new access item "Site › Inventory - ADMIN" for Operations (run after 089) | Run 25 Nov |
+| `091_inventory_returns.sql` | Inventory: mark issued items returned (back into the stock) or lost (stay off it) (run after 090) | Not run yet |

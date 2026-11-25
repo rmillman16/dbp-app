@@ -107,6 +107,7 @@ function QuickActions() {
     { to: '/site/requisitions/hire/new', icon: '🏗️', label: 'Hire requisition', sub: 'Plant and tool hire', show: can('site') },
     { to: '/site/buyer/material', icon: '🧾', label: ADMIN_LIST_NAME.material, sub: 'Every material requisition', show: can('buyer_material') },
     { to: '/site/buyer/hire', icon: '🧾', label: ADMIN_LIST_NAME.hire, sub: 'Every hire requisition', show: can('buyer_hire') },
+    { to: '/site/inventory/admin', icon: '🧾', label: ADMIN_LIST_NAME.inventory, sub: 'Every inventory request', show: can('buyer_inventory') },
     { to: '/estimating/new', icon: '✏️', label: 'New enquiry', sub: 'Small works, enquiry or tender', show: can('estimating') },
     { to: '/jobs/new', icon: '➕', label: 'New job', sub: 'Set up a won job', show: can('jobs') },
     { to: '/tasks', icon: '✅', label: 'Tasks', sub: 'Set a task, or see yours', show: true },

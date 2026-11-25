@@ -79,6 +79,11 @@ export function SiteNav() {
             {ADMIN_LIST_NAME.material}
           </NavLink>
         )}
+        {can('buyer_inventory') && (
+          <NavLink to="/site/inventory/admin" className="pill">
+            {ADMIN_LIST_NAME.inventory}
+          </NavLink>
+        )}
         {can('buyer_hire') && (
           <NavLink to="/site/buyer/hire" className="pill">
             {ADMIN_LIST_NAME.hire}
