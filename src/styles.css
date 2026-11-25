@@ -1590,3 +1590,15 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .outbox-panel { position: absolute; z-index: 30; top: 120%; left: 0; width: min(380px, 90vw); text-align: left; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18); }
 .outbox-panel ul { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
 .outbox-panel li { display: grid; gap: 2px; }
+/* ---------- Settings › Suggestions and issues (25 Nov) ---------- */
+.sug-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.sug-item { border: 1px solid var(--border, #d7d7e0); border-radius: 8px; background: var(--surface, #fff); }
+.sug-item.done, .sug-item.declined { opacity: 0.7; }
+.sug-head { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; background: none; border: 0; padding: 10px 12px; cursor: pointer; font: inherit; color: inherit; }
+.sug-title { display: grid; gap: 2px; min-width: 0; }
+.sug-body { padding: 4px 12px 12px; display: grid; gap: 10px; }
+.sug-form { display: grid; gap: 10px; margin: 10px 0 14px; padding: 12px; border: 1px dashed var(--border, #d7d7e0); border-radius: 8px; }
+.snag-chip.sug-new { background: #fff3cd; color: #7a5b00; }
+.snag-chip.sug-planned { background: #dbeafe; color: #1e40af; }
+.snag-chip.sug-done { background: #dcfce7; color: #166534; }
+.snag-chip.sug-declined { background: #eee; color: #555; }

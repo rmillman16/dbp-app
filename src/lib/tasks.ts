@@ -64,7 +64,11 @@ export function nextMonday(from = todayIso()) {
 // tasks given to me, and tasks I've set for others (open ones, plus the last fortnight's done ones)
 export async function loadTasks(): Promise<Task[]> {
   const since = new Date(Date.now() - 14 * 86400000).toISOString()
-  const r = await supabase.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since}`).order('due_date', { ascending: true, nullsFirst: false }).order('created_at')
+  // Only mine: given to me or set by me. (The database lets an admin read everyone's tasks; this list is still just the admin's own.)
+  const uid = (await supabase.auth.getSession()).data.session?.user.id
+  let q = supabase.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since}`)
+  if (uid) q = q.or(`assigned_to.eq.${uid},created_by.eq.${uid}`)
+  const r = await q.order('due_date', { ascending: true, nullsFirst: false }).order('created_at')
   if (r.error) throw new Error(needs052(r.error.message))
   return r.data as Task[]
 }

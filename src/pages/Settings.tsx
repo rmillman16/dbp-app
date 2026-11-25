@@ -12,6 +12,7 @@ import StandardDocuments from '../components/StandardDocuments'
 import RfiTemplates from '../components/RfiTemplates'
 import EmailSignature from '../components/EmailSignature'
 import UsagePanel from '../components/UsagePanel'
+import Suggestions from '../components/Suggestions'
 import Loading from '../components/Loading'
 
 export default function Settings() {
@@ -27,6 +28,7 @@ export default function Settings() {
       <AccessRequests />
       <Users />
       <AccessGrid />
+      <Suggestions />
       <UsagePanel />
       <ExportAll />
     </AdminOnly>

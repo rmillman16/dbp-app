@@ -237,7 +237,7 @@ export default function MyTasks() {
             <div className="segmented">
               {(
                 [
-                  ['all', 'All'],
+                  ['all', 'All mine'],
                   ['mine', 'For me'],
                   ['set', 'Set by me'],
                 ] as [Who, string][]

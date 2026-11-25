@@ -283,6 +283,12 @@ const SECTIONS: Section[] = [
         <p>
           <b>The du Boulay email signature</b> is added to the foot of every email that goes outside the company: the Outlook drafts the app makes (orders, variation instructions, PQQs, snag lists, tender enquiries, RFI queries) and the emails the app sends itself (minutes, chasers, sign-in codes). An admin sets it once in <b>Settings › Email signature</b>: edit the box, or copy your signature out of Outlook and paste it in, then press <b>Save signature</b>. The sender’s own name, job title and phone are filled in on drafts and minutes (use <b>Insert sender’s name, title and phone</b> to place them), and the du Boulay logo picture is included. <b>Back to the standard signature</b> undoes your changes.
         </p>
+        <p>
+          <b>Suggestions and issues</b> (admins, in <b>Settings › Suggestions and issues</b>): press <b>+ Add</b>, say whether it is something wrong or an idea, give it a title and where in the app it is, and add photos. Take one, pick one from the gallery, or paste a screenshot with Ctrl+V. Each item moves through New, Planned, Done or Won’t do, with a note of what was decided. <b>Copy the open items</b> puts the list on the clipboard as text to send on.
+        </p>
+        <p>
+          <b>Tasks:</b> the list only ever shows your own tasks: ones given to you and ones you have set for others. <b>All mine</b> is both together. Other people’s tasks are not shown, even for an admin.
+        </p>
       </>
     ),
   },
