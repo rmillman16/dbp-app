@@ -355,7 +355,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
       console.error('Minutes save failed', e)
       if (isActive()) dirtyRef.current = true
       const msg = (e as Error).message
-      if (mounted.current && isActive()) setStatus({ state: 'error', text: /script 045/.test(msg) ? msg : 'Couldn’t sync — will retry' })
+      if (mounted.current && isActive()) setStatus({ state: 'error', text: `Couldn’t sync, will retry: ${msg.length > 220 ? msg.slice(0, 220) + '…' : msg}` })
       window.clearTimeout(retryTimer.current)
       retryTimer.current = window.setTimeout(() => saveNow(target), 15000)
     }
@@ -1545,7 +1545,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
             <i />
             <i />
           </span>
-          <span>{readOnly ? 'Read-only' : status.text}</span>
+          <span title={status.text}>{readOnly ? 'Read-only' : status.text}</span>
         </div>
         <button
           className={'icon-btn mint-full-btn' + (full ? ' is-on' : '')}
