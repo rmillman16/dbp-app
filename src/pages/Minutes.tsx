@@ -1653,10 +1653,6 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
             <input type="search" placeholder="Search meetings…" aria-label="Search meetings" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <div className="meeting-list">{renderSidebar()}</div>
-          <div className="drawer-foot">
-            <img src="/minutes/mint-32.png" alt="" width="16" height="16" />
-            <span>Mint</span>
-          </div>
         </aside>
         {drawerOpen && <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
 
