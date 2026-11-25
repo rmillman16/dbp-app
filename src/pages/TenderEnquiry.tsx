@@ -18,6 +18,7 @@ import {
   DEFAULT_BODY,
   DEFAULT_SUBJECT,
   INVITE_STATUS,
+  addInvites,
   createPackage,
   deleteInvite,
   deletePackage,
@@ -652,6 +653,108 @@ function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDon
   )
 }
 
+// ---------- add a contractor to a package already in the tracker ----------
+function AddContractor({ pkg, existing, onDone, onCancel }: { pkg: TenderPackage; existing: TenderInvite[]; onDone: () => void; onCancel: () => void }) {
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [search, setSearch] = useState('')
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [others, setOthers] = useState<{ name: string; email: string }[]>([])
+  const [sentOn, setSentOn] = useState(todayIso())
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    supabase.from('companies').select('*').order('name').then((r) => setCompanies(((r.data ?? []) as Company[]).filter((c) => c.type === 'subcontractor' || c.type === 'supplier')))
+  }, [])
+  const already = new Set(existing.map((i) => i.company_id).filter(Boolean) as string[])
+  const toggle = (id: string) =>
+    setPicked((s) => {
+      const n = new Set(s)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  async function save() {
+    const named = others.filter((o) => o.name.trim())
+    if (picked.size + named.length === 0) return setError('Pick at least one contractor, or add one who is not on Supply Chain.')
+    setBusy(true)
+    setError(null)
+    try {
+      await addInvites(
+        pkg.id,
+        [
+          ...companies.filter((c) => picked.has(c.id)).map((c) => ({ company_id: c.id, name: c.name, email: c.email ?? null })),
+          ...named.map((o) => ({ company_id: null, name: o.name.trim(), email: o.email.trim() || null })),
+        ],
+        sentOn || null,
+      )
+      onDone()
+    } catch (e) {
+      setError(saveError(e))
+    }
+    setBusy(false)
+  }
+  return (
+    <div className="tt-manual">
+      <h4 className="sub-head">Add a contractor to {pkg.package}</h4>
+      <p className="muted small">For someone you have sent this package to outside the app. They go in as Sent.</p>
+      <div className="tg-form">
+        <label>
+          Sent on
+          <input type="date" value={sentOn} onChange={(e) => setSentOn(e.target.value)} />
+        </label>
+      </div>
+      <SuggestInput
+        value={search}
+        onChange={(v) => {
+          const c = companies.find((x) => x.name.toLowerCase() === v.trim().toLowerCase() && !picked.has(x.id) && !already.has(x.id))
+          if (c) {
+            toggle(c.id)
+            setSearch('')
+          } else setSearch(v)
+        }}
+        options={companies.filter((c) => !picked.has(c.id) && !already.has(c.id)).map((c) => c.name)}
+        placeholder="Search Supply Chain, or type a new name and add it"
+        limit={30}
+        onAdd={(name) => {
+          setOthers((l) => [...l, { name, email: '' }])
+          setTimeout(() => setSearch(''), 0)
+        }}
+      />
+      <div className="tt-manual-chosen">
+        {companies
+          .filter((c) => picked.has(c.id))
+          .map((c) => (
+            <span key={c.id} className="tt-chip">
+              {c.name} {c.trade && <span className="muted small">· {c.trade}</span>}
+              <button type="button" aria-label={`Remove ${c.name}`} onClick={() => toggle(c.id)}>
+                ✕
+              </button>
+            </span>
+          ))}
+      </div>
+      {others.map((o, i) => (
+        <div key={i} className="tt-manual-other">
+          <input placeholder="Company name" value={o.name} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+          <input placeholder="Email (optional)" value={o.email} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
+          <span className="muted small nowrap">new, not on Supply Chain</span>
+          <button type="button" className="small-button" aria-label="Remove" onClick={() => setOthers(others.filter((_, j) => j !== i))}>
+            ✕
+          </button>
+        </div>
+      ))}
+      <Toast message={error} onClose={() => setError(null)} />
+      <div className="button-row">
+        <button className="primary" disabled={busy} onClick={save}>
+          {busy ? 'Saving…' : `Add (${picked.size + others.filter((o) => o.name.trim()).length})`}
+        </button>
+        <button type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ---------- the tender tracker ----------
 type View = 'waiting' | 'quoted' | 'all'
 // enquiryId: inside an enquiry (where tender enquiries are sent from); without it, the overview of all enquiries on the Estimating tab
@@ -663,6 +766,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
   const [view, setView] = useState<View>('waiting')
   const [search, setSearch] = useState('')
   const [manual, setManual] = useState(false)
+  const [adding, setAdding] = useState<string | null>(null)
   const today = todayIso()
 
   const load = () => loadTracker().then(setData, (e: Error) => setError(e.message))
@@ -774,6 +878,9 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                     Mark all drafts as sent
                   </button>
                 )}
+                <button className="small-button" title="Add another contractor you have sent this package to" onClick={() => setAdding(p.id)}>
+                  + Add contractor
+                </button>
                 <input type="date" className="small-input" title="Tender return date" value={p.return_date} onChange={(ev) => ev.target.value && run(() => updatePackage(p.id, { return_date: ev.target.value }))} />
                 {e && (
                   <button className="small-button" onClick={() => navigate(`/estimating/e/${e.id}`)}>
@@ -785,6 +892,18 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                 </button>
               </div>
             </div>
+            {adding === p.id && (
+              <AddContractor
+                pkg={p}
+                existing={all}
+                onCancel={() => setAdding(null)}
+                onDone={() => {
+                  setAdding(null)
+                  setView('all')
+                  load()
+                }}
+              />
+            )}
             <table className="table tt-table">
               <thead>
                 <tr>

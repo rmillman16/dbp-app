@@ -78,6 +78,14 @@ export async function createPackage(pkg: Omit<TenderPackage, 'id' | 'created_at'
   }
   return p.data as TenderPackage
 }
+// a contractor added to a package that is already in the tracker (sent outside the app)
+export async function addInvites(packageId: string, who: { company_id: string | null; name: string; email: string | null }[], sentOn: string | null) {
+  if (!who.length) return
+  const r = await supabase.from('tender_invites').insert(
+    who.map((w) => ({ package_id: packageId, company_id: w.company_id, contact_id: null, name: w.name, email: w.email, status: 'sent' as InviteStatus, sent_on: sentOn, chased_count: 0, last_chased_on: null, quote_amount: null, quote_received_on: null, notes: null })),
+  )
+  if (r.error) throw fail(r.error)
+}
 export async function updateInvite(id: string, patch: Partial<Omit<TenderInvite, 'id' | 'package_id'>>) {
   const r = await supabase.from('tender_invites').update(patch).eq('id', id)
   if (r.error) throw fail(r.error)
