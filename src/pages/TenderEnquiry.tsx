@@ -34,6 +34,7 @@ import {
   type TenderPackage,
 } from '../lib/tender'
 import Loading from '../components/Loading'
+import SuggestInput from '../components/SuggestInput'
 
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
@@ -84,13 +85,10 @@ export default function TenderEnquiry() {
     })
     loadPqqPack().then(setPqq, () => setPqq([]))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  async function addNewTrade() {
-    const name = window.prompt('New trade / package name:')?.trim()
-    if (!name) return
+  async function addPackage(name: string) {
     try {
       await addTrade(name)
       setTrades(await loadTrades())
-      set('pkg', name)
     } catch (e) {
       setError(saveError(e))
     }
@@ -227,22 +225,7 @@ export default function TenderEnquiry() {
             </div>
             <label className="span-2">
               Package * <small className="muted">the trade you are asking them to price</small>
-              <select
-                value={f.pkg}
-                onChange={(e) => {
-                  if (e.target.value === '__new') addNewTrade()
-                  else set('pkg', e.target.value)
-                }}
-              >
-                <option value="">Pick the package…</option>
-                {f.pkg && !trades.includes(f.pkg) && <option value={f.pkg}>{f.pkg}</option>}
-                {trades.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-                <option value="__new">+ Add a new trade…</option>
-              </select>
+              <SuggestInput value={f.pkg} onChange={(v) => set('pkg', v)} options={trades} placeholder="Search or type a package" limit={30} onAdd={addPackage} />
             </label>
             <p className="span-2 muted small">Next you add the drawings and the scope of works for this package, then check the email and pick who it goes to.</p>
           </section>
@@ -532,8 +515,6 @@ function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDon
     loadTrades().then(setTrades, () => setTrades([]))
     supabase.from('companies').select('*').order('name').then((r) => setCompanies(((r.data ?? []) as Company[]).filter((c) => c.type === 'subcontractor' || c.type === 'supplier')))
   }, [])
-  const q = search.trim().toLowerCase()
-  const shown = companies.filter((c) => picked.has(c.id) || !q || `${c.name} ${c.trade ?? ''}`.toLowerCase().includes(q))
   const toggle = (id: string) =>
     setPicked((s) => {
       const n = new Set(s)
@@ -542,6 +523,14 @@ function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDon
       return n
     })
 
+  async function addPkg(name: string) {
+    try {
+      await addTrade(name)
+      setTrades(await loadTrades())
+    } catch (e) {
+      setError(saveError(e))
+    }
+  }
   async function save() {
     if (!enquiry) return
     const named = others.filter((o) => o.name.trim())
@@ -591,12 +580,7 @@ function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDon
       <div className="tg-form">
         <label>
           Package *
-          <input list="manual-trades" value={pkg} onChange={(e) => setPkg(e.target.value)} placeholder="e.g. Mechanical" />
-          <datalist id="manual-trades">
-            {trades.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
+          <SuggestInput value={pkg} onChange={setPkg} options={trades} placeholder="Search or type a package" limit={30} onAdd={addPkg} />
         </label>
         <label>
           Sent on
@@ -616,27 +600,45 @@ function ManualEnquiry({ enquiry, onDone, onCancel }: { enquiry?: Enquiry; onDon
         </label>
       </div>
       <h4 className="sub-head">Who it went to</h4>
-      <input className="search" placeholder="Search subcontractors and suppliers" value={search} onChange={(e) => setSearch(e.target.value)} />
-      <div className="tt-manual-list">
-        {shown.length === 0 && <p className="muted small">No match on Supply Chain: add them below.</p>}
-        {shown.map((c) => (
-          <label key={c.id} className="check">
-            <input type="checkbox" checked={picked.has(c.id)} onChange={() => toggle(c.id)} /> {c.name} {c.trade && <span className="muted small">· {c.trade}</span>}
-          </label>
-        ))}
+      <SuggestInput
+        value={search}
+        onChange={(v) => {
+          const c = companies.find((x) => x.name.toLowerCase() === v.trim().toLowerCase() && !picked.has(x.id))
+          if (c) {
+            toggle(c.id)
+            setSearch('')
+          } else setSearch(v)
+        }}
+        options={companies.filter((c) => !picked.has(c.id)).map((c) => c.name)}
+        placeholder="Search Supply Chain, or type a new name and add it"
+        limit={30}
+        onAdd={(name) => {
+          setOthers((l) => [...l, { name, email: '' }])
+          setTimeout(() => setSearch(''), 0)
+        }}
+      />
+      <div className="tt-manual-chosen">
+        {companies
+          .filter((c) => picked.has(c.id))
+          .map((c) => (
+            <span key={c.id} className="tt-chip">
+              {c.name} {c.trade && <span className="muted small">· {c.trade}</span>}
+              <button type="button" aria-label={`Remove ${c.name}`} onClick={() => toggle(c.id)}>
+                ✕
+              </button>
+            </span>
+          ))}
       </div>
       {others.map((o, i) => (
         <div key={i} className="tt-manual-other">
           <input placeholder="Company name" value={o.name} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
           <input placeholder="Email (optional)" value={o.email} onChange={(e) => setOthers(others.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
-          <button type="button" className="small-button" onClick={() => setOthers(others.filter((_, j) => j !== i))}>
+          <span className="muted small nowrap">new, not on Supply Chain</span>
+          <button type="button" className="small-button" aria-label="Remove" onClick={() => setOthers(others.filter((_, j) => j !== i))}>
             ✕
           </button>
         </div>
       ))}
-      <button type="button" className="link-button small" onClick={() => setOthers([...others, { name: '', email: '' }])}>
-        + Someone who is not on Supply Chain
-      </button>
       <Toast message={error} onClose={() => setError(null)} />
       <div className="button-row">
         <button className="primary" disabled={busy} onClick={save}>

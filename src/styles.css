@@ -1617,3 +1617,8 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tt-manual-list { max-height: 220px; overflow: auto; display: grid; gap: 4px; margin: 8px 0; padding: 6px 8px; border: 1px solid var(--line, #e3e3ec); border-radius: 6px; }
 .tt-manual-other { display: flex; gap: 8px; margin: 6px 0; }
 .tt-manual-other input { flex: 1; }
+
+.tt-manual-chosen { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.tt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 14px; background: var(--navy, #1d2b4f); color: #fff; font-size: .88rem; }
+.tt-chip .muted { color: #cfd6ea; }
+.tt-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; }
