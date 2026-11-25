@@ -235,7 +235,7 @@ const SECTIONS: Section[] = [
           <b>Site</b> is for site management and the buyer: requisitions, plant off-hire reminders and ordering. <b>Supply Chain</b> holds companies and contacts, their pre-qualification and document expiry, which chase themselves.
         </p>
         <p>
-          <b>Site › Inventory</b> is our stock, kept in locations (the first is Workshop 6). Pick a location to see and search the stock. To ask for items press the big <b>Inventory request</b> button (like the material requisition): choose the site and the date, then build a <b>shopping list</b> from the inventory with a quantity for each, and send it to the stores. Follow it under the <b>Requests</b> tab (New, Ready to collect, Issued). People with <b>Inventory - ADMIN</b> access add locations and items, correct the stock and mark requests Ready or Issued; marking one Issued takes the quantities off the stock.
+          <b>Site › Inventory</b> is our stock, kept in locations (the first is Workshop 6). Pick a location to see and search the stock. To ask for items press the big <b>Inventory request</b> button (like the material requisition): choose the site and the date, then search the inventory table and pick a quantity from the dropdown against each item you need (they all start at 0, and only go up to what is in stock). Send it to the stores as a shopping list. Follow it under the <b>Requests</b> tab (New, Ready to collect, Issued). People with <b>Inventory - ADMIN</b> access add locations and items, correct the stock and mark requests Ready or Issued; marking one Issued takes the quantities off the stock.
         </p>
       </>
     ),

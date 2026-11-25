@@ -1605,3 +1605,5 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tag.ir-ready { background: #fff3d6; color: #8a5a00; }
 .tag.ir-issued { background: #dff3e3; color: #1b6b2c; }
 .tag.ir-cancelled { background: #eee; color: #777; }
+
+.table tr.picked td { background: #f1f7ff; }

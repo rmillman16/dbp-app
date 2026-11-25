@@ -302,16 +302,27 @@ function AddItem({ locId, categories, onDone, setError }: { locId: string; categ
   )
 }
 
-// ---------- the request form (its own link, like the material requisition): choose the site, build a shopping list ----------
+// ---------- the request form (its own link, like the material requisition): choose the site, then set a quantity against what you need ----------
+// the quantity choices for an item: 0 up to what's in stock (for big stocks: every number to 20, then steps, always ending on the stock)
+const qtyChoices = (stock: number) => {
+  const max = Math.floor(stock)
+  if (max <= 30) return Array.from({ length: max + 1 }, (_, i) => i)
+  const out: number[] = []
+  for (let n = 0; n <= max; n += n < 20 ? 1 : n < 100 ? 5 : 25) out.push(n)
+  if (out[out.length - 1] !== max) out.push(max)
+  return out
+}
+
 export function InventoryRequestForm() {
   const [params] = useSearchParams()
   const [jobs, setJobs] = useState<Job[] | null>(null)
   const [items, setItems] = useState<Item[]>([])
   const [locs, setLocs] = useState<Location[]>([])
   const [f, setF] = useState({ job_id: params.get('job') ?? '', required_by: addDaysIso(todayIso(), 2), notes: '' })
-  const [list, setList] = useState<{ id: string; qty: string }[]>([])
-  const [pick, setPick] = useState('')
-  const [pickQty, setPickQty] = useState('1')
+  const [qty, setQty] = useState<Record<string, string>>({}) // item id -> quantity wanted (default 0)
+  const [q, setQ] = useState('')
+  const [cat, setCat] = useState('')
+  const [onlyPicked, setOnlyPicked] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState<Request | null>(null)
@@ -320,19 +331,20 @@ export function InventoryRequestForm() {
     cached('inv-locations', () => must<Location[]>(supabase.from('inventory_locations').select('*').order('name'))).then(setLocs, (e: Error) => setError(needs090(e.message)))
     cached('inv-items', () => must<Item[]>(supabase.from('inventory_items').select('*').order('name'))).then(setItems, () => {})
   }, [])
-  const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
+  const locName = useMemo(() => new Map(locs.map((l) => [l.id, l.name])), [locs])
+  const categories = useMemo(() => [...new Set(items.map((i) => i.category).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b)), [items])
+  const picked = items.filter((i) => num(qty[i.id]) > 0)
+  const shown = items.filter(
+    (i) =>
+      (!onlyPicked || num(qty[i.id]) > 0) &&
+      (!cat || i.category === cat) &&
+      `${i.name} ${i.category ?? ''} ${locName.get(i.location_id) ?? ''}`.toLowerCase().includes(q.toLowerCase()),
+  )
 
-  function addToList() {
-    if (!pick || num(pickQty) <= 0) return
-    const have = list.find((l) => l.id === pick)
-    setList(have ? list.map((l) => (l.id === pick ? { ...l, qty: String(num(l.qty) + num(pickQty)) } : l)) : [...list, { id: pick, qty: pickQty }])
-    setPick('')
-    setPickQty('1')
-  }
   async function submit(e: FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!list.length) return setError('Add at least one item to the list.')
+    if (!picked.length) return setError('Choose a quantity against at least one item.')
     if (!navigator.onLine) return setError(saveError(new Error('offline')))
     setBusy(true)
     try {
@@ -346,11 +358,12 @@ export function InventoryRequestForm() {
         .single()
       if (r.error) throw new Error(needs090(r.error.message))
       const req = r.data as Request
-      const rows = list.map((l) => ({ request_id: req.id, item_id: l.id, item_name: itemById.get(l.id)?.name ?? '', unit: itemById.get(l.id)?.unit ?? 'nr', quantity: num(l.qty) }))
+      const rows = picked.map((i) => ({ request_id: req.id, item_id: i.id, item_name: i.name, unit: i.unit, quantity: num(qty[i.id]) }))
       const ins = await supabase.from('inventory_request_lines').insert(rows)
       if (ins.error) throw new Error(ins.error.message)
       setSent(req)
-      setList([])
+      setQty({})
+      setOnlyPicked(false)
       setF({ ...f, notes: '' })
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
@@ -358,7 +371,6 @@ export function InventoryRequestForm() {
     }
     setBusy(false)
   }
-  const locName = (id: string) => locs.find((l) => l.id === id)?.name ?? ''
 
   return (
     <>
@@ -373,7 +385,7 @@ export function InventoryRequestForm() {
       )}
       <form className="card form req-form" onSubmit={submit}>
         <h2>Inventory request</h2>
-        <p className="muted small intro">Choose the site, then build a shopping list from our stock. Your name is added for you.</p>
+        <p className="muted small intro">Choose the site, then set a quantity against each item you need (everything starts at 0). Your name is added for you.</p>
         <div className="form-grid">
           <label className="span-2">
             Site name *
@@ -392,71 +404,63 @@ export function InventoryRequestForm() {
           </label>
         </div>
 
-        <h3>Shopping list</h3>
-        <div className="form-grid">
-          <label className="span-2">
-            Item from the inventory
-            <select value={pick} onChange={(e) => setPick(e.target.value)}>
-              <option value="">Choose an item…</option>
-              {locs.map((l) => (
-                <optgroup key={l.id} label={l.name}>
-                  {items
-                    .filter((i) => i.location_id === l.id)
-                    .map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.name} ({i.quantity} {i.unit} in stock)
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
+        <h3>What do you need?</h3>
+        <div className="toolbar">
+          <input type="search" placeholder="Search the inventory…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <select value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
+            <option value="">All categories</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <label className="check">
+            <input type="checkbox" checked={onlyPicked} onChange={(e) => setOnlyPicked(e.target.checked)} /> Only what I’ve chosen ({picked.length})
           </label>
-          <label>
-            Quantity
-            <input type="number" min="0" step="any" value={pickQty} onChange={(e) => setPickQty(e.target.value)} />
-          </label>
-          <div>
-            <button type="button" className="button" onClick={addToList} disabled={!pick}>
-              + Add to list
-            </button>
-          </div>
         </div>
-        {list.length === 0 ? (
-          <p className="muted">Nothing on the list yet.</p>
-        ) : (
+        {items.length === 0 && <p className="muted">Nothing in the inventory yet.</p>}
+        {items.length > 0 && shown.length === 0 && <p className="muted">No items match.</p>}
+        {shown.length > 0 && (
           <table className="table stack">
             <thead>
               <tr>
                 <th>Item</th>
-                <th>From</th>
+                <th>Category</th>
+                <th>Location</th>
+                <th>In stock</th>
                 <th>Quantity</th>
-                <th />
               </tr>
             </thead>
             <tbody>
-              {list.map((l) => {
-                const it = itemById.get(l.id)
-                const over = it && num(l.qty) > it.quantity
-                return (
-                  <tr key={l.id}>
-                    <td className="stack-title">
-                      <strong>{it?.name}</strong>
-                    </td>
-                    <td className="stack-sub" data-label="From">
-                      {it ? locName(it.location_id) : ''}
-                    </td>
-                    <td data-label="Quantity" className="nowrap">
-                      <input type="number" min="0" step="any" style={{ width: 90 }} value={l.qty} onChange={(e) => setList(list.map((x) => (x.id === l.id ? { ...x, qty: e.target.value } : x)))} /> {it?.unit}
-                      {over && <div className="muted small">Only {it?.quantity} in stock</div>}
-                    </td>
-                    <td>
-                      <button type="button" className="link-button small" onClick={() => setList(list.filter((x) => x.id !== l.id))}>
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
+              {shown.map((i) => (
+                <tr key={i.id} className={num(qty[i.id]) > 0 ? 'picked' : ''}>
+                  <td className="stack-title">
+                    <strong>{i.name}</strong>
+                    {i.notes && <div className="muted small">{i.notes}</div>}
+                  </td>
+                  <td className="stack-sub" data-label="Category">
+                    {i.category ?? ''}
+                  </td>
+                  <td data-label="Location">{locName.get(i.location_id)}</td>
+                  <td data-label="In stock" className="nowrap">
+                    {i.quantity} {i.unit}
+                  </td>
+                  <td data-label="Quantity">
+                    {i.quantity < 1 ? (
+                      <span className="muted">Out of stock</span>
+                    ) : (
+                      <select value={qty[i.id] ?? '0'} onChange={(e) => setQty({ ...qty, [i.id]: e.target.value })} aria-label={`Quantity of ${i.name}`}>
+                        {qtyChoices(i.quantity).map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
@@ -466,8 +470,8 @@ export function InventoryRequestForm() {
         </label>
         {error && <p className="error">{error}</p>}
         <div className="button-row">
-          <button className="button primary" disabled={busy}>
-            {busy ? 'Sending…' : 'Send request'}
+          <button className="button primary" disabled={busy || picked.length === 0}>
+            {busy ? 'Sending…' : picked.length ? `Send request (${picked.length} item${picked.length === 1 ? '' : 's'})` : 'Send request'}
           </button>
         </div>
       </form>
