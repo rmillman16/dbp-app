@@ -43,6 +43,7 @@ export type Section =
   | 'site'
   | 'buyer_material'
   | 'buyer_hire'
+  | 'buyer_inventory'
   | 'contractors'
 // the parts of the app, as ticked in Settings › Access (Settings itself is admins only)
 export const SECTIONS: [Section, string, string][] = [
@@ -66,6 +67,7 @@ export const SECTIONS: [Section, string, string][] = [
   ['site', 'Site › Requisitions', 'Raise material / hire requisitions and see your own'],
   ['buyer_material', 'Site › Material Req - ADMIN', 'Every material requisition, all jobs'],
   ['buyer_hire', 'Site › Hire Req - ADMIN', 'Every hire requisition, all jobs; off-hire reminders'],
+  ['buyer_inventory', 'Site › Inventory - ADMIN', 'Add locations and items to the inventory, adjust stock, work the requests'],
 ]
 export const sectionLabel = (s: Section) => SECTIONS.find(([k]) => k === s)?.[1] ?? s
 

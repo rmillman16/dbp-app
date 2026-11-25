@@ -1601,4 +1601,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .snag-chip.sug-new { background: #fff3cd; color: #7a5b00; }
 .snag-chip.sug-planned { background: #dbeafe; color: #1e40af; }
 .snag-chip.sug-done { background: #dcfce7; color: #166534; }
-.snag-chip.sug-declined { background: #eee; color: #555; }
+.snag-chip.sug-declined { background: #eee; color: #555; }.tag.ir-new { background: #e7eefc; color: #1d4ed8; }
+.tag.ir-ready { background: #fff3d6; color: #8a5a00; }
+.tag.ir-issued { background: #dff3e3; color: #1b6b2c; }
+.tag.ir-cancelled { background: #eee; color: #777; }

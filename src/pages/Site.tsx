@@ -38,7 +38,7 @@ import Loading from '../components/Loading'
 // requisitions now, hire requisitions next. The material and hire buyer's lists (the back ends) show only to
 // Operations logins and admins (script 034; the database enforces it too).
 
-function SiteNav() {
+export function SiteNav() {
   const { can } = useAccess()
   return (
     <>
@@ -63,6 +63,9 @@ function SiteNav() {
       <nav className="pills">
         <NavLink to="/site" end className="pill">
           Requisitions for my sites
+        </NavLink>
+        <NavLink to="/site/inventory" className="pill">
+          Inventory
         </NavLink>
         {can('buyer_material') && (
           <NavLink to="/site/buyer/material" className="pill">
