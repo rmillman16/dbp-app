@@ -22,6 +22,9 @@ interface Item {
 }
 const HS = 'Health and safety'
 const COMP = 'Compliance'
+const CDM = 'CDM checklist'
+const RISK = 'Risk register'
+const BCR = 'Building Control and Building Regs'
 const STANDARD: { key: string; category: string; title: string }[] = [
   { key: 'f10', category: HS, title: 'F10 notification sent to the HSE (if the job is notifiable)' },
   { key: 'pci', category: HS, title: 'Pre-construction information received' },
@@ -37,6 +40,33 @@ const STANDARD: { key: string; category: string; title: string }[] = [
   { key: 'permits', category: COMP, title: 'Licences and permits (highways, hoarding, skips)' },
   { key: 'noise', category: COMP, title: 'Noise and working-hours consents (s61)' },
   { key: 'waste', category: COMP, title: 'Site waste management plan' },
+  // CDM 2015 (added 25 Nov)
+  { key: 'cdm-client', category: CDM, title: 'Client duties explained and client brief / existing information received' },
+  { key: 'cdm-notifiable', category: CDM, title: 'Notifiable status confirmed (30+ working days with 20+ workers, or over 500 person-days)' },
+  { key: 'cdm-pd-pc', category: CDM, title: 'Principal Designer and Principal Contractor appointments confirmed in writing' },
+  { key: 'cdm-competence', category: CDM, title: 'Competence and resources of designers and contractors checked' },
+  { key: 'cdm-cpp-review', category: CDM, title: 'Construction phase plan reviewed and updated as the job changes' },
+  { key: 'cdm-welfare', category: CDM, title: 'Site welfare, first aid and emergency arrangements in place' },
+  { key: 'cdm-rams', category: CDM, title: 'Subcontractor RAMS received and reviewed before work starts' },
+  { key: 'cdm-induction', category: CDM, title: 'Site inductions given to everyone working on site' },
+  { key: 'cdm-hsf-handover', category: CDM, title: 'H&S file information passed to the Principal Designer at completion' },
+  // Risk register
+  { key: 'risk-register', category: RISK, title: 'Risk register set up (risk, likelihood, impact, owner, action)' },
+  { key: 'risk-tender', category: RISK, title: 'Tender risks and assumptions carried into the register' },
+  { key: 'risk-existing', category: RISK, title: 'Existing building, services and ground risks recorded' },
+  { key: 'risk-supply', category: RISK, title: 'Long-lead items, supply chain and price risks recorded' },
+  { key: 'risk-neighbours', category: RISK, title: 'Neighbours, access and third-party risks recorded' },
+  { key: 'risk-review', category: RISK, title: 'Risk register reviewed at each monthly meeting' },
+  // Building Control and Building Regulations
+  { key: 'bcr-route', category: BCR, title: 'Route confirmed: Building Control body (council or Approved Inspector) or Building Safety Regulator' },
+  { key: 'bcr-application', category: BCR, title: 'Building Regulations application made (full plans or building notice)' },
+  { key: 'bcr-approval', category: BCR, title: 'Approval and conditions received and passed to the team' },
+  { key: 'bcr-notices', category: BCR, title: 'Commencement and stage inspection notices given' },
+  { key: 'bcr-fire', category: BCR, title: 'Part B fire safety: strategy, fire stopping and compartmentation agreed' },
+  { key: 'bcr-parts', category: BCR, title: 'Parts L, F, E, M and P: designer details and test requirements (air tightness, sound) confirmed' },
+  { key: 'bcr-inspections', category: BCR, title: 'Inspections booked and signed off as the work progresses' },
+  { key: 'bcr-thirdparty', category: BCR, title: 'Third-party certificates collected (gas, electrical, fire stopping, glazing, ventilation)' },
+  { key: 'bcr-completion', category: BCR, title: 'Completion certificate applied for and received' },
 ]
 
 export default function ProjectChecklist({ job }: { job: Job }) {
