@@ -439,9 +439,11 @@ interface PointRow {
 export const needs045 = (m: string) =>
   /enquiry_id|enquiry_no/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
     ? 'Minutes need script 046 run in Supabase first (supabase/README.md).'
-    : /meeting|minutes/i.test(m) && /does not exist|schema cache|could not find/i.test(m)
+    : /(meetings|meeting_attendees|meeting_points)/i.test(m) && /relation|table/i.test(m) && /does not exist|schema cache|could not find/i.test(m)
       ? 'Minutes need script 045 run in Supabase first (supabase/README.md).'
-      : m
+      : /meeting|minutes/i.test(m) && /does not exist|schema cache|could not find/i.test(m)
+        ? `Minutes hit a database problem (a script may be missing or half-run). Database said: ${m}`
+        : m
 
 const toAttendee = (r: AttendeeRow): Attendee => ({
   id: r.id,
