@@ -49,6 +49,48 @@ const irRef = (r: Pick<Request, 'req_no'>) => `IR${String(r.req_no).padStart(4, 
 const needs090 = (m: string) => (/inventory/i.test(m) && /does not exist|schema cache/i.test(m) ? 'Inventory needs script 090 run in Supabase first (supabase/README.md).' : m)
 const num = (v: unknown) => Number(v) || 0
 
+// typical site categories; anything an admin types as a new category joins the list once an item uses it
+const STARTER_CATEGORIES = [
+  'Welfare – kitchen & drinks',
+  'Welfare – toilets & washing',
+  'Welfare – drying, changing & seating',
+  'First aid & fire',
+  'PPE',
+  'Signage & barriers',
+  'Power & lighting',
+  'Access & ladders',
+  'Hand tools',
+  'Power tools',
+  'Cleaning & waste',
+  'Temporary protection',
+  'Consumables & fixings',
+]
+const NEW_CATEGORY = '__new__'
+const categoryList = (items: Item[]) => [...new Set([...STARTER_CATEGORIES, ...items.map((i) => i.category).filter((c): c is string => !!c)])].sort((a, b) => a.localeCompare(b))
+
+// a dropdown of the categories, with "+ Add a new category…" at the end
+function CategorySelect({ value, categories, onChange }: { value: string; categories: string[]; onChange: (v: string) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value !== NEW_CATEGORY) return onChange(e.target.value)
+        const name = window.prompt('Name of the new category')?.trim()
+        if (name) onChange(name)
+      }}
+    >
+      <option value="">— none —</option>
+      {value && !categories.includes(value) && <option value={value}>{value}</option>}
+      {categories.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+      <option value={NEW_CATEGORY}>+ Add a new category…</option>
+    </select>
+  )
+}
+
 export default function Inventory() {
   const { can } = useAccess()
   const admin = can('buyer_inventory')
@@ -118,7 +160,7 @@ export default function Inventory() {
                 </button>
               )}
             </div>
-            {loc && <Stock key={loc} locId={loc} items={items.filter((i) => i.location_id === loc)} admin={admin} reload={load} setError={setError} />}
+            {loc && <Stock key={loc} locId={loc} categories={categoryList(items)} items={items.filter((i) => i.location_id === loc)} admin={admin} reload={load} setError={setError} />}
           </>
         )}
         {locs && tab === 'requests' && <Requests admin={admin} items={items} locs={locs} reload={load} />}
@@ -128,7 +170,7 @@ export default function Inventory() {
 }
 
 // ---------- one location's stock, with the request basket ----------
-function Stock({ locId, items, admin, reload, setError }: { locId: string; items: Item[]; admin: boolean; reload: () => void; setError: (m: string | null) => void }) {
+function Stock({ locId, items, categories, admin, reload, setError }: { locId: string; items: Item[]; categories: string[]; admin: boolean; reload: () => void; setError: (m: string | null) => void }) {
   const [q, setQ] = useState('')
   const [basket, setBasket] = useState<Record<string, string>>({})
   const [adding, setAdding] = useState(false)
@@ -139,6 +181,11 @@ function Stock({ locId, items, admin, reload, setError }: { locId: string; items
   async function saveQty(i: Item, v: string) {
     if (num(v) === i.quantity) return
     const r = await supabase.from('inventory_items').update({ quantity: Math.max(num(v), 0) }).eq('id', i.id)
+    if (r.error) setError(saveError(r.error))
+    else reload()
+  }
+  async function saveCategory(i: Item, v: string) {
+    const r = await supabase.from('inventory_items').update({ category: v || null }).eq('id', i.id)
     if (r.error) setError(saveError(r.error))
     else reload()
   }
@@ -159,7 +206,7 @@ function Stock({ locId, items, admin, reload, setError }: { locId: string; items
           </button>
         )}
       </div>
-      {adding && <AddItem locId={locId} onDone={() => { setAdding(false); reload() }} setError={setError} />}
+      {adding && <AddItem locId={locId} categories={categories} onDone={() => { setAdding(false); reload() }} setError={setError} />}
       {items.length === 0 && <p className="muted">Nothing in this location yet.{admin ? ' Use + Item to add the first.' : ''}</p>}
       {shown.length > 0 && (
         <table className="table stack">
@@ -180,7 +227,7 @@ function Stock({ locId, items, admin, reload, setError }: { locId: string; items
                   {i.notes && <div className="muted small">{i.notes}</div>}
                 </td>
                 <td className="stack-sub" data-label="Category">
-                  {i.category ?? ''}
+                  {admin ? <CategorySelect value={i.category ?? ''} categories={categories} onChange={(v) => saveCategory(i, v)} /> : (i.category ?? '')}
                 </td>
                 <td data-label="In stock" className="nowrap">
                   {admin ? (
@@ -226,7 +273,7 @@ function Stock({ locId, items, admin, reload, setError }: { locId: string; items
   )
 }
 
-function AddItem({ locId, onDone, setError }: { locId: string; onDone: () => void; setError: (m: string | null) => void }) {
+function AddItem({ locId, categories, onDone, setError }: { locId: string; categories: string[]; onDone: () => void; setError: (m: string | null) => void }) {
   const [f, setF] = useState({ name: '', category: '', quantity: '1', unit: 'nr', notes: '' })
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -250,7 +297,7 @@ function AddItem({ locId, onDone, setError }: { locId: string; onDone: () => voi
         </label>
         <label>
           Category
-          <input value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })} placeholder="e.g. Power, Access, Hand tools" />
+          <CategorySelect value={f.category} categories={categories} onChange={(v) => setF({ ...f, category: v })} />
         </label>
         <label>
           Quantity
