@@ -52,6 +52,8 @@ export default function CompanyImport({ existing, hasPqq, onClose, onDone }: { e
       let added = 0
       let updated = 0
       let contactsAdded = 0
+      // a batch insert sends every column for every row, so a company with no PQQ status needs the default, not a blank
+      const pqqNew = (c: ImportCompany) => (hasPqq ? (c.pqq_status ? pqqRow(c) : { pqq_status: 'not_sent' }) : {})
       const pqqRow = (c: ImportCompany) => (hasPqq && c.pqq_status ? { pqq_status: c.pqq_status, pqq_sent_on: c.pqq_sent_on, pqq_approved_on: c.pqq_approved_on, pqq_expires_on: c.pqq_expires_on } : {})
       // new companies, in batches
       const news = companies.filter((c) => !byNorm.has(normName(c.name)))
@@ -60,7 +62,7 @@ export default function CompanyImport({ existing, hasPqq, onClose, onDone }: { e
         const chunk = news.slice(i, i + 100)
         const ins = await supabase
           .from('companies')
-          .insert(chunk.map((c) => ({ name: c.name, type: c.type, trade: c.trade, address: c.address, postcode: c.postcode, email: c.email, phone: c.phone, iplicit_code: c.iplicit_code, notes: c.notes, ...pqqRow(c) })))
+          .insert(chunk.map((c) => ({ name: c.name, type: c.type, trade: c.trade, address: c.address, postcode: c.postcode, email: c.email, phone: c.phone, iplicit_code: c.iplicit_code, notes: c.notes, ...pqqNew(c) })))
           .select('id, name')
         if (ins.error) throw ins.error
         for (const r of ins.data ?? []) idOf.set(normName(r.name as string), r.id as string)
