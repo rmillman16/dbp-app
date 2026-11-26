@@ -53,3 +53,12 @@ describe('buildCompanies', () => {
     expect(list[1].type).toBe('subcontractor')
   })
 })
+
+describe('an expiry date means it has a PQQ', () => {
+  it('is approved even when the status column says otherwise', () => {
+    const rows = [['Company', 'PQQ expiry', 'Status'], ['Gamma Ltd', '31/03/2027', 'Not sent']]
+    const [c] = buildCompanies(rows, 0, guessMapping(rows[0]), 'supplier')
+    expect(c.pqq_status).toBe('approved')
+    expect(c.pqq_expires_on).toBe('2027-03-31')
+  })
+})

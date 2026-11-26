@@ -233,7 +233,8 @@ export function buildCompanies(rows: string[][], headerRow: number, m: CMapping,
         const sent = date('pqq_sent_on')
         let status = parseStatus(get(r, 'pqq_status'))
         if (get(r, 'pqq_status') && !status) warnings.push(`PQQ status "${get(r, 'pqq_status')}" is not one I recognise`)
-        if (!status && (expires || approved)) status = 'approved'
+        if (expires) status = 'approved' // an expiry date means it has a PQQ, whatever the status column says
+        else if (!status && approved) status = 'approved'
         co = {
           name,
           type: parseType(get(r, 'type'), defaultType),
