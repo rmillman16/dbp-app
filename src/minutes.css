@@ -2210,3 +2210,8 @@
 @media (max-width: 860px) {
   .mint .letterhead { position: static; margin: 0 0 10px; padding: 0 0 10px; }
 }
+
+/* in the list the bold line is the meeting's title; the kind and its count sit under it (26 Nov) */
+.mint .meeting-item .mi-title { font-size: 14.5px; margin-top: 5px; }
+.mint .meeting-item .mi-title .mi-untitled { font-weight: 500; color: var(--ink-faint); }
+.mint .meeting-item .mi-subtitle { font-size: 12px; color: var(--ink-faint); font-weight: 500; }

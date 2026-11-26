@@ -574,12 +574,10 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           )}
           <span className="mi-date">{M.formatDateSidebar(m.date)}</span>
         </div>
-        <div className="mi-title">
-          {title}
+        <div className="mi-title" title={m.subtitle || undefined}>
+          {m.subtitle || <i className="mi-untitled">No title yet</i>}
         </div>
-        <div className="mi-subtitle" title={m.subtitle || undefined}>
-          {m.subtitle || <i>No subject yet: add one at the top of the minutes</i>}
-        </div>
+        <div className="mi-subtitle">{title}</div>
         <div className="mi-bottom">
           <div className="mi-avatars">
             {avatars.map((a) => (
@@ -1616,9 +1614,9 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           </svg>
         </button>
         {!readOnly && (
-          <button className="btn btn-ghost" type="button" title="Paste rough notes or a Teams transcript and get a first draft of the minutes" onClick={() => setDrafting(true)}>
+          <button className="btn btn-ghost" type="button" title="Draft minutes from rough notes or a transcript, or import minutes the client took" onClick={() => setDrafting(true)}>
             <Icon.pencil />
-            Draft from notes
+            Draft or import
           </button>
         )}
         {!readOnly && (
