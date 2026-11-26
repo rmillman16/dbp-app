@@ -33,6 +33,7 @@ import {
 import ContactsEditor, { loadContacts, type Contact } from '../components/ContactsEditor'
 import type { Company, CompanyType, PqqPack, PqqStatus, Profile } from '../lib/types'
 import Loading from '../components/Loading'
+import CompanyImport from '../components/CompanyImport'
 
 // The company list: subcontractors, suppliers, clients, consultants. Used for orders and
 // payment notices (name and address printed) and the CVR (iPlicit code). From 23 Nov (script 054) it also
@@ -66,7 +67,8 @@ const FILTERS: [string, string][] = [
 ]
 
 export default function Contractors() {
-  const { can } = useAccess()
+  const { can, isAdmin } = useAccess()
+  const [importing, setImporting] = useState(false)
   const [params, setParams] = useSearchParams()
   const [companies, setCompanies] = useState<Company[] | null>(null)
   const [people, setPeople] = useState<Profile[]>([])
@@ -148,10 +150,18 @@ export default function Contractors() {
     <>
       <div className="pane-head">
         <h1>Supply Chain</h1>
-        <button className="primary" onClick={() => setAdding(!adding)}>
-          + Add company
-        </button>
+        <div className="button-row">
+          {isAdmin && (
+            <button onClick={() => setImporting(true)} title="A one-off import of your supply chain list from Excel">
+              Import from Excel
+            </button>
+          )}
+          <button className="primary" onClick={() => setAdding(!adding)}>
+            + Add company
+          </button>
+        </div>
       </div>
+      {importing && <CompanyImport existing={companies ?? []} hasPqq={(companies ?? []).some((c) => c.pqq_status !== undefined)} onClose={() => setImporting(false)} onDone={load} />}
       <section className="card">
         <p className="muted small intro">
           Subcontractors and suppliers, with their pre-qualification (PQQ): approved for 12 months, their insurances and accreditations with expiry dates, and what was sent to
