@@ -160,7 +160,7 @@ export default function Estimating() {
 // ---------- new / edit ----------
 // the contract details come from script 068
 const needs068 = (e: { message: string }) => (/proposed_start|proposed_duration|cdp_items/i.test(e.message)
-    ? 'Run script 094 in Supabase first (it adds the proposed start, duration and CDP items).'
+    ? 'Run script 098 in Supabase first (it adds the proposed start, duration and CDP items).'
     : /main_contract|sub_contract|summary|schema cache/i.test(e.message)
       ? 'Run script 068 in Supabase first (it adds the main contract, sub-contract and project summary).'
       : null)

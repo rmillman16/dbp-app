@@ -412,7 +412,7 @@ export interface Enquiry {
   main_contract?: string | null // script 068
   sub_contract?: string | null
   summary?: string | null
-  proposed_start?: string | null // script 094
+  proposed_start?: string | null // script 098
   proposed_duration?: string | null
   cdp_items?: string | null
 }
