@@ -73,7 +73,7 @@ const SECTIONS: Section[] = [
         <p>
           <b>Project hub link:</b> in Edit job, paste the job’s one SharePoint link. It is then added to the foot of issued minutes, snag lists, every email to outside people and the outside pages, so everyone can find the drawings and documents. Document Control manage the folders inside it.
         </p>
-        <p>An archived job is read-only everywhere. An admin can unarchive it.</p>
+        <p>An archived job is read-only everywhere. An admin can unarchive it. An admin can also <b>Delete</b> a job that was made in error (next to Archive): it asks for the job number and removes everything filed under it, so archive it instead if the job was real.</p>
       </>
     ),
   },
@@ -196,7 +196,7 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          <b>Progress reports</b> build the monthly report as a PDF from the job’s information, and remind the PM when one is due. <b>Programme</b> imports the programme and shows the timeline. The <b>project checklist</b> on the Overview lists the set-up jobs for a new project: tick them off as you go.
+          <b>Progress reports</b> build the monthly report as a PDF from the job’s information, and remind the PM when one is due. <b>Programme</b> imports the programme and shows the timeline. Every programme made for the job is listed above it: <b>Open</b> an older one to make it the one in use, or <b>Delete</b> one made in error. <b>Summary PDF</b> downloads a 1 to 4 page snapshot (each section as a bar, with the key dates), sized to the programme; nothing is stored. The <b>project checklist</b> on the Overview lists the set-up jobs for a new project: tick them off as you go.
         </p>
       </>
     ),

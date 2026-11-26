@@ -8,6 +8,7 @@ import { createQuotation, enquiryRef, fullRef, loadQuotations } from '../lib/quo
 import { ENQUIRY_STATUS_LABELS, QUOTE_STATUS_LABELS, type Enquiry, type EnquiryStatus, type Quotation } from '../lib/types'
 import { ClauseLibrary, Wording } from './Sections'
 import ProgrammeEditor from '../components/programme/ProgrammeEditor'
+import ProgrammeList from '../components/programme/ProgrammeList'
 import { loadProgramme } from '../lib/programme'
 import { TenderTracker } from './TenderEnquiry'
 import EnquiryHead from '../components/EnquiryHead'
@@ -584,17 +585,19 @@ export function EnquiryProgramme() {
     loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
   }, [enquiryId])
   const owner = useMemo(() => ({ enquiryId: enquiryId! }), [enquiryId])
+  const [version, setVersion] = useState(0)
   if (error) return <p className="error">{error}</p>
   if (!e) return <Loading />
   return (
     <>
       <EnquiryHead e={e} />
+      {!e.job_id && <ProgrammeList owner={owner} onChanged={() => setVersion((v) => v + 1)} />}
       {e.job_id && (
         <p className="muted">
           This enquiry was won; its programme is now the job's. <Link to={`/jobs/${e.job_id}/programme`}>Open it →</Link>
         </p>
       )}
-      {!e.job_id && <ProgrammeEditor owner={owner} ownerName={`${enquiryRef(e)} ${e.name}`} defaults={{ start: null, pc: null }} />}
+      {!e.job_id && <ProgrammeEditor key={version} owner={owner} ownerName={`${enquiryRef(e)} ${e.name}`} defaults={{ start: null, pc: null }} />}
     </>
   )
 }

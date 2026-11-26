@@ -70,6 +70,9 @@ import GenerateProgramme from '../GenerateProgramme'
 import type { Job } from '../../lib/types'
 import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
 import IssueMenu from './ProgrammeIssue'
+import { summaryProgrammePdf } from '../../lib/programmeSummaryPdf'
+import { issueView } from '../../lib/programmeViews'
+import { downloadBlob } from '../../lib/letter'
 import { DeleteSectionDialog, DuplicateSectionDialog, LegendMenu, Modal, Popover, ShiftMenu, ShutdownMenu, TaskModal } from './ProgrammeParts'
 import '../../programme.css'
 import Loading from '../Loading'
@@ -120,6 +123,7 @@ export default function ProgrammeEditor({
   const [w, setW] = useState<Working | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [summaryBusy, setSummaryBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [status, setStatus] = useState<'saved' | 'saving' | 'error'>('saved')
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
@@ -616,6 +620,32 @@ export default function ProgrammeEditor({
             </Popover>
           </span>
         ))}
+        {/* the summary programme (26 Nov): one click, a 1 to 4 page PDF snapshot that downloads and is not stored */}
+        <button
+          className="tl-btn"
+          disabled={summaryBusy}
+          title="A 1 to 4 page summary programme (sections as bars, key dates) as a PDF snapshot. Nothing is stored. No subcontractors are shown."
+          onClick={async () => {
+            const base = tl()
+            if (!base.tasks.length) return setError('Add some tasks before making a summary.')
+            setSummaryBusy(true)
+            setError(null)
+            try {
+              const blob = await summaryProgrammePdf(issueView(base, { kind: 'client', summary: false }), {
+                title: 'Summary programme',
+                subtitle: ownerName,
+                revision: lastRev ? revName(lastRev.rev_no) : undefined,
+                logoUrl: '/dbp-logo.png',
+              })
+              downloadBlob(blob, `${ownerName} - Summary programme.pdf`)
+            } catch (e) {
+              setError((e as Error).message)
+            }
+            setSummaryBusy(false)
+          }}
+        >
+          {summaryBusy ? 'Making…' : 'Summary PDF'}
+        </button>
         {/* Tools: shutdowns, shift, compare, legend, client logo */}
         <span className="tl-pop-wrap">
           <button className={`tl-btn ${compare ? 'is-on' : ''}`} onClick={() => setPop(pop && ['tools', 'shutdown', 'shift', 'compare', 'legend'].includes(pop) ? null : 'tools')}>
