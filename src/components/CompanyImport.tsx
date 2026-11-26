@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { saveError } from '../lib/offline'
 import { readWorkbook } from '../lib/samplingImport'
@@ -19,8 +19,18 @@ const TYPES: [CompanyType, string][] = [
 
 // A one-off import of the supply chain from Excel (26 Nov): companies, contact details and PQQ dates. Pick the file, check the
 // columns the app has matched, see what will be added or filled in, then import.
-export default function CompanyImport({ existing, hasPqq, onClose, onDone }: { existing: Company[]; hasPqq: boolean; onClose: () => void; onDone: () => void }) {
+export default function CompanyImport({ existing, hasPqq: listHasPqq, onClose, onDone }: { existing: Company[]; hasPqq: boolean; onClose: () => void; onDone: () => void }) {
   const [sheets, setSheets] = useState<Sheet[] | null>(null)
+  // with an empty list the page can't tell whether PQQ tracking (script 054) is there, so ask the database
+  const [probed, setProbed] = useState<boolean | null>(null)
+  useEffect(() => {
+    supabase
+      .from('companies')
+      .select('pqq_status')
+      .limit(1)
+      .then(({ error }) => setProbed(!error))
+  }, [])
+  const hasPqq = listHasPqq || probed === true
   const [sheet, setSheet] = useState(0)
   const [header, setHeader] = useState(-1)
   const [map, setMap] = useState<CMapping>({})
