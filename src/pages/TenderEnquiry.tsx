@@ -811,7 +811,8 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
     const mine = data!.invites.filter((i) => i.package_id === p.id)
     return (!q || text.includes(q) || mine.some((i) => i.name.toLowerCase().includes(q))) && (view === 'all' || mine.some(inView))
   })
-  const count = (v: View) => (data?.invites ?? []).filter((i) => (v === 'all' ? true : v === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'used', 'appointed'].includes(i.status))).length
+  const scopedIds = new Set((data?.packages ?? []).filter((p) => !enquiryId || p.enquiry_id === enquiryId).map((p) => p.id))
+  const count = (v: View) => (data?.invites ?? []).filter((i) => scopedIds.has(i.package_id)).filter((i) => (v === 'all' ? true : v === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'used', 'appointed'].includes(i.status))).length
 
   async function chase(p: TenderPackage, i: TenderInvite) {
     const e = enq[p.enquiry_id]
