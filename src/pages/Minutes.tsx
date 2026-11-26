@@ -818,17 +818,6 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     scheduleSave()
     rerender()
   }
-  function applyType(key: string) {
-    const m = activeRef.current
-    if (!m) return
-    m.type = key || null
-    const have = new Set(m.points.filter((p) => p.type === 'heading').map((p) => p.text.trim().toLowerCase()))
-    const add = M.standingHeadings(key).filter((h) => !have.has(h.text.toLowerCase()))
-    if (add.length && (!m.points.length || confirm(`Add the ${M.meetingTypeOf(key)?.label.toLowerCase()} headings at the end of these minutes?`))) m.points.push(...add)
-    if (!m.subtitle.trim() && key) m.subtitle = M.meetingTypeOf(key)?.label ?? ''
-    scheduleSave()
-    rerender()
-  }
   // the drafted points, from notes or a transcript: under the matching heading if there is one, else with a new heading at the end
   function addDraftPoints(list: DraftPoint[]) {
     const m = activeRef.current
@@ -1774,23 +1763,12 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                     {!active.format && <span className="muted-hint">Choose one so it shows in the list</span>}
                   </div>
                   <div className="letterhead-meta">
-                    {active.no ? (
-                      <span className="meeting-no" title="Meeting number: quote it with the item number, for example 12/4.3">
-                        Meeting {active.no}
+                    {active.format ? (
+                      <span className="meeting-no" title="Which meeting of this kind it is, by date">
+                        {kindTitle(summaryOf(active), sidebarMeetings())}
                         {active.rev ? ` · Rev ${M.revLetter(active.rev)}` : ''}
                       </span>
                     ) : null}
-                    <label className="date-field">
-                      <span className="field-label">About</span>
-                      <select aria-label="Meeting type" value={active.type ?? ''} disabled={readOnly} onChange={(e) => applyType(e.target.value)}>
-                        <option value="">No type</option>
-                        {M.MEETING_TYPES.map((t) => (
-                          <option key={t.key} value={t.key}>
-                            {t.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <label className="date-field">
                       <span className="field-label">Date</span>
                       <input
@@ -1798,6 +1776,13 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                         aria-label="Meeting date"
                         value={active.date}
                         readOnly={readOnly}
+                        onClick={(e) => {
+                          try {
+                            e.currentTarget.showPicker?.()
+                          } catch {
+                            /* some browsers only open it from the icon */
+                          }
+                        }}
                         onChange={(e) => {
                           active.date = e.target.value || M.todayISO()
                           scheduleSave()
