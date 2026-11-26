@@ -5,6 +5,8 @@ import { supabase } from './supabase'
 import { cached, must } from './offline'
 import { todayIso } from './format'
 import { projectedValue, type VoWithLines } from './variations'
+import { suggestTasks } from './cashflowCalc'
+import type { ProgrammeTask } from './programme'
 import type { Application, ApplicationLine, Job, SowLine, SowRevision } from './types'
 import type { ParsedSow } from './sowImport'
 
@@ -120,7 +122,9 @@ export async function createApplication(job: Job, sowRevisionId: string, apps: A
   let previouslyPaid = 0
   if (prev) {
     const p = await loadApplication(prev.id)
-    lines = p.lines.map((l) => ({ ...l, client_pct: null, client_amount: null, client_comment: null }))
+    // the percentages are cumulative, so they carry on; so does what the client last certified (Client Assessment) and the comments,
+    // which the user can clear (Applications, 26 Nov)
+    lines = p.lines.map((l) => ({ ...l }))
     previouslyPaid = latestRevisions(apps).reduce((s, a) => s + Number(a.paid_amount ?? 0), 0)
   }
   return insertApplication(
@@ -269,4 +273,73 @@ export function frontSheet(
     vat,
     totalOutstanding: outstanding + vat,
   }
+}
+
+// ---------- progress from the programme (26 Nov) ----------
+// For a SoW section: the programme activities whose names match it, and their average progress weighted by how long each lasts.
+export function programmeProgress(label: string, tasks: ProgrammeTask[]): { pct: number; n: number } | null {
+  const codes = new Set(suggestTasks(label, tasks))
+  const hit = tasks.filter((t) => codes.has(t.code) && !t.milestone)
+  if (!hit.length) return null
+  const days = (t: ProgrammeTask) => Math.max(1, Math.round((Date.parse(t.finish_date) - Date.parse(t.start_date)) / 86400000) + 1)
+  const total = hit.reduce((s, t) => s + days(t), 0)
+  const done = hit.reduce((s, t) => s + days(t) * Math.min(100, Math.max(0, t.progress ?? 0)), 0)
+  return { pct: Math.round(done / total), n: hit.length }
+}
+
+// ---------- the check before an application is issued (26 Nov) ----------
+export interface ReviewNote {
+  level: 'error' | 'warn' | 'info'
+  text: string
+}
+
+const refList = (a: string[]) => (a.length > 4 ? `${a.slice(0, 4).join(', ')} and ${a.length - 4} more` : a.join(', '))
+
+export function reviewApplication(i: {
+  app: Application
+  sow: SowLine[]
+  lines: ApplicationLine[]
+  prevLines: ApplicationLine[]
+  vos: VoWithLines[]
+  fs: FrontSheet
+  fsPrev: FrontSheet | null
+  fsClient: FrontSheet | null
+}): ReviewNote[] {
+  const notes: ReviewNote[] = []
+  const sowById = new Map(i.sow.map((s) => [s.id, s]))
+  const prevBy = new Map(i.prevLines.filter((l) => l.sow_line_id).map((l) => [l.sow_line_id!, l]))
+  const over: string[] = []
+  const down: string[] = []
+  let unchanged = 0
+  let moved = 0
+  for (const l of i.lines) {
+    if (!l.sow_line_id) continue
+    const s = sowById.get(l.sow_line_id)
+    if (!s || s.below_line) continue
+    const name = s.item_ref || (s.description ?? '').slice(0, 20)
+    const p = l.pct_claimed ?? 0
+    const before = prevBy.get(l.sow_line_id)?.pct_claimed ?? 0
+    if (p > 1.00001) over.push(name)
+    if (p < before - 0.00001) down.push(name)
+    if (p > 0) (Math.abs(p - before) < 0.00001 ? unchanged++ : moved++)
+  }
+  if (i.fs.totalApplication <= 0) notes.push({ level: 'error', text: 'Nothing is claimed yet.' })
+  if (over.length) notes.push({ level: 'error', text: `More than 100% claimed on: ${refList(over)}.` })
+  if (down.length) notes.push({ level: 'warn', text: `Lower than last time on: ${refList(down)}.` })
+  if (!i.app.valuation_date) notes.push({ level: 'warn', text: 'There is no valuation date.' })
+  const missingVos = i.vos.filter((v) => v.build.priced && v.vo.status === 'agreed' && !(i.lines.find((l) => l.variation_id === v.vo.id)?.pct_claimed))
+  if (missingVos.length) notes.push({ level: 'warn', text: `Agreed variations not yet claimed: ${refList(missingVos.map((v) => 'VO ' + v.vo.vo_no))}.` })
+  if (i.fsPrev) {
+    const diff = i.fs.totalApplication - i.fsPrev.totalApplication
+    if (diff < 0) notes.push({ level: 'warn', text: `The total claimed is £${Math.abs(Math.round(diff)).toLocaleString('en-GB')} lower than last time.` })
+    else notes.push({ level: 'info', text: `Up £${Math.round(diff).toLocaleString('en-GB')} since last time (${moved} line${moved === 1 ? '' : 's'} moved, ${unchanged} unchanged).` })
+    if (!i.app.previously_paid) notes.push({ level: 'warn', text: '"Less previous paid" is £0 on a later application: check it.' })
+  }
+  if (i.fsClient && i.fsClient.totalApplication !== i.fs.totalApplication) {
+    const d = i.fs.totalApplication - i.fsClient.totalApplication
+    notes.push({ level: 'info', text: `Client Assessment is £${Math.abs(Math.round(d)).toLocaleString('en-GB')} ${d > 0 ? 'below' : 'above'} what we are claiming.` })
+  }
+  if (i.app.practical_completion) notes.push({ level: 'info', text: `Practical completion reached: retention is ${i.fs.retentionPct}%.` })
+  if (i.app.status === 'assessed' && i.app.client_certified == null) notes.push({ level: 'warn', text: 'It is marked Certified but the client certified figure has not been entered.' })
+  return notes
 }

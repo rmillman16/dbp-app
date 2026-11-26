@@ -44,7 +44,7 @@ export async function exportApplication(d: AppDoc) {
 
   const sowTotals = buildSow(sowWs, d)
   const voTotals = buildVoSummary(voWs, d)
-  buildFrontSheet(afa, d, `'${sowName}'!J${sowTotals.mainRow}`, voTotals)
+  buildFrontSheet(afa, d, `'${sowName}'!J${sowTotals.mainRow}`, voTotals, `'${sowName}'!N${sowTotals.mainRow}`)
 
   for (const [ws, base, last, orient, titles, onePage, fromRow] of [
     [afa, AFA_WIDTHS, 52, 'landscape', undefined, true, 12],
@@ -53,7 +53,7 @@ export async function exportApplication(d: AppDoc) {
   ] as const) {
     // wide enough for the figures and short text in each column (the layout's widths are the minimum)
     const widths = fitWidths(ws, [...base], { fromRow, skipRows: ws === afa ? [52] : [] })
-    placeLogo(ws, logoId, widths, setupPage(ws, widths, last, orient, titles, onePage))
+    placeLogo(ws, logoId, widths, setupPage(ws, widths, last, orient, titles, onePage), 150)
   }
 
   await download(wb, safeName(`${d.job.job_no} ${d.job.code} - ${d.job.name} - ${appName(d.app)}${d.app.valuation_date ? ` - ${d.app.valuation_date.split('-').reverse().join('.')}` : ''}`) + '.xlsx')
@@ -62,7 +62,7 @@ export async function exportApplication(d: AppDoc) {
 // ---------- 1. Anticipated Final Account ----------
 const AFA_WIDTHS = [5.45, 20.45, 25.45, 20.45, 5.45, 20.45, 5.45, 22.82, 5.45, 9.09, 20.45, 5.45]
 
-function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: { projectedRef: string; claimedRef: string }) {
+function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: { projectedRef: string; claimedRef: string; clientRef: string }, clientConstructionRef: string) {
   const { job, app, fs, fsClient: cl, fsPrev: pv } = d
   const font = { name: 'Calibri', size: 12 }
   const set = (addr: string, v: Cell['value'], o: Partial<Cell> = {}) => {
@@ -128,7 +128,9 @@ function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: 
     if (isTotal) f.border = { top: thin, bottom: double }
     const applicationRow = r >= 27
     if (cl && applicationRow) {
-      const h = set(`H${r}`, cl[key], { numFmt: ACC, font: isTotal ? bold : font })
+      // live formulas, laid out as the This-application column: from the SoW's and VO Summary's Client Assessment columns
+      const hf = r === 27 ? clientConstructionRef : r === 28 ? vo.clientRef : formula && r >= 31 ? formula.replace(/F(\d+)/g, 'H$1') : `F${r}`
+      const h = set(`H${r}`, { formula: hf, result: cl[key] }, { numFmt: ACC, font: isTotal ? bold : font })
       if (isTotal) h.border = { top: thin, bottom: double }
     }
     if (pv) {
@@ -149,7 +151,7 @@ function buildFrontSheet(ws: Worksheet, d: AppDoc, constructionRef: string, vo: 
 }
 
 // ---------- 2. priced SoW ----------
-const SOW_WIDTHS = [6.45, 58.36, 1.36, 11.36, 11.36, 13.09, 13, 15.82, 16.45, 16.45, 24.82, 3.36, 15.82, 16.82]
+const SOW_WIDTHS = [6.45, 58.36, 1.36, 11.36, 11.36, 13.09, 13, 15.82, 16.45, 16.45, 24.82, 3.36, 15.82, 16.82, 34]
 
 function buildSow(ws: Worksheet, d: AppDoc) {
   const n = d.app.app_no
@@ -163,7 +165,7 @@ function buildSow(ws: Worksheet, d: AppDoc) {
   ws.getCell('F4').value = d.sowRev
   ws.getCell('F4').font = { bold: true }
 
-  const heads = ['#', 'Description', '', 'Quantity', 'Unit', 'Rate', 'Total', 'Section Total', `dbp Application ${n} %`, `dbp Application ${n} £`, 'dbp comments', '', `Client Assessment ${n} %`, `Client Assessment ${n} £`]
+  const heads = ['#', 'Description', '', 'Quantity', 'Unit', 'Rate', 'Total', 'Section Total', `dbp Application ${n} %`, `dbp Application ${n} £`, 'dbp comments', '', `Client Assessment ${n} %`, `Client Assessment ${n} £`, 'Client comments']
   heads.forEach((h, i) => {
     const c = ws.getCell(5, i + 1)
     c.value = h
@@ -238,14 +240,15 @@ function buildSow(ws: Worksheet, d: AppDoc) {
         ws.getCell(r, 9).value = a.pct_claimed
         ws.getCell(r, 10).value = { formula: `I${r}*G${r}`, result: a.amount_claimed ?? 0 }
       }
-      if (a?.client_pct != null) {
-        ws.getCell(r, 13).value = a.client_pct
-        ws.getCell(r, 14).value = { formula: `M${r}*G${r}`, result: a.client_amount ?? 0 }
-      }
+      // the Client Assessment starts at 0% and always carries its formula
+      ws.getCell(r, 13).value = a?.client_pct ?? 0
+      ws.getCell(r, 14).value = { formula: `M${r}*G${r}`, result: a?.client_amount ?? 0 }
     }
     ws.getCell(r, 9).numFmt = ws.getCell(r, 13).numFmt = PCT
     ws.getCell(r, 10).numFmt = ws.getCell(r, 14).numFmt = SOW_NUM
     ws.getCell(r, 11).value = a?.comment ?? null
+    ws.getCell(r, 15).value = a?.client_comment ?? null
+    ws.getCell(r, 15).alignment = { wrapText: true, vertical: 'top' }
     ws.getCell(r, 11).alignment = { wrapText: true, vertical: 'top' }
     for (const c of [1, 7, 9, 10, 13, 14]) ws.getCell(r, c).alignment = { vertical: 'top' }
     grid(r, [1, 2, 4, 5, 6, 7, 8])
@@ -265,7 +268,7 @@ function buildSow(ws: Worksheet, d: AppDoc) {
 }
 
 // ---------- 3. VO Summary ----------
-const VO_WIDTHS = [6.82, 1.36, 9.63, 52.82, 11.09, 11, 13.45, 12.09, 13.82, 41.63, 11.45, 12.36, 35.36]
+const VO_WIDTHS = [6.82, 1.36, 9.63, 52.82, 11.09, 11, 13.45, 12.09, 13.82, 41.63, 11.45, 12.36, 35.36, 14, 15]
 
 function buildVoSummary(ws: Worksheet, d: AppDoc) {
   const byVo = new Map(d.lines.filter((l) => l.variation_id).map((l) => [l.variation_id!, l]))
@@ -278,7 +281,7 @@ function buildVoSummary(ws: Worksheet, d: AppDoc) {
   ws.getCell('D6').numFmt = DATE
   ws.getCell('D6').alignment = { horizontal: 'left' }
 
-  const heads = ['VO No.', 'Name', 'Date', 'Budget', 'Firm', 'Instructed', 'CAI number', 'Notes', '% Claimed', '£ Claimed', 'Comments']
+  const heads = ['VO No.', 'Name', 'Date', 'Budget', 'Firm', 'Instructed', 'CAI number', 'Notes', '% Claimed', '£ Claimed', 'Comments', 'Client Assessment %', 'Client Assessment £']
   heads.forEach((h, i) => {
     const c = ws.getCell(11, i + 3)
     c.value = h
@@ -311,9 +314,15 @@ function buildVoSummary(ws: Worksheet, d: AppDoc) {
       row.getCell(12).value = { formula: `K${r}*G${r}`, result: a.amount_claimed ?? 0 }
     }
     row.getCell(13).value = a?.comment ?? ''
+    if (build.priced && vo.status !== 'rejected') {
+      row.getCell(14).value = a?.client_pct ?? 0
+      row.getCell(15).value = { formula: `N${r}*G${r}`, result: a?.client_amount ?? 0 }
+    }
+    row.getCell(14).numFmt = PCT
+    row.getCell(15).numFmt = '#,##0.00'
     for (const c of [6, 7, 12]) row.getCell(c).numFmt = '#,##0.00'
     row.getCell(11).numFmt = PCT
-    for (let c = 3; c <= 13; c++) row.getCell(c).border = { top: thin, bottom: thin, left: thin, right: thin }
+    for (let c = 3; c <= 15; c++) row.getCell(c).border = { top: thin, bottom: thin, left: thin, right: thin }
     if (vo.status !== 'rejected') {
       if (build.priced) counted.push(`G${r}`)
       else if (vo.budget_value != null) counted.push(`F${r}`)
@@ -327,6 +336,13 @@ function buildVoSummary(ws: Worksheet, d: AppDoc) {
   ws.getCell(r, 12).numFmt = '#,##0.00'
   ws.getCell(r, 12).font = { bold: true }
 
+  // the client's assessment of the variations: feeds the Client Assessment column of the front sheet
+  ws.getCell(r, 14).value = 'Total Client Assessment'
+  ws.getCell(r, 14).font = { bold: true }
+  ws.getCell(r, 15).value = { formula: d.vos.length ? `SUM(O12:O${last})` : '0', result: d.fsClient?.voClaimed ?? 0 }
+  ws.getCell(r, 15).numFmt = '#,##0.00'
+  ws.getCell(r, 15).font = { bold: true }
+
   // firm where priced, budget until then; rejected VOs left out (as the Variations export)
   ws.getCell('C9').value = 'Total To Date Projected Increase'
   ws.getCell('C9').font = { bold: true }
@@ -336,5 +352,5 @@ function buildVoSummary(ws: Worksheet, d: AppDoc) {
   ws.getCell('G10').value = '↑'
   ws.getCell('G10').alignment = { horizontal: 'center' }
 
-  return { projectedRef: "'VO Summary'!G9", claimedRef: `'VO Summary'!L${r}`, lastRow: r }
+  return { projectedRef: "'VO Summary'!G9", claimedRef: `'VO Summary'!L${r}`, clientRef: `'VO Summary'!O${r}`, lastRow: r }
 }

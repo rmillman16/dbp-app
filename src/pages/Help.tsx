@@ -211,6 +211,12 @@ const SECTIONS: Section[] = [
           <b>Estimating</b> holds enquiries and quotations, including the tender enquiry generator, and tender meeting minutes. A won enquiry is set up as a job and its meetings move across. In a job, <b>Variations</b>, <b>Quotations</b>, <b>Applications</b>, <b>Orders</b>, <b>Cashflow</b>, <b>CVR</b> and <b>EOT</b> cover the money side. <b>Contracts</b> is the company-wide view.
         </p>
         <p>
+          <b>Applications, making them quicker:</b> a new application starts from the last one: the percentages, the Client Assessment (it starts at 0% on the first application and then keeps what the client last certified) and the comments all carry on, and a <b>Last %</b> column shows where each line was. <b>Clear carried-over comments</b> removes the ones you have not changed. <b>Suggest from programme</b> proposes each section&rsquo;s % from the programme&rsquo;s progress (it only raises a line, and you check it). <b>Check before issuing</b> lists anything odd: over 100%, a line that went down, agreed variations not claimed. Use the steps along the top (Draft, Checked, Issued, Certified, Paid) to show where it is up to, and enter what the client certified, which may differ from what we claimed. The Excel export has the Client Assessment as live formulas, and the VO Summary has Client Assessment % and £ columns that feed the front sheet.
+        </p>
+        <p>
+          <b>Variations:</b> change a status straight from the list, delete one with the bin (it always asks first). The job team is told on the bell when a variation is agreed. The site team can see the list and statuses but no values.
+        </p>
+        <p>
           <b>Applications:</b> press <b>+ New application</b> and a small panel asks two things. Tick <b>Practical completion has been achieved</b> to halve the retention on that application and every later one (confetti when you tick it). Tick <b>This is the final account</b> when the application is the last one: the list then shows a “Final account” tag and a note that the project is finished off. Both can also be changed inside an application.
         </p>
         <p>

@@ -41,9 +41,10 @@ export function setupPage(ws: Worksheet, widths: number[], lastRow: number, orie
   return scale
 }
 
-export function placeLogo(ws: Worksheet, logoId: number, widths: number[], scale: number) {
-  const w = (60 * MM_TO_PX * 100) / scale
-  const h = (15 * MM_TO_PX * 100) / scale
+// maxPx: a sheet that prints small would show the logo very large on screen, so it can be capped (the application, 26 Nov)
+export function placeLogo(ws: Worksheet, logoId: number, widths: number[], scale: number, maxPx?: number) {
+  const w = Math.min((60 * MM_TO_PX * 100) / scale, maxPx ?? Infinity)
+  const h = w / 4
   const pxWidths = widths.map(colPx)
   let left = pxWidths.reduce((s, x) => s + x, 0) - w - 4 // keep just inside the print area
   let col = 0

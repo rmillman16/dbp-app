@@ -205,12 +205,13 @@ export interface SowLine {
   sort: number
 }
 
-export type AppStatus = 'draft' | 'submitted' | 'assessed' | 'paid'
+export type AppStatus = 'draft' | 'checked' | 'submitted' | 'assessed' | 'paid'
 
 export const APP_STATUS_LABELS: Record<AppStatus, string> = {
   draft: 'Draft',
-  submitted: 'Submitted',
-  assessed: 'Assessed',
+  checked: 'Checked', // script 102
+  submitted: 'Issued',
+  assessed: 'Certified',
   paid: 'Paid',
 }
 
