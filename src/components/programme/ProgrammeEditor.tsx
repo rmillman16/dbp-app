@@ -70,6 +70,8 @@ import GenerateProgramme from '../GenerateProgramme'
 import type { Job } from '../../lib/types'
 import ProgrammeChart, { DEFAULT_COL_WIDTHS, type Zoom } from './ProgrammeChart'
 import IssueMenu from './ProgrammeIssue'
+import { useAccess } from '../../lib/access'
+import { supabase } from '../../lib/supabase'
 import { summaryProgrammePdf } from '../../lib/programmeSummaryPdf'
 import { issueView } from '../../lib/programmeViews'
 import { downloadBlob } from '../../lib/letter'
@@ -114,12 +116,15 @@ export default function ProgrammeEditor({
   ownerName,
   job,
   defaults,
+  onReset,
 }: {
   owner: Owner
   ownerName: string
   job?: Job
   defaults: { start?: string | null; pc?: string | null }
+  onReset?: () => void // the whole programme was deleted (History, admins): load afresh
 }) {
+  const { isAdmin, me } = useAccess()
   const [w, setW] = useState<Working | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -632,9 +637,10 @@ export default function ProgrammeEditor({
             setError(null)
             try {
               const blob = await summaryProgrammePdf(issueView(base, { kind: 'client', summary: false }), {
-                title: 'Summary programme',
-                subtitle: ownerName,
-                revision: lastRev ? revName(lastRev.rev_no) : undefined,
+                title: ownerName,
+                revision: lastRev ? revName(lastRev.rev_no) : 'Draft',
+                status: 'Draft',
+                by: me?.email ?? me?.full_name ?? '',
                 logoUrl: '/dbp-logo.png',
               })
               downloadBlob(blob, `${ownerName} - Summary programme.pdf`)
@@ -1006,6 +1012,9 @@ export default function ProgrammeEditor({
           onMakeOriginal={(no) => apply(setSetting(w, { contract_rev: no }), `make ${revName(no)} the original programme`)}
           onCompare={(no) => (setDialog(null), showCompare(no))}
           onClose={() => setDialog(null)}
+          isAdmin={isAdmin}
+          onRevisionsChanged={async () => setRevisions(await listRevisions(programme.id))}
+          onProgrammeDeleted={() => (setDialog(null), onReset?.())}
           onRestore={(state, label) => {
             const p = fromTimeline(state)
             const next = prepare(
@@ -1437,7 +1446,13 @@ function HistoryDialog({
   onCompare,
   onClose,
   onRestore,
+  isAdmin,
+  onRevisionsChanged,
+  onProgrammeDeleted,
 }: {
+  isAdmin: boolean
+  onRevisionsChanged: () => void
+  onProgrammeDeleted: () => void
   programmeId: string
   revisions: ProgrammeRevision[]
   current: TLState
@@ -1478,6 +1493,25 @@ function HistoryDialog({
     } catch (e) {
       setErr((e as Error).message)
     }
+  }
+  // admins: remove a revision, or the whole programme, that was made in error
+  const removeRevision = async (r: ProgrammeRevision) => {
+    const wasOriginal = r.rev_no === original
+    if (!confirm(`Delete ${revName(r.rev_no)} permanently? It cannot be undone.${wasOriginal ? ' It is marked as the original programme: that marking is cleared too.' : ''}`)) return
+    setErr(null)
+    const d = await supabase.from('programme_revisions').delete().eq('id', r.id).select('id')
+    if (d.error) return setErr(d.error.message)
+    if (!d.data?.length) return setErr('It was not deleted: only admins can delete a revision.')
+    if (wasOriginal) await supabase.from('programmes').update({ contract_rev: null }).eq('id', programmeId)
+    onRevisionsChanged()
+  }
+  const removeProgramme = async () => {
+    if (!confirm('Delete this whole programme (every task and every revision) permanently? Use this only for a programme made in error. The cashflow and procurement work from the programme, so make sure another is in place first. It cannot be undone.')) return
+    setErr(null)
+    const d = await supabase.from('programmes').delete().eq('id', programmeId).select('id')
+    if (d.error) return setErr(d.error.message)
+    if (!d.data?.length) return setErr('It was not deleted: only admins can delete a programme, and not on an archived job.')
+    onProgrammeDeleted()
   }
   const fetchOne = async (no: number) => (await loadRevisionData(programmeId, [no]))[0]?.data as TLState
   return (
@@ -1544,9 +1578,21 @@ function HistoryDialog({
             >
               Restore
             </button>
+            {isAdmin && (
+              <button className="tl-btn tl-btn-sm" onClick={() => removeRevision(r)} title="Admins: delete this revision">
+                Delete
+              </button>
+            )}
           </div>
         </div>
       ))}
+      {isAdmin && (
+        <p className="tl-p">
+          <button className="tl-btn tl-btn-sm" onClick={removeProgramme} title="Admins: for a programme made in error">
+            Delete this whole programme…
+          </button>
+        </p>
+      )}
     </Modal>
   )
 }

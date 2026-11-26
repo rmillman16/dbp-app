@@ -135,3 +135,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `091_inventory_returns.sql` | Inventory: mark issued items returned (back into the stock) or lost (stay off it) (run after 090) | Run 26 Nov |
 | `092_inventory_codes_archive.sql` | Inventory: every item gets a code (W6-0001…) for labelling / barcodes; a lost last item is archived and can be restored (run after 091) | Run 26 Nov |
 | `094_delete_jobs.sql` | Admins can delete a job made in error (everything filed under it goes too; run after 093) | Run 26 Nov |
+| `095_programme_delete_admin.sql` | Only admins can delete a programme or a saved programme revision (from History); run after 094 | Not run yet |
