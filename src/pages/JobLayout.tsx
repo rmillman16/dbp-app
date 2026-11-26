@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { useAccess, type Section } from '../lib/access'
 import { NoAccess } from '../components/NoAccess'
 import ReadOnlyArea from '../components/ReadOnlyArea'
@@ -50,6 +50,7 @@ export default function JobLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { can, isAdmin } = useAccess()
   const [archiveErr, setArchiveErr] = useState<string | null>(null)
+  const navigate = useNavigate()
 
   // close the sections dropdown whenever you move to another section
   useEffect(() => setMenuOpen(false), [pathname])
@@ -77,6 +78,22 @@ export default function JobLayout() {
       .single()
     if (r.error) setArchiveErr(saveError(r.error))
     else setJob(r.data as Job)
+  }
+
+  // deleting a job made in error (26 Nov, script 094): admins only; everything filed under it goes too, so the job number is typed to confirm
+  async function deleteJob() {
+    if (!job) return
+    const typed = window.prompt(
+      `Delete ${job.job_no} ${job.code} · ${job.name}?\n\nThis permanently removes the job and everything filed under it (programme, minutes, orders, RFIs, snags and so on). It cannot be undone. If the job was real, archive it instead.\n\nType the job number (${job.job_no}) to confirm:`,
+    )
+    if (typed === null) return
+    if (typed.trim().toLowerCase() !== String(job.job_no).toLowerCase()) return setArchiveErr('That was not the job number, so nothing was deleted.')
+    setArchiveErr(null)
+    if (!navigator.onLine) return setArchiveErr('You are offline: a job can only be deleted with a connection.')
+    const r = await supabase.from('jobs').delete().eq('id', job.id).select('id')
+    if (r.error) return setArchiveErr(saveError(r.error))
+    if (!r.data?.length) return setArchiveErr('The job was not deleted. Script 094 may not have been run in Supabase yet (supabase/README.md), or you are not an admin.')
+    navigate('/jobs', { replace: true })
   }
 
   if (error) return <p className="error">{error}</p>
@@ -127,6 +144,11 @@ export default function JobLayout() {
         {isAdmin && (
           <button className="small-button job-archive" onClick={() => setArchived(job.status !== 'archived')}>
             {job.status === 'archived' ? 'Unarchive' : 'Archive'}
+          </button>
+        )}
+        {isAdmin && (
+          <button className="small-button job-archive" onClick={deleteJob} title="Delete a job made in error (admins only)">
+            Delete
           </button>
         )}
       </div>

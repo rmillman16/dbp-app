@@ -84,6 +84,10 @@ export interface MeetingSummary {
   date: string
   updatedAt: number
   attendees: Pick<Attendee, 'id' | 'name' | 'initials' | 'present'>[]
+  no?: number | null // meeting number (085)
+  type?: string | null // meeting type key, see MEETING_TYPES
+  rev?: number // times issued
+  locked?: boolean
 }
 
 export const uid = () => crypto.randomUUID()
@@ -507,6 +511,10 @@ export async function loadMeetingList(owner: MinutesOwner): Promise<MeetingSumma
       date: m.meeting_date,
       updatedAt: new Date(m.updated_at).getTime(),
       attendees: byMeeting.get(m.id) ?? [],
+      no: m.meeting_no ?? null,
+      type: m.meeting_type ?? null,
+      rev: m.issued_rev ?? 0,
+      locked: !!m.locked,
     }))
   })
 }

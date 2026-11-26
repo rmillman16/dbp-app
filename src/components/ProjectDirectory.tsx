@@ -173,6 +173,7 @@ function AddToDirectory({
   onCancel: () => void
 }) {
   const [companyId, setCompanyId] = useState('')
+  const [coText, setCoText] = useState('') // what is typed in the company box
   const [newCo, setNewCo] = useState<{ name: string; type: CompanyType } | null>(null)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [newPeople, setNewPeople] = useState<{ name: string; email: string; phone: string }[]>([])
@@ -181,7 +182,16 @@ function AddToDirectory({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const mine = contacts.filter((c) => c.company_id === companyId)
-  const groupsOf = (types: CompanyType[]) => companies.filter((c) => types.includes(c.type))
+  const label = (c: Company) => (c.trade ? `${c.name} (${c.trade})` : c.name)
+  const byLabel = new Map(companies.map((c) => [label(c).toLowerCase(), c]))
+  // typing narrows the list; choosing a name sets the company; a name that is not there can be added
+  function typeCompany(v: string) {
+    setCoText(v)
+    const hit = byLabel.get(v.trim().toLowerCase()) ?? companies.find((c) => c.name.toLowerCase() === v.trim().toLowerCase())
+    setCompanyId(hit?.id ?? '')
+    setPicked(new Set())
+    if (hit) setNewCo(null)
+  }
 
   async function makeCompany() {
     if (!newCo?.name.trim()) return
@@ -190,6 +200,7 @@ function AddToDirectory({
     if (r.error) return setError(saveError(r.error))
     onCompany(r.data as Company)
     setCompanyId(r.data.id)
+    setCoText(r.data.name)
     setNewCo(null)
   }
 
@@ -232,18 +243,15 @@ function AddToDirectory({
     <div className="quick-add">
       <div className="form-grid">
         <label className="span-2">
-          Company
-          <select value={companyId} onChange={(e) => (setCompanyId(e.target.value), setPicked(new Set()))}>
-            <option value="">Choose…</option>
-            <optgroup label="Subcontractors">{groupsOf(['subcontractor']).map((c) => <option key={c.id} value={c.id}>{c.name}{c.trade ? ` (${c.trade})` : ''}</option>)}</optgroup>
-            <optgroup label="Suppliers">{groupsOf(['supplier']).map((c) => <option key={c.id} value={c.id}>{c.name}{c.trade ? ` (${c.trade})` : ''}</option>)}</optgroup>
-            <optgroup label="Client, consultants and others">{groupsOf(['client', 'consultant', 'designer', 'other']).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>
-          </select>
-          {!newCo && (
-            <button type="button" className="small-button quick-add-btn" onClick={() => setNewCo({ name: '', type: 'consultant' })}>
-              + New company
-            </button>
-          )}
+          Company <small className="muted">search the list, or type a new name and add it</small>
+          <SuggestInput
+            value={coText}
+            onChange={typeCompany}
+            options={companies.map(label)}
+            limit={40}
+            placeholder="Search companies…"
+            onAdd={(name) => setNewCo({ name, type: 'consultant' })}
+          />
         </label>
         {newCo && (
           <div className="span-2 inline-add">

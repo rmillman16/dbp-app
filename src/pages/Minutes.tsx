@@ -277,7 +277,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
 
   // ---------- saving ----------
   function summaryOf(m: M.Meeting): M.MeetingSummary {
-    return { id: m.id, jobId: m.jobId, enquiryId: m.enquiryId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees }
+    return { id: m.id, jobId: m.jobId, enquiryId: m.enquiryId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees, no: m.no, type: m.type, rev: m.rev, locked: m.locked }
   }
   function scheduleSave() {
     const target = activeRef.current
@@ -534,8 +534,14 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
         }}
       >
         <div className="mi-top">
-          <span className="mi-project">{m.subtitle || 'Meeting'}</span>
+          <span className="mi-project">
+            {m.no ? `Meeting ${m.no}` : 'Meeting'}
+            {M.meetingTypeOf(m.type) ? ` · ${M.meetingTypeOf(m.type)!.label}` : ''}
+          </span>
           <span className="mi-date">{M.formatDateSidebar(m.date)}</span>
+        </div>
+        <div className="mi-subtitle" title={m.subtitle || undefined}>
+          {m.subtitle || <i>No subject yet: add one at the top of the minutes</i>}
         </div>
         <div className="mi-bottom">
           <div className="mi-avatars">
@@ -551,6 +557,12 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
             )}
           </div>
           <div className="mi-right">
+            <span className={'mi-pill' + (m.locked ? ' issued' : '')} title={m.locked ? `Issued (revision ${m.rev})` : m.rev ? `Amended after issue (issued ${m.rev} time${m.rev === 1 ? '' : 's'})` : 'Not issued yet'}>
+              {m.locked ? `Issued${m.rev ? ' rev ' + m.rev : ''}` : m.rev ? 'Amending' : 'Draft'}
+            </span>
+            <span className="mi-count" title={m.attendees.map((a) => a.name).join(', ')}>
+              {m.attendees.filter((a) => a.present !== false).length} present
+            </span>
             {!readOnly &&
               (confirmDel === m.id ? (
                 <span className="mi-confirm" data-del>
@@ -608,7 +620,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     const all = sidebarMeetings()
     const q = query.trim().toLowerCase()
     if (q) {
-      const filtered = all.filter((m) => [m.subtitle, ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
+      const filtered = all.filter((m) => [m.subtitle, m.no ? 'meeting ' + m.no : '', M.meetingTypeOf(m.type)?.label ?? '', ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
       if (!filtered.length) return <div className="meeting-empty">No meetings match “{q}”.</div>
       return filtered.map(renderMeetingItem)
     }
