@@ -139,3 +139,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `096_meeting_format.sql` | Minutes: each meeting is marked internal, external, 1-to-1 or workshop (run after 095) | Run 26 Nov |
 | `097_meeting_kinds_free.sql` | Minutes: new standard kinds, and jobs can add their own (run after 096) | Run 26 Nov |
 | `098_enquiry_start_duration_cdp.sql` | Estimating › enquiry: proposed start date, proposed duration and CDP items, which feed into the tender emails | Run 26 Nov (via migration) |
+| `099_delete_enquiries.sql` | Admins can delete an estimating enquiry made in error (not one that was won) | **Run it** |

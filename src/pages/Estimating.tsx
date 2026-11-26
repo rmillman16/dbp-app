@@ -340,8 +340,30 @@ export function EnquiryForm() {
 // a link to its tab. Programme, Minutes, RFIs, Tender enquiries and Tender return.
 export function EnquiryPage() {
   const { enquiryId } = useParams()
+  const navigate = useNavigate()
+  const isAdmin = useIsAdmin()
   const [e, setE] = useState<Enquiry | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [delErr, setDelErr] = useState<string | null>(null)
+
+  // deleting an enquiry made in error (26 Nov, script 099): admins only, not once won; the reference is typed to confirm
+  async function deleteEnquiry() {
+    if (!e) return
+    const ref = enquiryRef(e)
+    const typed = window.prompt(`Delete ${ref} · ${e.name}?
+
+This permanently removes the enquiry with its programme, minutes, RFIs, tender enquiries and quotations. It cannot be undone.
+
+Type the enquiry reference (${ref}) to confirm:`)
+    if (typed === null) return
+    if (typed.trim().toLowerCase() !== ref.toLowerCase()) return setDelErr('That was not the enquiry reference, so nothing was deleted.')
+    setDelErr(null)
+    if (!navigator.onLine) return setDelErr('You are offline: an enquiry can only be deleted with a connection.')
+    const r = await supabase.from('enquiries').delete().eq('id', e.id).select('id')
+    if (r.error) return setDelErr(saveError(r.error))
+    if (!r.data?.length) return setDelErr('The enquiry was not deleted. Script 099 may not have been run in Supabase yet (supabase/README.md), or you are not an admin.')
+    navigate('/estimating', { replace: true })
+  }
 
   useEffect(() => {
     loadEnquiry(enquiryId!).then(setE, (err: Error) => setError(err.message))
@@ -415,6 +437,14 @@ export function EnquiryPage() {
         </section>
         <EnquiryTiles e={e} />
       </div>
+      {isAdmin && !e.job_id && (
+        <p style={{ marginTop: 16 }}>
+          <button className="small-button" onClick={deleteEnquiry} title="Delete an enquiry made in error (admins only)">
+            Delete this enquiry
+          </button>
+        </p>
+      )}
+      {delErr && <p className="error">{delErr}</p>}
     </>
   )
 }
