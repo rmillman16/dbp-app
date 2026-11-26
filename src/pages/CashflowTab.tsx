@@ -310,8 +310,10 @@ export default function CashflowTab() {
 function activitiesText(it: CashflowItem, tasks: ProgrammeTask[]) {
   const codes = new Set([...it.tasks, ...it.weights.flatMap((w) => w.task_codes ?? [])])
   if (!codes.size) return <span className="muted">none yet</span>
-  const names = [...codes].map((c) => (c === SITE ? SITE_LABEL : (tasks.find((t) => t.code === c)?.code ?? `${c} (gone)`)))
-  return names.length > 3 ? `${names.slice(0, 3).join(', ')} +${names.length - 3}` : names.join(', ')
+  const names = [...codes].map((c) => (c === SITE ? SITE_LABEL : (tasks.find((t) => t.code === c)?.name ?? `${c} (gone)`)))
+  // the programme's activity names (not their internal codes), the first few, the rest on hover
+  const all = names.join(', ')
+  return <span title={all}>{names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` : names.join(', ')}</span>
 }
 
 function weightingText(it: CashflowItem, stages: CfStage[]) {
