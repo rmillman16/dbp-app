@@ -37,6 +37,8 @@ import {
 import Loading from '../components/Loading'
 import SuggestInput from '../components/SuggestInput'
 import MoneyInput from '../components/MoneyInput'
+import ScopeListEditor, { type ScopeDraft } from '../components/ScopeListEditor'
+import { addScopeItems, loadLevelling, loadScope, levelTotals, parseScope, scopeText, type LevelCell, type LevelExtra, type ScopeItem } from '../lib/levelling'
 
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
@@ -58,7 +60,9 @@ export default function TenderEnquiry() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // only what is particular to this package is typed here: everything else comes from the enquiry and from My details
-  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', scope: '', link: '' })
+  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', link: '' })
+  const [scopeItems, setScopeItems] = useState<ScopeDraft[]>([])
+  const scopeStr = scopeText(scopeItems)
   const [trades, setTrades] = useState<string[]>([])
   const [drawings, setDrawings] = useState<File[]>([])
   const [dragDraw, setDragDraw] = useState(false)
@@ -101,7 +105,7 @@ export default function TenderEnquiry() {
   const sender = me?.full_name ?? ''
   const phone = me?.phone ?? ''
   const ret = enquiry?.due_date ?? ''
-  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', start: ukDate(enquiry?.proposed_start ?? null), duration: enquiry?.proposed_duration ?? '', cdp: enquiry?.cdp_items ?? '', link: f.link, scope: attachScope && f.scope.trim() ? 'The scope of works for this package is attached.' : f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
+  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', start: ukDate(enquiry?.proposed_start ?? null), duration: enquiry?.proposed_duration ?? '', cdp: enquiry?.cdp_items ?? '', link: f.link, scope: attachScope && scopeStr.trim() ? 'The scope of works for this package is attached.' : scopeStr, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
 
   const pkgWords = f.pkg.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
   const matchesTrade = (c: Co) => !!c.trade && (pkgWords.length === 0 || pkgWords.some((w) => c.trade!.toLowerCase().includes(w)) || f.pkg.toLowerCase().includes(c.trade.toLowerCase()))
@@ -140,8 +144,8 @@ export default function TenderEnquiry() {
       const fresh = drawings.filter((x) => !uploaded.current.has(x))
       const paths = await uploadDrawings(enquiry.id, fresh)
       fresh.forEach((x, i) => uploaded.current.set(x, paths[i]))
-      const text = await draftScope({ paths: drawings.map((x) => uploaded.current.get(x)!), package: f.pkg, job: `${enquiryRef(enquiry)} ${enquiry.name}`, address: mail.address, summary: mail.summary, notes: mail.notes, existing: f.scope })
-      set('scope', text)
+      const text = await draftScope({ paths: drawings.map((x) => uploaded.current.get(x)!), package: f.pkg, job: `${enquiryRef(enquiry)} ${enquiry.name}`, address: mail.address, summary: mail.summary, notes: mail.notes, existing: scopeStr })
+      setScopeItems(parseScope(text))
       setAttachScope(true)
     } catch (e) {
       setScopeErr(saveError(e))
@@ -155,8 +159,8 @@ export default function TenderEnquiry() {
     setError(null)
     try {
       const extra: Attachment[] = files.map((x) => ({ name: x.name, blob: x }))
-      if (attachScope && f.scope.trim()) {
-        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, scope: f.scope, returnBy: ukDate(ret) }) })
+      if (attachScope && scopeStr.trim()) {
+        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, scope: scopeStr, returnBy: ukDate(ret) }) })
       }
       const skipped: string[] = []
       const pqqSent: string[] = []
@@ -184,10 +188,11 @@ export default function TenderEnquiry() {
         await new Promise((r) => setTimeout(r, 350)) // browsers drop downloads that arrive all at once
         invites.push({ company_id: c.id, contact_id: k?.id ?? null, name: c.name, email: emailOf(c), status: 'drafted', sent_on: null, chased_count: 0, last_chased_on: null, quote_amount: null, quote_received_on: null, notes: null })
       }
-      await createPackage(
-        { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: f.scope || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
+      const made = await createPackage(
+        { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: scopeStr || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
         invites,
       )
+      await addScopeItems(made.id, scopeItems.filter((x) => x.description.trim()))
       if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Supply Chain.`)
       navigate(`/estimating/e/${enquiryId}`)
     } catch (e) {
@@ -332,16 +337,18 @@ export default function TenderEnquiry() {
             )}
             <div className="span-2 button-row">
               <button type="button" className="primary" disabled={scopeBusy || !drawings.length || !f.pkg} onClick={makeScope} title={!f.pkg ? 'Pick the package first (step 1)' : ''}>
-                {scopeBusy ? 'Reading the drawings… this can take a minute or two' : f.scope.trim() ? 'Draft the scope again from the drawings' : 'Draft the scope of works from the drawings'}
+                {scopeBusy ? 'Reading the drawings… this can take a minute or two' : scopeStr.trim() ? 'Draft the scope again from the drawings' : 'Draft the scope of works from the drawings'}
               </button>
             </div>
             <Toast message={scopeErr} onClose={() => setScopeErr(null)} />
             <label className="span-2">
-              Scope of works {f.scope.trim() && <small className="muted">(a draft: check it against the drawings and edit)</small>}
-              <textarea rows={14} value={f.scope} onChange={(e) => set('scope', e.target.value)} placeholder="Draft it from the drawings above, or type it yourself." />
+              Scope of works <small className="muted">The contractors see this list, and their prices are levelled against it afterwards.</small>
             </label>
+            <div className="span-2">
+              <ScopeListEditor items={scopeItems} onChange={setScopeItems} />
+            </div>
             <label className="check span-2">
-              <input type="checkbox" checked={attachScope} disabled={!f.scope.trim()} onChange={(e) => setAttachScope(e.target.checked)} /> Attach the scope of works to each email (as a PDF)
+              <input type="checkbox" checked={attachScope} disabled={!scopeStr.trim()} onChange={(e) => setAttachScope(e.target.checked)} /> Attach the scope of works to each email (as a PDF)
             </label>
           </section>
 
@@ -788,7 +795,19 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
   const [adding, setAdding] = useState<string | null>(null)
   const today = todayIso()
 
-  const load = () => loadTracker().then(setData, (e: Error) => setError(e.message))
+  const [lev, setLev] = useState<{ items: ScopeItem[]; cells: LevelCell[]; extras: LevelExtra[] }>({ items: [], cells: [], extras: [] })
+  const load = () =>
+    loadTracker().then(async (d) => {
+      setData(d)
+      // the scope lists and levelling are an extra: the tracker still works if script 094 has not been run
+      try {
+        const items = await loadScope(d.packages.map((p) => p.id))
+        const l = await loadLevelling(d.invites.map((i) => i.id))
+        setLev({ items, ...l })
+      } catch {
+        /* no levelling yet */
+      }
+    }, (e: Error) => setError(e.message))
   useEffect(() => {
     load()
     supabase.from('enquiries').select('*').then((r) => setEnq(Object.fromEntries(((r.data ?? []) as Enquiry[]).map((e) => [e.id, e]))))
@@ -881,6 +900,13 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
         const waiting = all.filter((i) => AWAITING.includes(i.status)).length
         const quotes = all.filter((i) => i.quote_amount != null)
         const late = p.return_date < today && waiting > 0
+        const scopeItems = lev.items.filter((x) => x.package_id === p.id && x.kind === 'item')
+        const levelledFor = (i: TenderInvite) => {
+          const mineCells = lev.cells.filter((c) => c.invite_id === i.id)
+          const mineExtras = lev.extras.filter((x) => x.invite_id === i.id)
+          if (!scopeItems.length || (!mineCells.some((c) => c.status !== 'tbc') && !mineExtras.length)) return null
+          return levelTotals(lev.items.filter((x) => x.package_id === p.id), mineCells, mineExtras, i.quote_amount)
+        }
         const low = quotes.length ? Math.min(...quotes.map((i) => Number(i.quote_amount))) : null
         return (
           <div key={p.id} className="tt-package">
@@ -898,6 +924,9 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                     Mark all drafts as sent
                   </button>
                 )}
+                <button className="small-button" title="List the scope of this package and level the contractors' prices against it" onClick={() => navigate(`/estimating/e/${p.enquiry_id}/tender/${p.id}/level`)}>
+                  Scope & levelling{scopeItems.length ? ` (${scopeItems.length})` : ''}
+                </button>
                 <button className="small-button" title="Add another contractor you have sent this package to" onClick={() => setAdding(p.id)}>
                   + Add contractor
                 </button>
@@ -956,6 +985,14 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                     <td className="nowrap">{i.chased_count ? `${i.chased_count}× · ${ukDate(i.last_chased_on)}` : '–'}</td>
                     <td>
                       <TenderPrice key={i.id + (i.quote_amount ?? '')} invite={i} onSave={(v) => run(() => updateInvite(i.id, { quote_amount: v, ...(v != null && i.status !== 'quoted' && !['used', 'appointed', 'unsuccessful'].includes(i.status) ? statusPatch('quoted', i) : {}) }))} />
+                      {(() => {
+                        const t = levelledFor(i)
+                        return t ? (
+                          <div className="muted small tt-levelled" title="Their price levelled against the scope: plugs for what they left out, and items they added below the line">
+                            Levelled <strong>{money(t.total)}</strong>
+                          </div>
+                        ) : null
+                      })()}
                     </td>
                     <td>
                       <input defaultValue={i.notes ?? ''} key={i.id + (i.notes ?? '')} onBlur={(ev) => ev.target.value !== (i.notes ?? '') && run(() => updateInvite(i.id, { notes: ev.target.value || null }))} />

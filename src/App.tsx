@@ -43,6 +43,7 @@ const SubmittalsTab = lazy(() => import('./pages/SubmittalsTab'))
 const SubmittalPage = lazy(() => import('./pages/SubmittalPage'))
 const EnquiryRfis = lazy(() => import('./pages/EnquiryRfis'))
 const TenderEnquiry = lazy(() => import('./pages/TenderEnquiry'))
+const TenderLevelling = lazy(() => import('./pages/TenderLevelling'))
 const ExternalRoutes = lazy(() => import('./pages/ExternalPages'))
 const SnagExternal = lazy(() => import('./pages/SnagExternal'))
 const SnaggingTab = lazy(() => import('./pages/SnaggingTab'))
@@ -225,6 +226,14 @@ export default function App() {
             element={
               <A section="estimating">
                 <TenderEnquiry />
+              </A>
+            }
+          />
+          <Route
+            path="/estimating/e/:enquiryId/tender/:packageId/level"
+            element={
+              <A section="estimating">
+                <TenderLevelling />
               </A>
             }
           />

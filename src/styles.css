@@ -1625,3 +1625,29 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 14px; background: var(--navy, #1d2b4f); color: #fff; font-size: .88rem; }
 .tt-chip .muted { color: #cfd6ea; }
 .tt-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 0; }
+.scope-list { display: grid; gap: 6px; margin: 8px 0 14px; }
+.scope-row { display: flex; gap: 6px; align-items: center; }
+.scope-row input { flex: 1; }
+.scope-heading input { font-weight: 700; }
+.scope-ref { min-width: 34px; color: var(--muted, #6b7280); font-variant-numeric: tabular-nums; }
+.scope-add { display: flex; gap: 6px; align-items: center; }
+.scope-add input { flex: 1; }
+.scope-paste { margin-top: 6px; display: grid; gap: 6px; }
+.scope-paste textarea { width: 100%; }
+.level-scroll { overflow-x: auto; }
+.level-grid th, .level-totals th { min-width: 170px; vertical-align: bottom; }
+.level-grid th:first-child, .level-totals th:first-child { min-width: 240px; }
+.lv-heading td { background: #f3f4f8; font-weight: 700; }
+.lv-item { vertical-align: top; }
+.lv-cell { vertical-align: top; }
+.lv-cell select, .lv-cell input { width: 100%; margin-bottom: 4px; }
+.lv-included { background: #f1f8f2; }
+.lv-excluded { background: #fff4e5; }
+.lv-note { font-size: .85rem; }
+.lv-used { color: #1d4ed8; }
+.lv-total td { font-weight: 700; border-top: 2px solid #c9cde0; }
+.lv-low { background: #eaf6ec; }
+.lv-activity td { font-size: .88rem; vertical-align: top; }
+.lv-extra-add { margin-top: 8px; }
+.lv-extra-add input { flex: 1; }
+.tt-levelled { margin-top: 2px; }
