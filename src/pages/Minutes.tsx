@@ -511,10 +511,19 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     if (cur && !M.isMeetingEmpty(cur)) l.push(summaryOf(cur))
     return l.sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt)
   }
+  // "Client - Formal 3": the kind, then how many of that kind this job has had up to and including this one (by date)
+  function kindTitle(m: M.MeetingSummary, all: M.MeetingSummary[]) {
+    const f = M.meetingFormatOf(m.format)
+    if (!f) return 'Meeting'
+    const same = all.filter((x) => x.format === m.format && (x.jobId ?? null) === (m.jobId ?? null) && (x.enquiryId ?? null) === (m.enquiryId ?? null))
+    same.sort((a, b) => a.date.localeCompare(b.date) || (a.no ?? 0) - (b.no ?? 0) || a.updatedAt - b.updatedAt)
+    return `${f.label} ${same.findIndex((x) => x.id === m.id) + 1}`
+  }
   // the list with a heading for each month
   function withMonths(list: M.MeetingSummary[]) {
     const out: React.ReactNode[] = []
     let last = ''
+    const everyone = sidebarMeetings() // numbered across all of them, even when the list is filtered
     for (const m of list) {
       const key = (m.date || '').slice(0, 7)
       if (key !== last) {
@@ -526,7 +535,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           </div>,
         )
       }
-      out.push(renderMeetingItem(m))
+      out.push(renderMeetingItem(m, kindTitle(m, everyone)))
     }
     return out
   }
@@ -536,7 +545,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     navigate(`${base}/${id}`)
   }
 
-  function renderMeetingItem(m: M.MeetingSummary) {
+  function renderMeetingItem(m: M.MeetingSummary, title: string) {
     const avatars = m.attendees.slice(0, 4)
     const more = m.attendees.length > 4 ? m.attendees.length - 4 : 0
     return (
@@ -566,8 +575,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           <span className="mi-date">{M.formatDateSidebar(m.date)}</span>
         </div>
         <div className="mi-title">
-          {m.no ? `Meeting ${m.no}` : 'Meeting'}
-          {M.meetingTypeOf(m.type) ? ` · ${M.meetingTypeOf(m.type)!.label}` : ''}
+          {title}
         </div>
         <div className="mi-subtitle" title={m.subtitle || undefined}>
           {m.subtitle || <i>No subject yet: add one at the top of the minutes</i>}
