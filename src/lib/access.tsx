@@ -38,6 +38,7 @@ export type Section =
   | 'job_breeam'
   | 'job_progress'
   | 'job_checklist'
+  | 'job_design'
   | 'estimating'
   | 'contracts'
   | 'site'
@@ -60,6 +61,7 @@ export const SECTIONS: [Section, string, string][] = [
   ['job_breeam', 'Job › BREEAM', 'Each job’s BREEAM tracker and evidence'],
   ['job_progress', 'Job › Progress reports', 'Each job’s progress reports: write, approve, issue'],
   ['job_checklist', 'Job › Project checklist', 'The H&S and compliance checklist at the bottom of each job’s Overview (F10, construction phase plan…)'],
+  ['job_design', 'Job › Design', 'Each job’s design tools (design register, drawings, design reviews): being built, ticked for Design and Project manager to start'],
   ['job_minutes', 'Job › Minutes', 'Meeting minutes on each job (an estimate’s minutes follow Estimating). Everyone sees their own actions in Tasks'],
   ['estimating', 'Estimating', ''],
   ['contracts', 'Contracts', 'EOT clauses and wording'],

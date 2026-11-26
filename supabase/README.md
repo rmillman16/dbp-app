@@ -140,3 +140,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `097_meeting_kinds_free.sql` | Minutes: new standard kinds, and jobs can add their own (run after 096) | Run 26 Nov |
 | `098_enquiry_start_duration_cdp.sql` | Estimating › enquiry: proposed start date, proposed duration and CDP items, which feed into the tender emails | Run 26 Nov (via migration) |
 | `099_delete_enquiries.sql` | Admins can delete an estimating enquiry made in error (not one that was won) | **Run it** |
+| `100_design_access.sql` | A Job › Design part in the access grid, ticked for the Design and Project manager types | **Run it** |
