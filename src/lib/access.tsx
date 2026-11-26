@@ -27,6 +27,7 @@ export type Section =
   | 'jobs'
   | 'job_programme'
   | 'job_commercial'
+  | 'job_variations_list'
   | 'job_procurement'
   | 'job_sampling'
   | 'job_eot'
@@ -51,6 +52,7 @@ export const SECTIONS: [Section, string, string][] = [
   ['jobs', 'Jobs', 'The jobs list and each job’s Overview'],
   ['job_programme', 'Job › Programme', ''],
   ['job_commercial', 'Job › Commercial', 'Variations, quotations, applications, payment notices, cashflow, CVR'],
+  ['job_variations_list', 'Job › Variations (list only)', 'See each job’s variations and their status, with no values and no editing (for the site team). Commercial sees everything anyway'],
   ['job_procurement', 'Job › Procurement', ''],
   ['job_sampling', 'Job › Sampling', ''],
   ['job_eot', 'Job › EOT', ''],

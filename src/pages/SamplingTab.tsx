@@ -56,6 +56,9 @@ export default function SamplingTab() {
   const [msg, setMsg] = useState<string | null>(null)
   const [fl, setFl] = useState<Filters>(() => loadFilters(job.id))
   const [filtersOpen, setFiltersOpen] = useState(false)
+  // material groups folded away to save room (click a group heading)
+  const [foldedG, setFoldedG] = useState<string[]>([])
+  const foldG = (g: string) => setFoldedG((f) => (f.includes(g) ? f.filter((x) => x !== g) : [...f, g]))
   useEffect(() => setFl(loadFilters(job.id)), [job.id])
   useEffect(() => {
     try {
@@ -356,12 +359,13 @@ export default function SamplingTab() {
                   if (!list.length) return null
                   return (
                     <Fragment key={g}>
-                      <tr className="group-head">
+                      <tr className="group-head clickable" onClick={() => foldG(g)} title={foldedG.includes(g) ? 'Open this group' : 'Fold this group away'}>
                         <td colSpan={9}>
-                          {g} <span className="muted small">({list.length})</span>
+                          <span aria-hidden="true">{foldedG.includes(g) ? '▸' : '▾'}</span> {g} <span className="muted small">({list.length})</span>
                         </td>
                       </tr>
-                      {list.map((s) => {
+                      {!foldedG.includes(g) &&
+                        list.map((s) => {
                         const late = overdue(s, today)
                         const fromProg = !!s.programme_task_code && programmeDue(s, data.tasks) === s.due_date
                         return (

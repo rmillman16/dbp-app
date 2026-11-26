@@ -141,3 +141,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `098_enquiry_start_duration_cdp.sql` | Estimating › enquiry: proposed start date, proposed duration and CDP items, which feed into the tender emails | Run 26 Nov (via migration) |
 | `099_delete_enquiries.sql` | Admins can delete an estimating enquiry made in error (not one that was won) | **Run it** |
 | `100_design_access.sql` | A Job › Design part in the access grid, ticked for the Design and Project manager types | **Run it** |
+| `101_variations_notify_delete.sql` | Variations: the job team is told when one is agreed, a variation can be deleted, and a list-only Variations access part for the site team (run after 100) | **Run it** |

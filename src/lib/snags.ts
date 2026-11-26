@@ -2,7 +2,7 @@
 // status, and the task for the approver to check what a trade says is done. The trades see their own list on a private link
 // (no login), through the "snag-external" Edge Function. See supabase/070_snagging.sql.
 import { supabase } from './supabase'
-import { shrinkImage } from './image'
+import { keepPhoto } from './image'
 import { enqueue, isLocalPath, localFileUrl, newId, queued, tryOrQueue } from './outbox'
 
 export type SnagStatus = 'incomplete' | 'complete'
@@ -189,7 +189,7 @@ export async function deleteSnag(id: string) {
 
 // ---------- photos (private storage area "snags") ----------
 export async function addSnagPhoto(snagId: string, file: File, kind: SnagFile['kind'], forceQueue = false): Promise<SnagFile> {
-  const small = await shrinkImage(file)
+  const small = await keepPhoto(file)
   const fileId = newId()
   const waiting = (): SnagFile => ({ id: fileId, snag_id: snagId, kind, name: small.name, path: `local:${fileId}`, uploaded_by: null, created_at: new Date().toISOString() })
   const later = () => enqueue('Snag photo', null, { t: 'snag.photo', fileId, snagId, kind, file: small })

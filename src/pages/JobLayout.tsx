@@ -11,11 +11,11 @@ import { JOB_STATUS_LABELS, type Job } from '../lib/types'
 import Loading from '../components/Loading'
 
 // Each module is a tab inside the job; new modules are added here.
-const TABS: { to: string; label: string; soon?: boolean; section?: Section; breeam?: boolean }[] = [
+const TABS: { to: string; label: string; soon?: boolean; section?: Section; alt?: Section; breeam?: boolean }[] = [
   { to: '', label: 'Overview' },
   { to: 'programme', label: 'Programme', section: 'job_programme' },
   { to: 'minutes', label: 'Minutes', section: 'job_minutes' },
-  { to: 'variations', label: 'Variations', section: 'job_commercial' },
+  { to: 'variations', label: 'Variations', section: 'job_commercial', alt: 'job_variations_list' },
   { to: 'quotations', label: 'Quotations', section: 'job_commercial' },
   { to: 'applications', label: 'Applications', section: 'job_commercial' },
   { to: 'orders', label: 'Orders', section: 'job_commercial' },
@@ -49,10 +49,12 @@ export default function JobLayout() {
   const [error, setError] = useState<string | null>(null)
   const { pathname } = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
-  const { can, isAdmin } = useAccess()
+  const { can: canSection, isAdmin } = useAccess()
   const [archiveErr, setArchiveErr] = useState<string | null>(null)
   const navigate = useNavigate()
 
+  // a tab can also open with a lesser part (Variations: the list-only part for the site team)
+  const canTab = (t: { section?: Section; alt?: Section }) => !t.section || canSection(t.section) || (!!t.alt && canSection(t.alt))
   // close the sections dropdown whenever you move to another section
   useEffect(() => setMenuOpen(false), [pathname])
 
@@ -111,7 +113,7 @@ export default function JobLayout() {
           {cls !== 'tab' && <span className="soon">soon</span>}
         </span>
       ) : (
-        <NavLink key={t.label} to={t.to} end={t.to === ''} className={cls + (t.section && !can(t.section) ? ' locked' : '')} title={t.section && !can(t.section) ? 'You don’t have access to this yet: open it to request access' : undefined}>
+        <NavLink key={t.label} to={t.to} end={t.to === ''} className={cls + (!canTab(t) ? ' locked' : '')} title={!canTab(t) ? 'You don’t have access to this yet: open it to request access' : undefined}>
           {t.label}
         </NavLink>
       ),
@@ -182,7 +184,7 @@ export default function JobLayout() {
         )}
       </div>
 
-      {current.section && !can(current.section) ? (
+      {!canTab(current) ? (
         <NoAccess what={`${current.label} on jobs`} />
       ) : (
         <ReadOnlyArea on={job.status === 'archived'}>

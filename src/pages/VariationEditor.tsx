@@ -10,6 +10,8 @@ import { cached, must, saveError } from '../lib/offline'
 import { useJob } from './JobLayout'
 import { loadRfiForVariation } from '../lib/rfis'
 import Loading from '../components/Loading'
+import { NoAccess } from '../components/NoAccess'
+import { useAccess } from '../lib/access'
 
 // Inputs are held as text while editing and converted on save.
 interface LineDraft {
@@ -56,7 +58,14 @@ function toLine(d: LineDraft, sort: number): VariationLine {
   return line
 }
 
+// the site team can list variations (no values) but not open one
 export default function VariationEditor() {
+  const { can } = useAccess()
+  if (!can('job_commercial')) return <NoAccess what="Variation details and values" />
+  return <VariationForm />
+}
+
+function VariationForm() {
   const { voId } = useParams()
   const { job } = useJob()
   const isNew = voId === 'new'
@@ -280,9 +289,9 @@ export default function VariationEditor() {
     <form onSubmit={save}>
       <div className="sub-bar">
         <div>
-          <Link to={`/jobs/${job.id}/variations`} className="link-button small">
+          <button type="button" onClick={() => navigate(`/jobs/${job.id}/variations`)}>
             ← All variations
-          </Link>
+          </button>
           <h2>{isNew ? 'New variation' : `VO ${head.vo_no}`}</h2>
           {fromRfi && (
             <p className="muted small">

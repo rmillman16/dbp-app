@@ -24,3 +24,11 @@ export async function shrinkImage(file: File, maxSide = 1600, quality = 0.82): P
     return file
   }
 }
+
+// Snagging photos are evidence, so they are kept exactly as taken (26 Nov): a JPEG or PNG is stored untouched, full size and
+// full quality. Only a format the browser and the PDFs can't show (e.g. an iPhone HEIC) is converted to a JPEG, at the
+// original size and near-maximum quality.
+export async function keepPhoto(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || /jpe?g|png/.test(file.type)) return file
+  return shrinkImage(file, 100000, 0.97)
+}

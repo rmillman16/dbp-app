@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import HubBlock from '../components/HubBlock'
 import { useLocation } from 'react-router-dom'
-import { shrinkImage } from '../lib/image'
+import { keepPhoto } from '../lib/image'
 
 // A trades person's snag list (script 070): /s/<private link>. No login, and nothing of the rest of the app. Everything goes through
 // the "snag-external" Edge Function, which checks the link and returns only this company's snags on this one job. Made for a phone:
@@ -160,7 +160,7 @@ function SnagCard({ s, token, onChange }: { s: ExtSnag; token: string; onChange:
     try {
       const uploaded: { path: string; name: string }[] = []
       for (const f of pics) {
-        const small = await shrinkImage(f)
+        const small = await keepPhoto(f)
         const r = await call<{ path: string; url: string }>({ action: 'upload_url', token, snag_id: s.id, filename: small.name })
         const form = new FormData()
         form.append('cacheControl', '3600')
