@@ -4,7 +4,7 @@ import { saveError } from '../lib/offline'
 import { readWorkbook } from '../lib/samplingImport'
 import { CFIELDS, CFIELD_LABELS, buildCompanies, findHeader, guessMapping, normName, type CField, type CMapping, type ImportCompany } from '../lib/companyImport'
 import { ukDate } from '../lib/format'
-import { PQQ_LABELS } from '../lib/pqq'
+import { STATE_LABELS, pqqState } from '../lib/pqq'
 import type { Company, CompanyType } from '../lib/types'
 
 type Sheet = { name: string; rows: string[][] }
@@ -241,7 +241,7 @@ export default function CompanyImport({ existing, hasPqq, onClose, onDone }: { e
                         <td className="small muted">{byNorm.has(normName(c.name)) ? (update ? 'exists: fill in' : 'exists: skip') : 'new'}</td>
                         <td className="small">{TYPES.find(([k]) => k === c.type)?.[1]}</td>
                         <td className="small">{c.trade}</td>
-                        {hasPqq && <td className="small">{c.pqq_status ? PQQ_LABELS[c.pqq_status] : ''}</td>}
+                        {hasPqq && <td className="small">{c.pqq_status ? STATE_LABELS[pqqState({ pqq_status: c.pqq_status, pqq_expires_on: c.pqq_expires_on })] : ''}</td>}
                         {hasPqq && <td className="small nowrap">{c.pqq_expires_on ? ukDate(c.pqq_expires_on) : ''}</td>}
                         <td className="num">{c.contacts.length || ''}</td>
                       </tr>

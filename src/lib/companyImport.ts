@@ -233,7 +233,13 @@ export function buildCompanies(rows: string[][], headerRow: number, m: CMapping,
         const sent = date('pqq_sent_on')
         let status = parseStatus(get(r, 'pqq_status'))
         if (get(r, 'pqq_status') && !status) warnings.push(`PQQ status "${get(r, 'pqq_status')}" is not one I recognise`)
-        if (expires) status = 'approved' // an expiry date means it has a PQQ, whatever the status column says
+        // an expiry date means it has a PQQ, whatever the status column says; one already past shows as Expired in the app
+        if (expires) {
+          status = 'approved'
+          const limit = new Date()
+          limit.setUTCFullYear(limit.getUTCFullYear() + 1)
+          if (expires > limit.toISOString().slice(0, 10)) warnings.push('The PQQ expiry is more than 12 months away: check the date')
+        }
         else if (!status && approved) status = 'approved'
         co = {
           name,
