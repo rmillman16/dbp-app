@@ -29,6 +29,9 @@ import {
 } from '../lib/levelling'
 import MoneyInput from '../components/MoneyInput'
 import Loading from '../components/Loading'
+import { KIND_LABEL, NEXT_KIND, indentKey } from '../components/ScopeListEditor'
+import RichLine, { RichToolbar } from '../components/RichLine'
+import { escapeText, plainOf, sanitizeRich } from '../lib/scopeRich'
 
 // Scope & levelling for one tender package (script 094). The scope is a list of items; each contractor's price is levelled
 // against it: included in their price, or excluded (with a plug £ and the reason), plus items added below the line.
@@ -144,13 +147,14 @@ export default function TenderLevelling() {
       <h3 className="sub-head">1. Scope of works</h3>
       <p className="muted small">The same list goes out to the contractors in the email. Changing it here does not re-send anything: tell the contractors if you change the scope after sending.</p>
       <div className="scope-list">
+        <RichToolbar />
         {items.length === 0 && <p className="muted small">No scope items yet. Add them below, one at a time or by pasting a list.</p>}
         {items.map((x, i) => (
-          <div key={x.id} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : '')}>
+          <div key={x.id} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
             <span className="scope-ref">{refs[i]}</span>
-            <input key={x.id + x.description} defaultValue={x.description} aria-label={`Scope item ${refs[i]}`} onBlur={(e) => e.target.value.trim() && e.target.value !== x.description && run(() => updateScopeItem(x.id, { description: e.target.value.trim() }), true)} />
-            <button type="button" className="small-button" title={x.kind === 'heading' ? 'Make it an item' : 'Make it a heading'} onClick={() => run(() => updateScopeItem(x.id, { kind: x.kind === 'heading' ? 'item' : 'heading' }), true)}>
-              {x.kind === 'heading' ? 'Heading' : 'Item'}
+            <RichLine key={x.id} html={x.description} label={`Scope item ${refs[i]}`} onCommit={(h) => run(() => updateScopeItem(x.id, { description: h }), true)} />
+            <button type="button" className="small-button" title="Click to change: heading, item (priced and levelled), detail (a point under an item)" onClick={() => run(() => updateScopeItem(x.id, { kind: NEXT_KIND[x.kind] }), true)}>
+              {KIND_LABEL[x.kind]}
             </button>
             <button type="button" className="small-button" aria-label="Move up" disabled={i === 0} onClick={() => swap(i, -1)}>
               ↑
@@ -164,7 +168,7 @@ export default function TenderLevelling() {
               aria-label="Remove"
               onClick={() => {
                 const used = cells.filter((c) => c.item_id === x.id && c.status !== 'tbc').length
-                if (confirm(used ? `Remove "${x.description}"? Its levelling for ${used} contractor${used === 1 ? '' : 's'} goes with it (the log keeps a record).` : `Remove "${x.description}"?`)) run(() => deleteScopeItem(x.id), true)
+                if (confirm(used ? `Remove "${plainOf(x.description)}"? Its levelling for ${used} contractor${used === 1 ? '' : 's'} goes with it (the log keeps a record).` : `Remove "${plainOf(x.description)}"?`)) run(() => deleteScopeItem(x.id), true)
               }}
             >
               ✕
@@ -181,7 +185,7 @@ export default function TenderLevelling() {
                 e.preventDefault()
                 const d = text.trim()
                 setText('')
-                run(() => addScopeItems(packageId!, [{ kind: 'item', description: d }], nextSort), true)
+                run(() => addScopeItems(packageId!, [{ kind: 'item', description: escapeText(d) }], nextSort), true)
               }
             }}
           />
@@ -192,10 +196,23 @@ export default function TenderLevelling() {
             onClick={() => {
               const d = text.trim()
               setText('')
-              run(() => addScopeItems(packageId!, [{ kind: 'heading', description: d }], nextSort), true)
+              run(() => addScopeItems(packageId!, [{ kind: 'heading', description: escapeText(d) }], nextSort), true)
             }}
           >
             + Heading
+          </button>
+          <button
+            type="button"
+            className="small-button"
+            disabled={!text.trim()}
+            title="A point under the item above: goes in the email, not priced separately"
+            onClick={() => {
+              const d = text.trim()
+              setText('')
+              run(() => addScopeItems(packageId!, [{ kind: 'detail', description: escapeText(d) }], nextSort), true)
+            }}
+          >
+            + Detail
           </button>
           <button type="button" className="small-button" onClick={() => setPasting(!pasting)}>
             Paste a list
@@ -203,14 +220,14 @@ export default function TenderLevelling() {
         </div>
         {pasting && (
           <div className="scope-paste">
-            <textarea rows={8} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'One item per line. Start a line with # (or end it with a colon) to make a heading.'} />
+            <textarea rows={8} value={paste} onChange={(e) => setPaste(e.target.value)} onKeyDown={(e) => indentKey(e, setPaste)} placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): three levels are heading / item / detail, two are item / detail. Or start a line with # (or end it with a colon) to make a heading.'} />
             <div className="button-row">
               <button
                 type="button"
                 className="primary"
                 disabled={!paste.trim()}
                 onClick={() => {
-                  const list = parseScope(paste)
+                  const list = parseScope(paste).map((x) => ({ ...x, description: escapeText(x.description) }))
                   setPaste('')
                   setPasting(false)
                   run(() => addScopeItems(packageId!, list, nextSort), true)
@@ -228,7 +245,7 @@ export default function TenderLevelling() {
 
       <h3 className="sub-head">2. Level each contractor against it</h3>
       {cols.length === 0 && <p className="muted small">No contractors on this package yet. Add them from the tracker (+ Add contractor).</p>}
-      {cols.length > 0 && realItems.length === 0 && <p className="muted small">Add the scope items above first.</p>}
+      {cols.length > 0 && realItems.length === 0 && <p className="muted small">Add the scope items above first (details under an item are not levelled separately).</p>}
       {cols.length > 0 && realItems.length > 0 && (
         <div className="level-scroll">
           <table className="table level-grid">
@@ -245,16 +262,27 @@ export default function TenderLevelling() {
             </thead>
             <tbody>
               {items.map((x, n) =>
-                x.kind === 'heading' ? (
+                x.kind === 'detail' ? null : x.kind === 'heading' ? (
                   <tr key={x.id} className="lv-heading">
                     <td colSpan={cols.length + 1}>
-                      {refs[n]}. {x.description}
+                      {refs[n]}. <span dangerouslySetInnerHTML={{ __html: sanitizeRich(x.description) }} />
                     </td>
                   </tr>
                 ) : (
                   <tr key={x.id}>
                     <td className="lv-item">
-                      <span className="scope-ref">{refs[n]}</span> {x.description}
+                      <span className="scope-ref">{refs[n]}</span> <span dangerouslySetInnerHTML={{ __html: sanitizeRich(x.description) }} />
+                      {(() => {
+                        const det: ScopeItem[] = []
+                        for (let k = n + 1; k < items.length && items[k].kind === 'detail'; k++) det.push(items[k])
+                        return det.length ? (
+                          <ul className="lv-details">
+                            {det.map((d) => (
+                              <li key={d.id} dangerouslySetInnerHTML={{ __html: sanitizeRich(d.description) }} />
+                            ))}
+                          </ul>
+                        ) : null
+                      })()}
                     </td>
                     {cols.map((i) => {
                       const c = cellOf(i.id, x.id)
@@ -452,7 +480,7 @@ export default function TenderLevelling() {
                 </td>
                 <td className="nowrap">{a.who}</td>
                 <td className="nowrap muted small">{a.action}</td>
-                <td>{a.detail}</td>
+                <td>{plainOf(a.detail)}</td>
               </tr>
             ))}
           </tbody>

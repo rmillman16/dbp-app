@@ -18,8 +18,8 @@ describe('numbering', () => {
 
 describe('scope text', () => {
   it('renders a list for the email', () => {
-    const t = scopeText([item('h', 'heading', 'Containment'), item('a', 'item', 'Basket tray'), item('b', 'item', 'Trunking')])
-    expect(t).toBe('1. CONTAINMENT\n1.1  Basket tray\n1.2  Trunking')
+    const t = scopeText([item('h', 'heading', 'Containment'), item('a', 'item', 'Basket tray'), item('d', 'detail', 'To the risers'), item('e', 'detail', 'Painted'), item('b', 'item', 'Trunking')])
+    expect(t).toBe('1. CONTAINMENT\n1.1  Basket tray\n      (a) To the risers\n      (b) Painted\n1.2  Trunking')
   })
   it('reads a pasted list: # and trailing colons are headings, numbers and bullets are stripped', () => {
     expect(parseScope('# Power\n1.1 Sockets\n- Lighting\nData:\n  Cat6 points\n\n')).toEqual([
@@ -29,6 +29,31 @@ describe('scope text', () => {
       { kind: 'heading', description: 'Data' },
       { kind: 'item', description: 'Cat6 points' },
     ])
+  })
+})
+
+describe('detail lines', () => {
+  it('number (a), (b) under their item and start again under the next', () => {
+    expect(numberItems([item('h', 'heading'), item('a'), item('d1', 'detail'), item('d2', 'detail'), item('b'), item('d3', 'detail')])).toEqual(['1', '1.1', '(a)', '(b)', '1.2', '(a)'])
+  })
+  it('are read from the indentation of a list pasted from Word: heading, item, detail', () => {
+    const t = 'ID-400\n\tS01 Wardrobe\n\t\tWD-01 frame\n\t\tStone top\n\tS02 Credenza\n\t\tST-01 top'
+    expect(parseScope(t)).toEqual([
+      { kind: 'heading', description: 'ID-400' },
+      { kind: 'item', description: 'S01 Wardrobe' },
+      { kind: 'detail', description: 'WD-01 frame' },
+      { kind: 'detail', description: 'Stone top' },
+      { kind: 'item', description: 'S02 Credenza' },
+      { kind: 'detail', description: 'ST-01 top' },
+    ])
+  })
+  it('two levels are item and detail; a flat list is all items', () => {
+    expect(parseScope('Bar\n  Brass rail\nBack bar').map((x) => x.kind)).toEqual(['item', 'detail', 'item'])
+    expect(parseScope('Bar\nBack bar\nPlanters').map((x) => x.kind)).toEqual(['item', 'item', 'item'])
+  })
+  it('are not levelled', () => {
+    const l = [item('a'), item('d', 'detail'), item('b')]
+    expect(levelTotals(l, [cell('d', { status: 'excluded', plug_amount: 999 })], [], 100).total).toBe(100)
   })
 })
 

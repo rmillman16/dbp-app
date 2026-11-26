@@ -18,6 +18,7 @@ import {
   DEFAULT_BODY,
   DEFAULT_SUBJECT,
   INVITE_STATUS,
+  SCOPE_MARK,
   addInvites,
   createPackage,
   deleteInvite,
@@ -38,7 +39,8 @@ import Loading from '../components/Loading'
 import SuggestInput from '../components/SuggestInput'
 import MoneyInput from '../components/MoneyInput'
 import ScopeListEditor, { type ScopeDraft } from '../components/ScopeListEditor'
-import { addScopeItems, loadLevelling, loadScope, levelTotals, parseScope, scopeText, type LevelCell, type LevelExtra, type ScopeItem } from '../lib/levelling'
+import { escapeText, plainOf } from '../lib/scopeRich'
+import { addScopeItems, loadLevelling, loadScope, levelTotals, parseScope, scopeHtml, scopeText, type LevelCell, type LevelExtra, type ScopeItem } from '../lib/levelling'
 
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
@@ -145,7 +147,7 @@ export default function TenderEnquiry() {
       const paths = await uploadDrawings(enquiry.id, fresh)
       fresh.forEach((x, i) => uploaded.current.set(x, paths[i]))
       const text = await draftScope({ paths: drawings.map((x) => uploaded.current.get(x)!), package: f.pkg, job: `${enquiryRef(enquiry)} ${enquiry.name}`, address: mail.address, summary: mail.summary, notes: mail.notes, existing: scopeStr })
-      setScopeItems(parseScope(text))
+      setScopeItems(parseScope(text).map((x) => ({ ...x, description: escapeText(x.description) })))
       setAttachScope(true)
     } catch (e) {
       setScopeErr(saveError(e))
@@ -162,6 +164,8 @@ export default function TenderEnquiry() {
       if (attachScope && scopeStr.trim()) {
         extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, scope: scopeStr, returnBy: ukDate(ret) }) })
       }
+      // the formatted list goes in the email itself, unless it is being attached as a PDF instead
+      const formatted = !attachScope && scopeItems.some((x) => plainOf(x.description))
       const skipped: string[] = []
       const pqqSent: string[] = []
       const invites: Omit<TenderInvite, 'id' | 'package_id'>[] = []
@@ -169,6 +173,7 @@ export default function TenderEnquiry() {
       for (const c of chosen) {
         const k = contactOf(c)
         const vals = valuesFor(mail, c.name, k?.name.split(' ')[0] ?? '')
+        if (formatted) vals.scope = SCOPE_MARK + '\n\n'
         let attachments = [...extra]
         const needs = needsPqq(c) && pqq.length > 0
         if (needs) {
@@ -182,7 +187,7 @@ export default function TenderEnquiry() {
             await pqqWentOut(c, emailOf(c), docs.map((d) => d.name), null).catch(() => null)
           } else skipped.push(c.name)
         }
-        const eml = await draftFor({ to: emailOf(c), subject: render(subject, vals), body: render(body, vals), attachments })
+        const eml = await draftFor({ to: emailOf(c), subject: render(subject, vals), body: render(body, vals), attachments, scopeHtml: formatted ? scopeHtml(scopeItems) : undefined })
         downloadBlob(eml, `${enquiryRef(enquiry)} ${f.pkg} - ${c.name}.eml`)
         n++
         await new Promise((r) => setTimeout(r, 350)) // browsers drop downloads that arrive all at once

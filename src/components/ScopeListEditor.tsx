@@ -1,12 +1,46 @@
 import { useState } from 'react'
 import { numberItems, parseScope, type ScopeKind } from '../lib/levelling'
+import { escapeText } from '../lib/scopeRich'
+import RichLine, { RichToolbar } from './RichLine'
 
 // The scope of a tender package as a list (script 094): type items one at a time (Enter adds the next), add headings to group
 // them, or paste a whole list. Numbered 1, 1.1, 1.2 ... as it goes out in the email, and the same items are what each contractor's
-// price is levelled against afterwards.
+// price is levelled against afterwards. Each line can carry bold, italic, underline and colour.
 export interface ScopeDraft {
   kind: ScopeKind
-  description: string
+  description: string // plain text escaped, or the light formatting HTML from scopeRich
+}
+
+export const KIND_LABEL: Record<ScopeKind, string> = { heading: 'Heading', item: 'Item', detail: 'Detail' }
+export const NEXT_KIND: Record<ScopeKind, ScopeKind> = { item: 'detail', detail: 'heading', heading: 'item' }
+
+// Tab in a text box would move to the next field: here it indents instead (Shift+Tab takes the indent back off), so a pasted
+// list can be laid out as heading / item / detail by hand.
+export function indentKey(e: React.KeyboardEvent<HTMLTextAreaElement>, setValue: (v: string) => void) {
+  if (e.key !== 'Tab') return
+  e.preventDefault()
+  const el = e.currentTarget
+  const v = el.value
+  const a = el.selectionStart
+  const b = el.selectionEnd
+  const from = v.lastIndexOf('\n', a - 1) + 1
+  let next: string
+  let na = a
+  let nb = b
+  if (!e.shiftKey && a === b) {
+    next = v.slice(0, a) + '\t' + v.slice(b)
+    na = nb = a + 1
+  } else {
+    const block = v.slice(from, b)
+    const lines = block.split('\n')
+    const changed = lines.map((l) => (e.shiftKey ? l.replace(/^(\t| {1,4})/, '') : '\t' + l))
+    next = v.slice(0, from) + changed.join('\n') + v.slice(b)
+    const delta = (i: number) => changed[i].length - lines[i].length
+    na = Math.max(from, a + delta(0))
+    nb = b + changed.reduce((n, _, i) => n + delta(i), 0)
+  }
+  setValue(next)
+  requestAnimationFrame(() => el.setSelectionRange(na, nb))
 }
 
 export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft[]; onChange: (items: ScopeDraft[]) => void }) {
@@ -24,18 +58,19 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
   }
   const add = (kind: ScopeKind) => {
     if (!text.trim()) return
-    onChange([...items, { kind, description: text.trim() }])
+    onChange([...items, { kind, description: escapeText(text.trim()) }])
     setText('')
   }
   return (
     <div className="scope-list">
+      <RichToolbar />
       {items.length === 0 && <p className="muted small">No items yet. Add them below, one at a time, or paste a list.</p>}
       {items.map((x, i) => (
-        <div key={i} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : '')}>
+        <div key={i} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
           <span className="scope-ref">{refs[i]}</span>
-          <input value={x.description} onChange={(e) => set(i, { description: e.target.value })} aria-label={`Scope item ${refs[i]}`} />
-          <button type="button" className="small-button" title={x.kind === 'heading' ? 'Make it an item' : 'Make it a heading'} onClick={() => set(i, { kind: x.kind === 'heading' ? 'item' : 'heading' })}>
-            {x.kind === 'heading' ? 'Heading' : 'Item'}
+          <RichLine html={x.description} onChange={(h) => set(i, { description: h })} label={`Scope item ${refs[i]}`} />
+          <button type="button" className="small-button" title="Click to change: heading, item (priced and levelled), detail (a point under an item)" onClick={() => set(i, { kind: NEXT_KIND[x.kind] })}>
+            {KIND_LABEL[x.kind]}
           </button>
           <button type="button" className="small-button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
             ↑
@@ -63,6 +98,9 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
         <button type="button" className="small-button" disabled={!text.trim()} onClick={() => add('item')}>
           + Item
         </button>
+        <button type="button" className="small-button" disabled={!text.trim()} onClick={() => add('detail')} title="A point under the item above: goes in the email, not priced separately">
+          + Detail
+        </button>
         <button type="button" className="small-button" disabled={!text.trim()} onClick={() => add('heading')}>
           + Heading
         </button>
@@ -72,14 +110,20 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
       </div>
       {pasting && (
         <div className="scope-paste">
-          <textarea rows={8} value={paste} onChange={(e) => setPaste(e.target.value)} placeholder={'One item per line. Start a line with # (or end it with a colon) to make a heading.\n\n# Containment\nBasket tray to ceiling void\nTrunking to risers'} />
+          <textarea
+            rows={10}
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            onKeyDown={(e) => indentKey(e, setPaste)}
+            placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): three levels are heading / item / detail, two are item / detail. Or start a line with # (or end it with a colon) to make a heading. Add bold, colours and so on afterwards, on each line.'}
+          />
           <div className="button-row">
             <button
               type="button"
               className="primary"
               disabled={!paste.trim()}
               onClick={() => {
-                onChange([...items, ...parseScope(paste)])
+                onChange([...items, ...parseScope(paste).map((x) => ({ ...x, description: escapeText(x.description) }))])
                 setPaste('')
                 setPasting(false)
               }}

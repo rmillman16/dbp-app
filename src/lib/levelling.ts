@@ -1,11 +1,12 @@
 import { supabase } from './supabase'
+import { plainOf, sanitizeRich } from './scopeRich'
 
 // Tender levelling (script 094): a package's scope is a list of items; each contractor's return is levelled against it.
 // Per item a contractor either INCLUDES it in their price or EXCLUDES it (the estimator then allows a plug £ and says why);
 // items they add below the line are listed per contractor (negative = a deduction).
 // Levelled total = their price + plugs for excluded items + below-the-line items.
 
-export type ScopeKind = 'heading' | 'item'
+export type ScopeKind = 'heading' | 'item' | 'detail'
 export interface ScopeItem {
   id: string
   package_id: string
@@ -46,45 +47,91 @@ const num = (v: number | string | null | undefined) => (v == null || v === '' ? 
 const pence = (n: number) => Math.round(n * 100) / 100
 
 // ---------- numbering and the scope as text ----------
-// "1 Heading", "1.1 Item"; items before any heading are 1, 2, 3
+// "1" heading, "1.1" item, "(a)" detail line under an item; items before any heading are 1, 2, 3
 export function numberItems(items: Pick<ScopeItem, 'kind' | 'description'>[]): string[] {
   const hasHeading = items.some((i) => i.kind === 'heading')
   let h = 0
   let n = 0
+  let d = 0
   return items.map((i) => {
     if (i.kind === 'heading') {
       h++
       n = 0
+      d = 0
       return String(h)
     }
+    if (i.kind === 'detail') return `(${String.fromCharCode(97 + (d++ % 26))})`
     n++
+    d = 0
     return hasHeading && h > 0 ? `${h}.${n}` : String(n)
   })
 }
 // the list as it goes in the email and the PDF
 export function scopeText(items: Pick<ScopeItem, 'kind' | 'description'>[]): string {
   const refs = numberItems(items)
-  return items
-    .filter((i) => i.description.trim())
-    .map((i, k) => (i.kind === 'heading' ? `${k ? '\n' : ''}${refs[items.indexOf(i)]}. ${i.description.trim().toUpperCase()}` : `${refs[items.indexOf(i)]}  ${i.description.trim()}`))
-    .join('\n')
+  const out: string[] = []
+  items.forEach((i, k) => {
+    const t = plainOf(i.description)
+    if (!t) return
+    if (i.kind === 'heading') out.push(`${out.length ? '\n' : ''}${refs[k]}. ${t.toUpperCase()}`)
+    else if (i.kind === 'detail') out.push(`      ${refs[k]} ${t}`)
+    else out.push(`${refs[k]}  ${t}`)
+  })
+  return out.join('\n')
 }
-// a pasted block of lines becomes items; a line starting with # (or ending with a colon) is a heading; an existing "1.1" or "- " is stripped
+// the list as HTML for the email: the formatting (bold, colour...) goes out as typed
+export function scopeHtml(items: Pick<ScopeItem, 'kind' | 'description'>[]): string {
+  const refs = numberItems(items)
+  const rows: string[] = []
+  items.forEach((i, k) => {
+    const t = sanitizeRich(i.description)
+    if (!plainOf(t)) return
+    if (i.kind === 'heading') rows.push(`<div style="margin:12px 0 2px"><b>${refs[k]}.&nbsp; ${t}</b></div>`)
+    else if (i.kind === 'detail') rows.push(`<div style="margin:0 0 0 40px">${refs[k]}&nbsp; ${t}</div>`)
+    else rows.push(`<div style="margin:3px 0 0 0">${refs[k]}&nbsp; ${t}</div>`)
+  })
+  return `<div style="margin:6px 0 12px">${rows.join('')}</div>`
+}
+// a pasted block of lines becomes items. A line starting with # (or ending with a colon) is a heading. Otherwise the
+// indentation decides, as in a numbered list pasted from Word: with three levels they are heading / item / detail, with two
+// item / detail, with one all items. An existing "1.1" or "- " at the start of a line is stripped.
 export function parseScope(text: string): { kind: ScopeKind; description: string }[] {
-  const out: { kind: ScopeKind; description: string }[] = []
+  type Row = { width: number; kind: ScopeKind | null; description: string }
+  const rows: Row[] = []
   for (const raw of text.split(/\r?\n/)) {
+    if (!raw.trim()) continue
+    const width = raw.match(/^[ \t]*/)![0].replace(/\t/g, '    ').length
     const line = raw.trim()
-    if (!line) continue
     const head = /^#+\s*(.+)$/.exec(line)
     if (head) {
-      out.push({ kind: 'heading', description: head[1].trim() })
+      rows.push({ width, kind: 'heading', description: head[1].trim() })
       continue
     }
     const clean = line.replace(/^(\d+(\.\d+)*[.)]?\s+|[-•*]\s+)/, '').trim()
     if (!clean) continue
-    if (/:$/.test(clean)) out.push({ kind: 'heading', description: clean.replace(/:$/, '').trim() })
-    else out.push({ kind: 'item', description: clean })
+    if (/:$/.test(clean)) rows.push({ width, kind: 'heading', description: clean.replace(/:$/, '').trim() })
+    else rows.push({ width, kind: null, description: clean })
   }
+  // the indentation levels are worked out between headings that were marked as such
+  const out: { kind: ScopeKind; description: string }[] = []
+  let seg: Row[] = []
+  const flush = () => {
+    const widths = [...new Set(seg.map((r) => r.width))].sort((a, b) => a - b)
+    const levels = widths.length
+    for (const r of seg) {
+      const lv = widths.indexOf(r.width)
+      const kind: ScopeKind = levels >= 3 ? (lv === 0 ? 'heading' : lv === 1 ? 'item' : 'detail') : levels === 2 ? (lv === 0 ? 'item' : 'detail') : 'item'
+      out.push({ kind, description: r.description })
+    }
+    seg = []
+  }
+  for (const r of rows) {
+    if (r.kind === 'heading') {
+      flush()
+      out.push({ kind: 'heading', description: r.description })
+    } else seg.push(r)
+  }
+  flush()
   return out
 }
 

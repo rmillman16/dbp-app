@@ -1651,3 +1651,13 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .lv-extra-add { margin-top: 8px; }
 .lv-extra-add input { flex: 1; }
 .tt-levelled { margin-top: 2px; }
+.scope-detail { margin-left: 34px; }
+.scope-detail input { font-size: .92rem; }
+.lv-details { margin: 4px 0 0; padding-left: 18px; font-size: .85rem; color: var(--muted, #6b7280); }
+.rich-line { flex: 1; min-height: 32px; padding: 6px 9px; border: 1px solid var(--line, #d5d8e4); border-radius: 6px; background: #fff; line-height: 1.35; }
+.rich-line:focus { outline: 2px solid #93b4f5; outline-offset: 0; }
+.scope-heading .rich-line { font-weight: 700; }
+.scope-detail .rich-line { font-size: .92rem; }
+.rich-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 4px; }
+.rich-swatch { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #c5c9d8; }
+.scope-paste textarea { font-family: inherit; tab-size: 4; }

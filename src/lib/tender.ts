@@ -201,6 +201,10 @@ export const toHtml = (text: string) =>
     .map((p) => `<p>${escHtml(p).replace(/\n/g, '<br>')}</p>`)
     .join('')
 
-export async function draftFor(args: { to: string | null; subject: string; body: string; attachments: Attachment[] }) {
-  return emlDraft({ to: args.to ? [args.to] : [], subject: args.subject, html: toHtml(args.body), attachments: args.attachments })
+// put this where the scope goes and pass scopeHtml to draftFor, and the formatted list replaces it in the email
+export const SCOPE_MARK = 'ZZSCOPEZZ'
+export async function draftFor(args: { to: string | null; subject: string; body: string; attachments: Attachment[]; scopeHtml?: string }) {
+  let html = toHtml(args.body)
+  if (args.scopeHtml) html = html.replace(`<p>${SCOPE_MARK}</p>`, () => args.scopeHtml as string)
+  return emlDraft({ to: args.to ? [args.to] : [], subject: args.subject, html, attachments: args.attachments })
 }
