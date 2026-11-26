@@ -138,3 +138,6 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `095_programme_delete_admin.sql` | Only admins can delete a programme or a saved programme revision (from History); run after 094 | Run 26 Nov |
 | `096_meeting_format.sql` | Minutes: each meeting is marked internal, external, 1-to-1 or workshop (run after 095) | Run 26 Nov |
 | `097_meeting_kinds_free.sql` | Minutes: new standard kinds, and jobs can add their own (run after 096) | Run 26 Nov |
+| `091_inventory_returns.sql` | Inventory: mark issued items returned (back into the stock) or lost (stay off it) (run after 090) | Not run yet |
+| `092_inventory_codes_archive.sql` | Inventory: every item gets a code (W6-0001…) for labelling / barcodes; a lost last item is archived and can be restored (run after 091) | Not run yet |
+| `094_enquiry_start_duration_cdp.sql` | Estimating › enquiry: proposed start date, proposed duration and CDP items, which feed into the tender emails | Run 26 Nov (via migration) |

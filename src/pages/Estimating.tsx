@@ -159,7 +159,11 @@ export default function Estimating() {
 
 // ---------- new / edit ----------
 // the contract details come from script 068
-const needs068 = (e: { message: string }) => (/main_contract|sub_contract|summary|schema cache/i.test(e.message) ? 'Run script 068 in Supabase first (it adds the main contract, sub-contract and project summary).' : null)
+const needs068 = (e: { message: string }) => (/proposed_start|proposed_duration|cdp_items/i.test(e.message)
+    ? 'Run script 094 in Supabase first (it adds the proposed start, duration and CDP items).'
+    : /main_contract|sub_contract|summary|schema cache/i.test(e.message)
+      ? 'Run script 068 in Supabase first (it adds the main contract, sub-contract and project summary).'
+      : null)
 
 export function EnquiryForm() {
   const { enquiryId } = useParams()
@@ -193,6 +197,9 @@ export function EnquiryForm() {
       main_contract: form.main_contract?.trim() || null,
       sub_contract: form.sub_contract?.trim() || null,
       summary: form.summary?.trim() || null,
+      proposed_start: form.proposed_start || null,
+      proposed_duration: form.proposed_duration?.trim() || null,
+      cdp_items: form.cdp_items?.trim() || null,
     }
     setBusy(true)
     let id = enquiryId
@@ -275,9 +282,21 @@ export function EnquiryForm() {
           Sub-contract
           <input value={form.sub_contract ?? ''} placeholder="e.g. JCT Sub-contract" onChange={(e) => set('sub_contract', e.target.value)} />
         </label>
+        <label>
+          Proposed start date
+          <input type="date" value={form.proposed_start ?? ''} onChange={(e) => set('proposed_start', e.target.value)} />
+        </label>
+        <label>
+          Proposed duration
+          <input value={form.proposed_duration ?? ''} placeholder="e.g. 26 weeks" onChange={(e) => set('proposed_duration', e.target.value)} />
+        </label>
         <label className="span-2">
           Project summary
           <textarea rows={3} value={form.summary ?? ''} placeholder="e.g. full refurbishment of a five-storey townhouse" onChange={(e) => set('summary', e.target.value)} />
+        </label>
+        <label className="span-2">
+          CDP items (Contractor's Design Portion)
+          <textarea rows={3} value={form.cdp_items ?? ''} placeholder="One item per line, e.g. curtain walling, structural steelwork connections" onChange={(e) => set('cdp_items', e.target.value)} />
         </label>
         <label className="span-2">
           Notes (tender notes)
@@ -370,6 +389,20 @@ export function EnquiryPage() {
               <>
                 <dt>Contract</dt>
                 <dd>{[e.main_contract, e.sub_contract].filter(Boolean).join(' / ')}</dd>
+              </>
+            )}
+            {(e.proposed_start || e.proposed_duration) && (
+              <>
+                <dt>Proposed start / duration</dt>
+                <dd>
+                  {ukDate(e.proposed_start) || '–'} / {e.proposed_duration || '–'}
+                </dd>
+              </>
+            )}
+            {e.cdp_items && (
+              <>
+                <dt>CDP items</dt>
+                <dd style={{ whiteSpace: 'pre-wrap' }}>{e.cdp_items}</dd>
               </>
             )}
             {e.notes && (

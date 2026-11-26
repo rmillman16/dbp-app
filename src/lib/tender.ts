@@ -120,8 +120,10 @@ We are tendering for {{job}}{{address}} and would like to invite {{company}} to 
 {{summary}}
 Main contract: {{main}}
 Sub-contract: {{sub}}
+Proposed start date: {{start}}
+Proposed duration: {{duration}}
 
-The tender documents are here: {{link}}
+{{cdp}}The tender documents are here: {{link}}
 
 {{scope}}Please return your tender by {{return}}.
 
@@ -150,6 +152,9 @@ export interface MailValues {
   summary: string
   main: string
   sub: string
+  start: string
+  duration: string
+  cdp: string
   link: string
   scope: string
   notes: string
@@ -167,6 +172,9 @@ export function valuesFor(v: MailValues, company: string, contact: string, sent 
     summary: v.summary ? v.summary + '\n' : '',
     main: v.main,
     sub: v.sub,
+    start: v.start,
+    duration: v.duration,
+    cdp: v.cdp ? `The following items are Contractor's Design Portion (CDP):\n${v.cdp}\n\n` : '',
     link: v.link || '(to follow)',
     scope: v.scope ? v.scope + '\n\n' : '',
     notes: v.notes ? v.notes + '\n\n' : '',
@@ -182,7 +190,7 @@ export function valuesFor(v: MailValues, company: string, contact: string, sent 
 const tidy = (t: string) =>
   t
     .split('\n')
-    .filter((l) => !/^(Main contract|Sub-contract):\s*$/.test(l.trim()))
+    .filter((l) => !/^(Main contract|Sub-contract|Proposed start date|Proposed duration):\s*$/.test(l.trim()))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()

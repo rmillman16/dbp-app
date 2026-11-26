@@ -101,7 +101,7 @@ export default function TenderEnquiry() {
   const sender = me?.full_name ?? ''
   const phone = me?.phone ?? ''
   const ret = enquiry?.due_date ?? ''
-  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', link: f.link, scope: attachScope && f.scope.trim() ? 'The scope of works for this package is attached.' : f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
+  const mail: MailValues = { job: enquiry?.name ?? '', jobno: enquiry ? enquiryRef(enquiry) : '', address: (enquiry?.site_address ?? '').replace(/\s*\n\s*/g, ', '), summary: enquiry?.summary ?? '', main: enquiry?.main_contract ?? '', sub: enquiry?.sub_contract ?? '', start: ukDate(enquiry?.proposed_start ?? null), duration: enquiry?.proposed_duration ?? '', cdp: enquiry?.cdp_items ?? '', link: f.link, scope: attachScope && f.scope.trim() ? 'The scope of works for this package is attached.' : f.scope, notes: enquiry?.notes ?? '', ret: ukDate(ret), package: f.pkg, sender, phone }
 
   const pkgWords = f.pkg.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2)
   const matchesTrade = (c: Co) => !!c.trade && (pkgWords.length === 0 || pkgWords.some((w) => c.trade!.toLowerCase().includes(w)) || f.pkg.toLowerCase().includes(c.trade.toLowerCase()))
@@ -249,6 +249,9 @@ export default function TenderEnquiry() {
                     ['Job address', mail.address, false],
                     ['Main contract', mail.main, false],
                     ['Sub-contract', mail.sub, false],
+                    ['Proposed start date', mail.start, false],
+                    ['Proposed duration', mail.duration, false],
+                    ['CDP items', mail.cdp, false],
                     ['Project summary', mail.summary, false],
                     ['Tender notes', mail.notes, false],
                   ] as [string, string, boolean][]
@@ -387,7 +390,7 @@ export default function TenderEnquiry() {
             Email
             <textarea rows={16} value={body} onChange={(e) => setBody(e.target.value)} />
             <small className="muted">
-              Placeholders fill in for each contractor: {'{{contact}} {{company}} {{job}} {{jobno}} {{package}} {{return}} {{link}} {{summary}} {{scope}} {{notes}} {{main}} {{sub}} {{address}} {{sender}} {{phone}}'}.
+              Placeholders fill in for each contractor: {'{{contact}} {{company}} {{job}} {{jobno}} {{package}} {{return}} {{link}} {{summary}} {{scope}} {{notes}} {{main}} {{sub}} {{start}} {{duration}} {{cdp}} {{address}} {{sender}} {{phone}}'}.
             </small>
           </label>
           <div className="span-2 tg-preview">
@@ -812,7 +815,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
 
   async function chase(p: TenderPackage, i: TenderInvite) {
     const e = enq[p.enquiry_id]
-    const mail: MailValues = { job: e?.name ?? '', jobno: e ? enquiryRef(e) : '', address: p.job_address ?? '', summary: p.summary ?? '', main: p.main_contract ?? '', sub: p.sub_contract ?? '', link: p.documents_link ?? '', scope: p.scope ?? '', notes: p.notes ?? '', ret: ukDate(p.return_date), package: p.package, sender: p.sender_name ?? '', phone: p.sender_phone ?? '' }
+    const mail: MailValues = { job: e?.name ?? '', jobno: e ? enquiryRef(e) : '', address: p.job_address ?? '', summary: p.summary ?? '', main: p.main_contract ?? '', sub: p.sub_contract ?? '', start: ukDate(e?.proposed_start ?? null), duration: e?.proposed_duration ?? '', cdp: e?.cdp_items ?? '', link: p.documents_link ?? '', scope: p.scope ?? '', notes: p.notes ?? '', ret: ukDate(p.return_date), package: p.package, sender: p.sender_name ?? '', phone: p.sender_phone ?? '' }
     const vals = valuesFor(mail, i.name, '', i.sent_on ? ukDate(i.sent_on) : 'earlier')
     const eml = await draftFor({ to: i.email, subject: render(CHASE_SUBJECT, vals), body: render(CHASE_BODY, vals), attachments: [] })
     downloadBlob(eml, `Chase - ${p.package} - ${i.name}.eml`)
