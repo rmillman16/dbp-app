@@ -2154,3 +2154,46 @@
 .mint .field-label {
   color: var(--ink-faint);
 }
+
+/* the meeting list by month, and the top of a meeting reads: where it belongs (small), what it is (large), then its kind, subject and date.
+   It stays in view while the minutes scroll, so you always know which meeting you are in (26 Nov) */
+.mint .mi-month {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 10px 4px 5px;
+}
+.mint .mi-month:first-child { padding-top: 2px; }
+.mint .letterhead {
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  margin: -22px -40px 10px;
+  padding: 16px 40px 10px;
+}
+.mint .letterhead .field-project {
+  order: 1;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0;
+}
+.mint .letterhead .field-subtitle {
+  order: 2;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  padding: 2px 0 6px;
+}
+.mint .letterhead .format-pick { order: 3; }
+.mint .letterhead .letterhead-meta { order: 4; }
+@media (max-width: 860px) {
+  .mint .letterhead { position: static; margin: 0 0 10px; padding: 0 0 10px; }
+}

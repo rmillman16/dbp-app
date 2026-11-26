@@ -124,7 +124,8 @@ export default function ProgrammeEditor({
   defaults: { start?: string | null; pc?: string | null }
   onReset?: () => void // the whole programme was deleted (History, admins): load afresh
 }) {
-  const { isAdmin, me } = useAccess()
+  const { isAdmin, me, roles } = useAccess()
+  const canRename = isAdmin || roles.includes('project_manager') // who can retitle a revision in History
   const [w, setW] = useState<Working | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1013,6 +1014,7 @@ export default function ProgrammeEditor({
           onCompare={(no) => (setDialog(null), showCompare(no))}
           onClose={() => setDialog(null)}
           isAdmin={isAdmin}
+          canRename={canRename}
           onRevisionsChanged={async () => setRevisions(await listRevisions(programme.id))}
           onProgrammeDeleted={() => (setDialog(null), onReset?.())}
           onRestore={(state, label) => {
@@ -1447,10 +1449,12 @@ function HistoryDialog({
   onClose,
   onRestore,
   isAdmin,
+  canRename,
   onRevisionsChanged,
   onProgrammeDeleted,
 }: {
   isAdmin: boolean
+  canRename: boolean
   onRevisionsChanged: () => void
   onProgrammeDeleted: () => void
   programmeId: string
@@ -1495,6 +1499,16 @@ function HistoryDialog({
     }
   }
   // admins: remove a revision, or the whole programme, that was made in error
+  // admins and project managers: give a revision its own title (shown beside its number, e.g. "Rev C: client comments")
+  const renameRevision = async (r: ProgrammeRevision) => {
+    const next = window.prompt(`Title for ${revName(r.rev_no)} (leave empty for none):`, r.note ?? '')
+    if (next === null) return
+    setErr(null)
+    const u = await supabase.from('programme_revisions').update({ note: next.trim() || null }).eq('id', r.id).select('id')
+    if (u.error) return setErr(u.error.message)
+    if (!u.data?.length) return setErr('It was not changed: you may not have access to this programme.')
+    onRevisionsChanged()
+  }
   const removeRevision = async (r: ProgrammeRevision) => {
     const wasOriginal = r.rev_no === original
     if (!confirm(`Delete ${revName(r.rev_no)} permanently? It cannot be undone.${wasOriginal ? ' It is marked as the original programme: that marking is cleared too.' : ''}`)) return
@@ -1545,7 +1559,7 @@ function HistoryDialog({
           <div className="tl-prog-main">
             <div className="tl-prog-name">
               <span className="tl-rev-badge">{revName(r.rev_no)}</span>
-              {r.rev_no === original && <span className="tl-rev-badge original">Original programme</span>} {r.note || <span className="tl-light">No note</span>}
+              {r.rev_no === original && <span className="tl-rev-badge original">Original programme</span>} {r.note || <span className="tl-light">No title</span>}
             </div>
             <div className="tl-prog-meta">
               Saved {new Date(r.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} · {r.task_count} tasks
@@ -1578,6 +1592,11 @@ function HistoryDialog({
             >
               Restore
             </button>
+            {canRename && (
+              <button className="tl-btn tl-btn-sm" onClick={() => renameRevision(r)} title="Admins and project managers: change this revision's title">
+                Edit title
+              </button>
+            )}
             {isAdmin && (
               <button className="tl-btn tl-btn-sm" onClick={() => removeRevision(r)} title="Admins: delete this revision">
                 Delete

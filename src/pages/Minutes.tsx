@@ -509,7 +509,26 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     const cur = activeRef.current
     const l = (list ?? []).filter((m) => !cur || m.id !== cur.id)
     if (cur && !M.isMeetingEmpty(cur)) l.push(summaryOf(cur))
-    return l.sort((a, b) => b.updatedAt - a.updatedAt)
+    return l.sort((a, b) => b.date.localeCompare(a.date) || b.updatedAt - a.updatedAt)
+  }
+  // the list with a heading for each month
+  function withMonths(list: M.MeetingSummary[]) {
+    const out: React.ReactNode[] = []
+    let last = ''
+    for (const m of list) {
+      const key = (m.date || '').slice(0, 7)
+      if (key !== last) {
+        last = key
+        const d = new Date(`${key}-01T12:00:00`)
+        out.push(
+          <div key={'month-' + key} className="mi-month">
+            {Number.isNaN(d.getTime()) ? 'No date' : d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+          </div>,
+        )
+      }
+      out.push(renderMeetingItem(m))
+    }
+    return out
   }
   function openFromList(id: string) {
     setDrawerOpen(false)
@@ -632,7 +651,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     if (q) {
       const filtered = all.filter((m) => [m.subtitle, m.no ? 'meeting ' + m.no : '', M.meetingTypeOf(m.type)?.label ?? '', ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
       if (!filtered.length) return <div className="meeting-empty">No meetings match “{q}”.</div>
-      return filtered.map(renderMeetingItem)
+      return withMonths(filtered)
     }
     if (!all.length)
       return (
@@ -642,7 +661,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           Start typing in the note to create your first one.
         </div>
       )
-    return all.map(renderMeetingItem)
+    return withMonths(all)
   }
 
   // ---------- full page: over the app's sidebar and top bar (not the browser's own full screen) ----------
@@ -1707,8 +1726,8 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                   <input
                     ref={subtitleInputRef}
                     className="field-subtitle"
-                    placeholder="Add a sub-title…"
-                    aria-label="Sub-title"
+                    placeholder="What is this meeting? e.g. Weekly progress meeting"
+                    aria-label="Meeting title"
                     value={active.subtitle}
                     readOnly={readOnly}
                     onChange={(e) => {
