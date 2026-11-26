@@ -201,19 +201,28 @@ export const MEETING_TYPES: MeetingType[] = [
   { key: 'hs', label: 'H&S meeting', headings: ['Accidents, incidents and near misses', 'Inspections and audits', 'RAMS and permits', 'Site conditions and welfare', 'Training and inductions', 'Any other business'] },
   { key: 'tender', label: 'Tender / pre-contract meeting', headings: ['Scope and clarifications', 'Programme', 'Pricing and commercial', 'Next steps'] },
 ]
-// what kind of meeting it was (096): who it was with, whatever its subject
+// what kind of meeting it was (096, 097): the standard kinds, plus any a job adds for itself (stored as plain text)
 export interface MeetingFormat {
-  key: 'internal' | 'external' | 'one_to_one' | 'workshop'
+  key: string
   label: string
   hint: string
+  custom?: boolean
 }
 export const MEETING_FORMATS: MeetingFormat[] = [
-  { key: 'internal', label: 'Internal', hint: 'DBP team only' },
-  { key: 'external', label: 'External', hint: 'With the client, consultants, contractors or other outside people' },
-  { key: 'one_to_one', label: '1-to-1', hint: 'A one to one' },
+  { key: 'pre_contract', label: 'Pre-Contract', hint: 'Before the contract: tender, award and pre-start discussions' },
+  { key: 'client_formal', label: 'Client - Formal', hint: 'A formal meeting with the client' },
+  { key: 'client_informal', label: 'Client - Informal', hint: 'An informal catch-up with the client' },
+  { key: 'subcontractor', label: 'Sub-Contractor Coordination', hint: 'Coordination with sub-contractors' },
   { key: 'workshop', label: 'Workshop', hint: 'A workshop or working session' },
 ]
-export const meetingFormatOf = (key: string | null | undefined) => MEETING_FORMATS.find((f) => f.key === key) ?? null
+// kinds used before 26 Nov keep showing under their old names
+const LEGACY_FORMATS: Record<string, string> = { internal: 'Internal', external: 'External', one_to_one: '1-to-1' }
+export const meetingFormatOf = (key: string | null | undefined): MeetingFormat | null => {
+  if (!key) return null
+  return MEETING_FORMATS.find((f) => f.key === key) ?? { key, label: LEGACY_FORMATS[key] ?? key, hint: 'Added for this job', custom: true }
+}
+// the css class that colours a kind (kinds added for a job share one neutral colour)
+export const formatClass = (key: string | null | undefined) => (!key ? 'fmt-none' : MEETING_FORMATS.some((f) => f.key === key) ? 'fmt-' + key : 'fmt-custom')
 export const meetingTypeOf = (key: string | null | undefined) => MEETING_TYPES.find((t) => t.key === key) ?? null
 // the type's headings as empty sections, for a meeting that has none yet
 export const standingHeadings = (key: string | null | undefined): Point[] => (meetingTypeOf(key)?.headings ?? []).map((h) => ({ ...newPoint('heading'), text: h }))
@@ -458,8 +467,8 @@ interface PointRow {
 }
 
 export const needs045 = (m: string) =>
-  /meeting_format/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
-    ? 'Meeting kinds (internal, external, 1-to-1, workshop) need script 096 run in Supabase first (supabase/README.md).'
+  /meeting_format/i.test(m) && /does not exist|schema cache|could not find|column|check constraint/i.test(m)
+    ? 'Meeting kinds need scripts 096 and 097 run in Supabase first (supabase/README.md).'
     : /enquiry_id|enquiry_no/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
     ? 'Minutes need script 046 run in Supabase first (supabase/README.md).'
     : /(meetings|meeting_attendees|meeting_points)/i.test(m) && /relation|table/i.test(m) && /does not exist|schema cache|could not find/i.test(m)

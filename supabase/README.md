@@ -137,3 +137,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `094_delete_jobs.sql` | Admins can delete a job made in error (everything filed under it goes too; run after 093) | Run 26 Nov |
 | `095_programme_delete_admin.sql` | Only admins can delete a programme or a saved programme revision (from History); run after 094 | Run 26 Nov |
 | `096_meeting_format.sql` | Minutes: each meeting is marked internal, external, 1-to-1 or workshop (run after 095) | Run 26 Nov |
+| `097_meeting_kinds_free.sql` | Minutes: new standard kinds, and jobs can add their own (run after 096) | Run 26 Nov |

@@ -1925,14 +1925,18 @@
   --navy: #1f1246;
   --shadow: rgba(31, 18, 70, 0.08);
   /* the meeting kinds */
-  --fmt-internal: #1f1246;
-  --fmt-internal-bg: #ebe8f6;
-  --fmt-external: #007abe;
-  --fmt-external-bg: #def0fa;
-  --fmt-one_to_one: #1f7a4d;
-  --fmt-one_to_one-bg: #e1f4e9;
-  --fmt-workshop: #b26a00;
-  --fmt-workshop-bg: #fff0d6;
+  --fmt-pre_contract: #1f1246;
+  --fmt-pre_contract-bg: #ebe8f6;
+  --fmt-client_formal: #007abe;
+  --fmt-client_formal-bg: #def0fa;
+  --fmt-client_informal: #1f7a4d;
+  --fmt-client_informal-bg: #e1f4e9;
+  --fmt-subcontractor: #b26a00;
+  --fmt-subcontractor-bg: #fff0d6;
+  --fmt-workshop: #a1285f;
+  --fmt-workshop-bg: #fbe3ee;
+  --fmt-custom: #5b6472;
+  --fmt-custom-bg: #e8ebf0;
   border-color: var(--border);
 }
 
@@ -2010,10 +2014,12 @@
   border-color: var(--navy);
   color: #fff;
 }
-.mint .fmt-chip.fmt-internal.on { background: var(--fmt-internal); border-color: var(--fmt-internal); }
-.mint .fmt-chip.fmt-external.on { background: var(--fmt-external); border-color: var(--fmt-external); }
-.mint .fmt-chip.fmt-one_to_one.on { background: var(--fmt-one_to_one); border-color: var(--fmt-one_to_one); }
+.mint .fmt-chip.fmt-pre_contract.on { background: var(--fmt-pre_contract); border-color: var(--fmt-pre_contract); }
+.mint .fmt-chip.fmt-client_formal.on { background: var(--fmt-client_formal); border-color: var(--fmt-client_formal); }
+.mint .fmt-chip.fmt-client_informal.on { background: var(--fmt-client_informal); border-color: var(--fmt-client_informal); }
 .mint .fmt-chip.fmt-workshop.on { background: var(--fmt-workshop); border-color: var(--fmt-workshop); }
+.mint .fmt-chip.fmt-subcontractor.on { background: var(--fmt-subcontractor); border-color: var(--fmt-subcontractor); }
+.mint .fmt-chip.fmt-custom.on { background: var(--fmt-custom); border-color: var(--fmt-custom); }
 
 .mint .meeting-item {
   background: #fff;
@@ -2033,10 +2039,12 @@
   border-color: var(--accent-soft-strong);
   box-shadow: 0 0 0 1px var(--accent);
 }
-.mint .meeting-item.fmt-internal { border-left-color: var(--fmt-internal); }
-.mint .meeting-item.fmt-external { border-left-color: var(--fmt-external); }
-.mint .meeting-item.fmt-one_to_one { border-left-color: var(--fmt-one_to_one); }
+.mint .meeting-item.fmt-pre_contract { border-left-color: var(--fmt-pre_contract); }
+.mint .meeting-item.fmt-client_formal { border-left-color: var(--fmt-client_formal); }
+.mint .meeting-item.fmt-client_informal { border-left-color: var(--fmt-client_informal); }
 .mint .meeting-item.fmt-workshop { border-left-color: var(--fmt-workshop); }
+.mint .meeting-item.fmt-subcontractor { border-left-color: var(--fmt-subcontractor); }
+.mint .meeting-item.fmt-custom { border-left-color: var(--fmt-custom); }
 .mint .meeting-item .mi-title {
   font-weight: 700;
   font-size: 13.5px;
@@ -2067,10 +2075,12 @@
   background: #eee;
   color: var(--ink-soft);
 }
-.mint .fmt-badge.fmt-internal { background: var(--fmt-internal-bg); color: var(--fmt-internal); }
-.mint .fmt-badge.fmt-external { background: var(--fmt-external-bg); color: var(--fmt-external); }
-.mint .fmt-badge.fmt-one_to_one { background: var(--fmt-one_to_one-bg); color: var(--fmt-one_to_one); }
+.mint .fmt-badge.fmt-pre_contract { background: var(--fmt-pre_contract-bg); color: var(--fmt-pre_contract); }
+.mint .fmt-badge.fmt-client_formal { background: var(--fmt-client_formal-bg); color: var(--fmt-client_formal); }
+.mint .fmt-badge.fmt-client_informal { background: var(--fmt-client_informal-bg); color: var(--fmt-client_informal); }
 .mint .fmt-badge.fmt-workshop { background: var(--fmt-workshop-bg); color: var(--fmt-workshop); }
+.mint .fmt-badge.fmt-subcontractor { background: var(--fmt-subcontractor-bg); color: var(--fmt-subcontractor); }
+.mint .fmt-badge.fmt-custom { background: var(--fmt-custom-bg); color: var(--fmt-custom); }
 .mint .fmt-badge.fmt-none { background: #f1f1f5; color: var(--ink-faint); font-weight: 600; text-transform: none; letter-spacing: 0; }
 
 .mint .mi-pill {
@@ -2129,10 +2139,13 @@
   color: var(--ink);
 }
 .mint .fmt-btn.on { color: #fff; border-color: transparent; }
-.mint .fmt-btn.fmt-internal.on { background: var(--fmt-internal); }
-.mint .fmt-btn.fmt-external.on { background: var(--fmt-external); }
-.mint .fmt-btn.fmt-one_to_one.on { background: var(--fmt-one_to_one); }
+.mint .fmt-btn.fmt-pre_contract.on { background: var(--fmt-pre_contract); }
+.mint .fmt-btn.fmt-client_formal.on { background: var(--fmt-client_formal); }
+.mint .fmt-btn.fmt-client_informal.on { background: var(--fmt-client_informal); }
 .mint .fmt-btn.fmt-workshop.on { background: var(--fmt-workshop); }
+.mint .fmt-btn.fmt-subcontractor.on { background: var(--fmt-subcontractor); }
+.mint .fmt-btn.fmt-custom.on { background: var(--fmt-custom); }
+.mint .fmt-btn.fmt-add { padding: 4px 11px; border-style: dashed; font-size: 15px; line-height: 1; }
 .mint .format-pick .muted-hint {
   font-size: 12px;
   color: var(--ink-faint);

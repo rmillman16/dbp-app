@@ -544,7 +544,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
         key={m.id}
         role="button"
         tabIndex={0}
-        className={'meeting-item fmt-' + (m.format ?? 'none') + (active && active.id === m.id ? ' active' : '')}
+        className={'meeting-item ' + M.formatClass(m.format) + (active && active.id === m.id ? ' active' : '')}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('[data-del]')) return
           openFromList(m.id)
@@ -555,7 +555,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
       >
         <div className="mi-top">
           {M.meetingFormatOf(m.format) ? (
-            <span className={'fmt-badge fmt-' + m.format} title={M.meetingFormatOf(m.format)!.hint}>
+            <span className={'fmt-badge ' + M.formatClass(m.format)} title={M.meetingFormatOf(m.format)!.hint}>
               {M.meetingFormatOf(m.format)!.label}
             </span>
           ) : (
@@ -789,7 +789,21 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     setTeamBusy(false)
   }
   // a meeting type loads its standing headings
-  // the kind of meeting: internal, external, 1-to-1 or workshop (096); click it again to clear
+  // kinds this job has added for itself: any kind on its meetings that is not a standard one
+  function customFormats(): string[] {
+    const set = new Set<string>()
+    for (const m of sidebarMeetings()) if (m.format && M.meetingFormatOf(m.format)?.custom) set.add(m.format)
+    if (active?.format && M.meetingFormatOf(active.format)?.custom) set.add(active.format)
+    return [...set].sort((a, b) => a.localeCompare(b))
+  }
+  function addCustomFormat() {
+    if (!active || readOnly) return
+    const name = (window.prompt('Name this kind of meeting, for this job (e.g. Design team, Residents):') ?? '').trim().slice(0, 40)
+    if (!name) return
+    const std = M.MEETING_FORMATS.find((f) => f.label.toLowerCase() === name.toLowerCase())
+    setFormat(std ? std.key : name)
+  }
+  // the kind of meeting (096, 097); click it again to clear
   function setFormat(key: string | null) {
     if (!active || readOnly) return
     active.format = key
@@ -1581,10 +1595,6 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
         <button className="icon-btn mint-drawer-toggle" aria-label="Show meeting list" type="button" onClick={() => setDrawerOpen(!drawerOpen)} data-readonly-ok>
           <Icon.menu />
         </button>
-        <div className="brand">
-          <img className="brand-mark brand-mark-sm" src="/minutes/logo-icon.png" alt="" />
-          <span className="brand-name">Minutes</span>
-        </div>
         <div className="mint-bar-spacer" />
         <div className={'save-status' + (status.state ? ' state-' + status.state : '')} aria-live="polite">
           <span className="dot" />
@@ -1701,8 +1711,8 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
             <input type="search" placeholder="Search meetings…" aria-label="Search meetings" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <div className="fmt-filter" role="group" aria-label="Show meetings of one kind">
-            {[{ key: '', label: 'All' }, ...M.MEETING_FORMATS.map((f) => ({ key: f.key, label: f.label })), { key: 'none', label: 'Not set' }].map((f) => (
-              <button key={f.key} type="button" className={'fmt-chip' + (f.key ? ' fmt-' + f.key : '') + (fmtFilter === f.key ? ' on' : '')} onClick={() => setFmtFilter(fmtFilter === f.key ? '' : f.key)}>
+            {[{ key: '', label: 'All' }, ...M.MEETING_FORMATS.map((f) => ({ key: f.key, label: f.label })), ...customFormats().map((k) => ({ key: k, label: M.meetingFormatOf(k)!.label })), { key: 'none', label: 'Not set' }].map((f) => (
+              <button key={f.key} type="button" className={'fmt-chip ' + (f.key && f.key !== 'none' ? M.formatClass(f.key) : '') + (fmtFilter === f.key ? ' on' : '')} onClick={() => setFmtFilter(fmtFilter === f.key ? '' : f.key)}>
                 {f.label}
               </button>
             ))}
@@ -1738,11 +1748,11 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                   />
                   <div className="format-pick" role="group" aria-label="Kind of meeting">
                     <span className="field-label">Kind of meeting</span>
-                    {M.MEETING_FORMATS.map((f) => (
+                    {[...M.MEETING_FORMATS, ...customFormats().map((k) => M.meetingFormatOf(k)!)].map((f) => (
                       <button
                         key={f.key}
                         type="button"
-                        className={'fmt-btn fmt-' + f.key + (active.format === f.key ? ' on' : '')}
+                        className={'fmt-btn ' + M.formatClass(f.key) + (active.format === f.key ? ' on' : '')}
                         disabled={readOnly}
                         title={f.hint + (active.format === f.key ? ' (click again to clear)' : '')}
                         onClick={() => setFormat(active.format === f.key ? null : f.key)}
@@ -1750,6 +1760,9 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                         {f.label}
                       </button>
                     ))}
+                    <button type="button" className="fmt-btn fmt-add" disabled={readOnly} title="Add a kind of meeting for this job" aria-label="Add a kind of meeting for this job" onClick={addCustomFormat}>
+                      +
+                    </button>
                     {!active.format && <span className="muted-hint">Choose one so it shows in the list</span>}
                   </div>
                   <div className="letterhead-meta">
