@@ -84,7 +84,7 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          Open a job’s <b>Minutes</b> tab. Type a point and press <b>Enter</b> to start the next one (Shift+Enter for a new line, Esc to undo). It saves as you go, and keeps a copy on your device if the signal drops.
+          Open a job’s <b>Minutes</b> tab. Type a point and press <b>Enter</b> to start the next one (Shift+Enter for a new line, Esc to undo). It saves as you go, and keeps a copy on your device if the signal drops. Mark each meeting as <b>Internal</b>, <b>External</b>, <b>1-to-1</b> or <b>Workshop</b> at the top: it shows as a coloured label and stripe in the list, and the chips above the list show just one kind.
         </p>
         <h4>Typing shortcuts</h4>
         <ul>

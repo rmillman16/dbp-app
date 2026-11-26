@@ -135,6 +135,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     setMentionState(m)
   }
   const [query, setQuery] = useState('')
+  const [fmtFilter, setFmtFilter] = useState('') // '', a meeting kind, or 'none' (kind not set)
   const [status, setStatus] = useState<SaveState>({ state: '', text: 'Ready' })
   const [drawerOpen, setDrawerOpen] = useState(false)
   const drawerOpenRef = useRef(false)
@@ -277,7 +278,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
 
   // ---------- saving ----------
   function summaryOf(m: M.Meeting): M.MeetingSummary {
-    return { id: m.id, jobId: m.jobId, enquiryId: m.enquiryId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees, no: m.no, type: m.type, rev: m.rev, locked: m.locked }
+    return { id: m.id, jobId: m.jobId, enquiryId: m.enquiryId, project: m.project, subtitle: m.subtitle, date: m.date, updatedAt: m.updatedAt, attendees: m.attendees, no: m.no, type: m.type, format: m.format, rev: m.rev, locked: m.locked }
   }
   function scheduleSave() {
     const target = activeRef.current
@@ -524,7 +525,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
         key={m.id}
         role="button"
         tabIndex={0}
-        className={'meeting-item' + (active && active.id === m.id ? ' active' : '')}
+        className={'meeting-item fmt-' + (m.format ?? 'none') + (active && active.id === m.id ? ' active' : '')}
         onClick={(e) => {
           if ((e.target as HTMLElement).closest('[data-del]')) return
           openFromList(m.id)
@@ -534,11 +535,20 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
         }}
       >
         <div className="mi-top">
-          <span className="mi-project">
-            {m.no ? `Meeting ${m.no}` : 'Meeting'}
-            {M.meetingTypeOf(m.type) ? ` · ${M.meetingTypeOf(m.type)!.label}` : ''}
-          </span>
+          {M.meetingFormatOf(m.format) ? (
+            <span className={'fmt-badge fmt-' + m.format} title={M.meetingFormatOf(m.format)!.hint}>
+              {M.meetingFormatOf(m.format)!.label}
+            </span>
+          ) : (
+            <span className="fmt-badge fmt-none" title="Open the meeting and choose its kind">
+              Kind not set
+            </span>
+          )}
           <span className="mi-date">{M.formatDateSidebar(m.date)}</span>
+        </div>
+        <div className="mi-title">
+          {m.no ? `Meeting ${m.no}` : 'Meeting'}
+          {M.meetingTypeOf(m.type) ? ` · ${M.meetingTypeOf(m.type)!.label}` : ''}
         </div>
         <div className="mi-subtitle" title={m.subtitle || undefined}>
           {m.subtitle || <i>No subject yet: add one at the top of the minutes</i>}
@@ -617,7 +627,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
 
   function renderSidebar() {
     if (list === null) return <div className="meeting-empty">Loading…</div>
-    const all = sidebarMeetings()
+    const all = sidebarMeetings().filter((m) => !fmtFilter || (fmtFilter === 'none' ? !m.format : m.format === fmtFilter))
     const q = query.trim().toLowerCase()
     if (q) {
       const filtered = all.filter((m) => [m.subtitle, m.no ? 'meeting ' + m.no : '', M.meetingTypeOf(m.type)?.label ?? '', ...m.attendees.map((a) => a.name)].join(' ').toLowerCase().includes(q))
@@ -760,6 +770,13 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
     setTeamBusy(false)
   }
   // a meeting type loads its standing headings
+  // the kind of meeting: internal, external, 1-to-1 or workshop (096); click it again to clear
+  function setFormat(key: string | null) {
+    if (!active || readOnly) return
+    active.format = key
+    scheduleSave()
+    rerender()
+  }
   function applyType(key: string) {
     const m = activeRef.current
     if (!m) return
@@ -1664,6 +1681,13 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
           <div className="drawer-head">
             <input type="search" placeholder="Search meetings…" aria-label="Search meetings" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
+          <div className="fmt-filter" role="group" aria-label="Show meetings of one kind">
+            {[{ key: '', label: 'All' }, ...M.MEETING_FORMATS.map((f) => ({ key: f.key, label: f.label })), { key: 'none', label: 'Not set' }].map((f) => (
+              <button key={f.key} type="button" className={'fmt-chip' + (f.key ? ' fmt-' + f.key : '') + (fmtFilter === f.key ? ' on' : '')} onClick={() => setFmtFilter(fmtFilter === f.key ? '' : f.key)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
           <div className="meeting-list">{renderSidebar()}</div>
         </aside>
         {drawerOpen && <div className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
@@ -1693,6 +1717,22 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                       rerender()
                     }}
                   />
+                  <div className="format-pick" role="group" aria-label="Kind of meeting">
+                    <span className="field-label">Kind of meeting</span>
+                    {M.MEETING_FORMATS.map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        className={'fmt-btn fmt-' + f.key + (active.format === f.key ? ' on' : '')}
+                        disabled={readOnly}
+                        title={f.hint + (active.format === f.key ? ' (click again to clear)' : '')}
+                        onClick={() => setFormat(active.format === f.key ? null : f.key)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                    {!active.format && <span className="muted-hint">Choose one so it shows in the list</span>}
+                  </div>
                   <div className="letterhead-meta">
                     {active.no ? (
                       <span className="meeting-no" title="Meeting number: quote it with the item number, for example 12/4.3">
@@ -1701,7 +1741,7 @@ function MinutesApp({ owner, readOnly: readOnlyProp, hubUrl }: { owner: M.Minute
                       </span>
                     ) : null}
                     <label className="date-field">
-                      <span className="field-label">Type</span>
+                      <span className="field-label">About</span>
                       <select aria-label="Meeting type" value={active.type ?? ''} disabled={readOnly} onChange={(e) => applyType(e.target.value)}>
                         <option value="">No type</option>
                         {M.MEETING_TYPES.map((t) => (

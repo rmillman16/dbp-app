@@ -72,6 +72,7 @@ export interface Meeting {
   updatedAt: number
   no?: number | null // Meeting 12: counted per job / estimate, given by the database on first save (085)
   type?: string | null // a meeting type: see MEETING_TYPES (085)
+  format?: string | null // internal, external, one_to_one or workshop: see MEETING_FORMATS (096)
   rev?: number // how many times it has been issued (085)
   locked?: boolean // issued: read-only until amended (085)
 }
@@ -86,6 +87,7 @@ export interface MeetingSummary {
   attendees: Pick<Attendee, 'id' | 'name' | 'initials' | 'present'>[]
   no?: number | null // meeting number (085)
   type?: string | null // meeting type key, see MEETING_TYPES
+  format?: string | null // meeting kind key, see MEETING_FORMATS (096)
   rev?: number // times issued
   locked?: boolean
 }
@@ -138,6 +140,7 @@ export function newMeeting(owner: MinutesOwner): Meeting {
     updatedAt: Date.now(),
     no: null,
     type: null,
+    format: null,
     rev: 0,
     locked: false,
   }
@@ -198,6 +201,19 @@ export const MEETING_TYPES: MeetingType[] = [
   { key: 'hs', label: 'H&S meeting', headings: ['Accidents, incidents and near misses', 'Inspections and audits', 'RAMS and permits', 'Site conditions and welfare', 'Training and inductions', 'Any other business'] },
   { key: 'tender', label: 'Tender / pre-contract meeting', headings: ['Scope and clarifications', 'Programme', 'Pricing and commercial', 'Next steps'] },
 ]
+// what kind of meeting it was (096): who it was with, whatever its subject
+export interface MeetingFormat {
+  key: 'internal' | 'external' | 'one_to_one' | 'workshop'
+  label: string
+  hint: string
+}
+export const MEETING_FORMATS: MeetingFormat[] = [
+  { key: 'internal', label: 'Internal', hint: 'DBP team only' },
+  { key: 'external', label: 'External', hint: 'With the client, consultants, contractors or other outside people' },
+  { key: 'one_to_one', label: '1-to-1', hint: 'A one to one' },
+  { key: 'workshop', label: 'Workshop', hint: 'A workshop or working session' },
+]
+export const meetingFormatOf = (key: string | null | undefined) => MEETING_FORMATS.find((f) => f.key === key) ?? null
 export const meetingTypeOf = (key: string | null | undefined) => MEETING_TYPES.find((t) => t.key === key) ?? null
 // the type's headings as empty sections, for a meeting that has none yet
 export const standingHeadings = (key: string | null | undefined): Point[] => (meetingTypeOf(key)?.headings ?? []).map((h) => ({ ...newPoint('heading'), text: h }))
@@ -406,6 +422,7 @@ interface MeetingRow {
   updated_at: string
   meeting_no?: number | null // 085
   meeting_type?: string | null
+  meeting_format?: string | null // 096
   issued_rev?: number
   locked?: boolean
 }
@@ -441,7 +458,9 @@ interface PointRow {
 }
 
 export const needs045 = (m: string) =>
-  /enquiry_id|enquiry_no/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
+  /meeting_format/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
+    ? 'Meeting kinds (internal, external, 1-to-1, workshop) need script 096 run in Supabase first (supabase/README.md).'
+    : /enquiry_id|enquiry_no/i.test(m) && /does not exist|schema cache|could not find|column/i.test(m)
     ? 'Minutes need script 046 run in Supabase first (supabase/README.md).'
     : /(meetings|meeting_attendees|meeting_points)/i.test(m) && /relation|table/i.test(m) && /does not exist|schema cache|could not find/i.test(m)
       ? 'Minutes need script 045 run in Supabase first (supabase/README.md).'
@@ -484,6 +503,7 @@ export async function loadMeetingList(owner: MinutesOwner): Promise<MeetingSumma
       throw new Error(needs045(e.message))
     })
     sees085(ms[0])
+    sees096(ms[0])
     const as = ms.length
       ? await must<Pick<AttendeeRow, 'id' | 'meeting_id' | 'name' | 'initials' | 'present' | 'sort'>[]>(
           supabase
@@ -513,6 +533,7 @@ export async function loadMeetingList(owner: MinutesOwner): Promise<MeetingSumma
       attendees: byMeeting.get(m.id) ?? [],
       no: m.meeting_no ?? null,
       type: m.meeting_type ?? null,
+      format: m.meeting_format ?? null,
       rev: m.issued_rev ?? 0,
       locked: !!m.locked,
     }))
@@ -530,6 +551,7 @@ export async function loadMeeting(id: string): Promise<Meeting | null> {
     })
     if (!m) return null
     sees085(m)
+    sees096(m)
     return {
       id: m.id,
       jobId: m.job_id,
@@ -543,6 +565,7 @@ export async function loadMeeting(id: string): Promise<Meeting | null> {
       updatedAt: new Date(m.updated_at).getTime(),
       no: m.meeting_no ?? null,
       type: m.meeting_type ?? null,
+      format: m.meeting_format ?? null,
       rev: m.issued_rev ?? 0,
       locked: !!m.locked,
     } satisfies Meeting
@@ -570,6 +593,11 @@ let has085 = false
 const sees085 = (r: object | undefined | null) => {
   if (r && 'meeting_no' in r) has085 = true
 }
+// likewise script 096 (the meeting kind)
+let has096 = false
+const sees096 = (r: object | undefined | null) => {
+  if (r && 'meeting_format' in r) has096 = true
+}
 
 function rows(m: Meeting) {
   const attendeeIds = new Set(m.attendees.map((a) => a.id))
@@ -582,6 +610,7 @@ function rows(m: Meeting) {
     subtitle: m.subtitle,
     meeting_date: m.date || todayISO(),
     ...(has085 || m.type ? { meeting_type: m.type ?? null } : {}),
+    ...(has096 || m.format ? { meeting_format: m.format ?? null } : {}),
   }
   const attendees = m.attendees.map((a, i) => ({
     id: a.id,
