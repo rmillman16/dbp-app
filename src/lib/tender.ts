@@ -7,13 +7,14 @@ import { fill } from './letter'
 // A PACKAGE (trade) of an Estimating enquiry goes to a list of contractors: one email each, as an Outlook draft (.eml).
 // Each contractor on each package is an INVITE, tracked like a Procurement line.
 
-export type InviteStatus = 'drafted' | 'sent' | 'interested' | 'declined' | 'quoted' | 'appointed' | 'unsuccessful'
+export type InviteStatus = 'drafted' | 'sent' | 'interested' | 'declined' | 'quoted' | 'used' | 'appointed' | 'unsuccessful'
 export const INVITE_STATUS: [InviteStatus, string][] = [
   ['drafted', 'Draft made'],
   ['sent', 'Sent'],
   ['interested', 'Interested'],
   ['declined', 'Declined'],
   ['quoted', 'Quote received'],
+  ['used', 'Price used'],
   ['appointed', 'Appointed'],
   ['unsuccessful', 'Unsuccessful'],
 ]

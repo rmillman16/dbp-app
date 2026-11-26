@@ -36,6 +36,7 @@ import {
 } from '../lib/tender'
 import Loading from '../components/Loading'
 import SuggestInput from '../components/SuggestInput'
+import MoneyInput from '../components/MoneyInput'
 
 // ---------- the Enquiry Generator, rebuilt in the app ----------
 // Four steps: the job's details, the documents, the email, then who it goes to. It makes one Outlook draft per contractor
@@ -755,6 +756,21 @@ function AddContractor({ pkg, existing, onDone, onCancel }: { pkg: TenderPackage
   )
 }
 
+// their price, shown as £1,000.00; saved when you leave the box
+function TenderPrice({ invite, onSave }: { invite: TenderInvite; onSave: (v: number | null) => void }) {
+  const draft = useRef<number | null>(invite.quote_amount == null ? null : Number(invite.quote_amount))
+  const orig = invite.quote_amount == null ? null : Number(invite.quote_amount)
+  return (
+    <div
+      onBlur={() => {
+        if (draft.current !== orig) onSave(draft.current)
+      }}
+    >
+      <MoneyInput className="small-input" value={orig} placeholder="£" onChange={(v) => (draft.current = v)} />
+    </div>
+  )
+}
+
 // ---------- the tender tracker ----------
 type View = 'waiting' | 'quoted' | 'all'
 // enquiryId: inside an enquiry (where tender enquiries are sent from); without it, the overview of all enquiries on the Estimating tab
@@ -785,14 +801,14 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
   }
 
   const q = search.trim().toLowerCase()
-  const inView = (i: TenderInvite) => (view === 'all' ? true : view === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'appointed'].includes(i.status))
+  const inView = (i: TenderInvite) => (view === 'all' ? true : view === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'used', 'appointed'].includes(i.status))
   const packages = (data?.packages ?? []).filter((p) => !enquiryId || p.enquiry_id === enquiryId).filter((p) => {
     const e = enq[p.enquiry_id]
     const text = `${e ? enquiryRef(e) + ' ' + e.name : ''} ${p.package}`.toLowerCase()
     const mine = data!.invites.filter((i) => i.package_id === p.id)
     return (!q || text.includes(q) || mine.some((i) => i.name.toLowerCase().includes(q))) && (view === 'all' || mine.some(inView))
   })
-  const count = (v: View) => (data?.invites ?? []).filter((i) => (v === 'all' ? true : v === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'appointed'].includes(i.status))).length
+  const count = (v: View) => (data?.invites ?? []).filter((i) => (v === 'all' ? true : v === 'waiting' ? i.status === 'drafted' || AWAITING.includes(i.status) : ['quoted', 'used', 'appointed'].includes(i.status))).length
 
   async function chase(p: TenderPackage, i: TenderInvite) {
     const e = enq[p.enquiry_id]
@@ -866,7 +882,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
           <div key={p.id} className="tt-package">
             <div className="tt-head">
               <div>
-                <strong>{e ? `${enquiryRef(e)} · ${e.name}` : 'Enquiry'}</strong> <span className="tag">{p.package}</span>
+                <strong>{p.package}</strong> <span className="tag">{e ? `${enquiryRef(e)} · ${e.name}` : 'Enquiry'}</span>
                 <div className="muted small">
                   Return by <span className={late ? 'late' : ''}>{ukDate(p.return_date)}{late ? ' (past)' : ''}</span> · {all.length} invited · {waiting} waiting · {quotes.length} quote{quotes.length === 1 ? '' : 's'} in
                   {low != null && ` · lowest ${money(low)}`}
@@ -920,7 +936,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                 {rows.map((i) => (
                   <tr key={i.id} className={`tt-${i.status}`}>
                     <td>
-                      <strong>{i.name}</strong>
+                      <strong>{i.name}</strong>{i.status === 'used' && <span className="tt-used-tag">Price used</span>}
                       <div className="muted small">{i.email ?? 'no email'}</div>
                     </td>
                     <td>
@@ -935,18 +951,7 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                     <td className="nowrap">{ukDate(i.sent_on) || '–'}</td>
                     <td className="nowrap">{i.chased_count ? `${i.chased_count}× · ${ukDate(i.last_chased_on)}` : '–'}</td>
                     <td>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="small-input"
-                        defaultValue={i.quote_amount ?? ''}
-                        key={i.id + (i.quote_amount ?? '')}
-                        placeholder="£"
-                        onBlur={(ev) => {
-                          const v = ev.target.value === '' ? null : Number(ev.target.value)
-                          if (v !== i.quote_amount) run(() => updateInvite(i.id, { quote_amount: v, ...(v != null && i.status !== 'quoted' && !['appointed', 'unsuccessful'].includes(i.status) ? statusPatch('quoted', i) : {}) }))
-                        }}
-                      />
+                      <TenderPrice key={i.id + (i.quote_amount ?? '')} invite={i} onSave={(v) => run(() => updateInvite(i.id, { quote_amount: v, ...(v != null && i.status !== 'quoted' && !['used', 'appointed', 'unsuccessful'].includes(i.status) ? statusPatch('quoted', i) : {}) }))} />
                     </td>
                     <td>
                       <input defaultValue={i.notes ?? ''} key={i.id + (i.notes ?? '')} onBlur={(ev) => ev.target.value !== (i.notes ?? '') && run(() => updateInvite(i.id, { notes: ev.target.value || null }))} />

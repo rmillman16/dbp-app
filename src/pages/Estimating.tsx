@@ -425,7 +425,7 @@ function EnquiryTiles({ e }: { e: Enquiry }) {
         prog,
         meetings: { count: mt.length, last: mt[0]?.meeting_date ?? null, name: mt[0]?.subtitle || mt[0]?.project || null },
         rfis: { total: rf.length, unanswered: rf.filter((r) => r.status === 'open').length, overdue: rf.filter((r) => r.status === 'open' && r.due_date && r.due_date < today).length },
-        tender: { packages: pk.length, sent: inv.filter((i) => i.status !== 'drafted').length, returned: inv.filter((i) => i.quote_amount != null || ['quoted', 'appointed', 'unsuccessful'].includes(i.status)).length },
+        tender: { packages: pk.length, sent: inv.filter((i) => i.status !== 'drafted').length, returned: inv.filter((i) => i.quote_amount != null || ['quoted', 'used', 'appointed', 'unsuccessful'].includes(i.status)).length },
         quotes: { count: list.length, latest: list[0]?.q.status ?? null },
       })
     })
