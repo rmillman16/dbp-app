@@ -132,7 +132,6 @@ export default function Contractors() {
     return m
   }, [companies])
   const hasPqq = (companies ?? []).some((c) => c.pqq_status !== undefined)
-  const personName = (id: string | null | undefined) => people.find((p) => p.id === id)?.full_name ?? ''
 
   function replace(c: Company) {
     setCompanies((cs) => (cs ?? []).map((x) => (x.id === c.id ? c : x)))
@@ -165,7 +164,7 @@ export default function Contractors() {
       <section className="card">
         <p className="muted small intro">
           Subcontractors and suppliers, with their pre-qualification (PQQ): approved for 12 months, their insurances and accreditations with expiry dates, and what was sent to
-          whom and when. Whoever is set to chase a PQQ gets a reminder on the bell when one is due. The name and address are what print on orders and payment notices.
+          whom and when. The Accounts team get a reminder on the bell when a PQQ or document is due. The name and address are what print on orders and payment notices.
         </p>
         {!hasPqq && companies && <p className="pqq-warning">PQQ tracking needs script 054 run in Supabase first (supabase/README.md).</p>}
         <div className="segmented contractor-tabs">
@@ -194,7 +193,6 @@ export default function Contractors() {
           <CompanyForm
             company={null}
             tab={tab}
-            people={people}
             onSaved={(c) => {
               setCompanies((cs) => [...(cs ?? []), c].sort((a, b) => a.name.localeCompare(b.name)))
               setAdding(false)
@@ -231,7 +229,6 @@ export default function Contractors() {
                         {badDocs.length ? ` · ${badDocs.length} document${badDocs.length === 1 ? '' : 's'} expiring` : ''}
                       </small>
                       <small>{lastSent.get(c.id) ? `last sent ${ukDate(lastSent.get(c.id)!.slice(0, 10))}` : ''}</small>
-                      {c.pqq_owner && <small>chase: {personName(c.pqq_owner).split(' ')[0]}</small>}
                     </span>
                   )}
                 </button>
@@ -261,7 +258,7 @@ export default function Contractors() {
 }
 
 // ---------- the company's own details ----------
-function CompanyForm({ company, tab, people, onSaved, onCancel }: { company: Company | null; tab: Tab; people: Profile[]; onSaved: (c: Company) => void; onCancel: () => void }) {
+function CompanyForm({ company, tab, onSaved, onCancel }: { company: Company | null; tab: Tab; onSaved: (c: Company) => void; onCancel: () => void }) {
   const [f, setF] = useState({
     name: company?.name ?? '',
     type: (company?.type ?? (tab === 'other' ? 'client' : tab)) as CompanyType,
@@ -334,18 +331,6 @@ function CompanyForm({ company, tab, people, onSaved, onCancel }: { company: Com
         {input('phone', 'Phone')}
         {input('iplicit_code', 'iPlicit supplier code')}
         <label>
-          PQQ chased by
-          <select value={f.pqq_owner} onChange={(e) => set('pqq_owner', e.target.value)}>
-            <option value="">Admins</option>
-            {people.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name || p.email}
-              </option>
-            ))}
-          </select>
-          <span className="hint">Who gets the reminders to chase this company's PQQ and documents</span>
-        </label>
-        <label>
           PQQ / account form
           <select value={f.pqq_pack} onChange={(e) => set('pqq_pack', e.target.value)}>
             <option value="">By type ({PACK_LABELS[packOf({ type: f.type, pqq_pack: null })]})</option>
@@ -404,7 +389,7 @@ function CompanyDetail({
     <div className="company-detail">
       {isPqq && <PqqPanel company={company} people={people} onChanged={onChanged} onLogged={onLogged} />}
       <h3 className="sub-head">Details</h3>
-      <CompanyForm company={company} tab="other" people={people} onSaved={onChanged} onCancel={() => {}} />
+      <CompanyForm company={company} tab="other" onSaved={onChanged} onCancel={() => {}} />
       <h3 className="sub-head">Contacts</h3>
       <ContactsEditor companyId={company.id} />
       {error && <p className="error">{error}</p>}
@@ -526,7 +511,7 @@ function PqqPanel({ company: c, people, onChanged, onLogged }: { company: Compan
       </div>
       <p className="muted small">
         {state === 'approved' || state === 'expiring'
-          ? `Approved for 12 months${c.pqq_expires_on ? `, until ${ukDate(c.pqq_expires_on)}` : ''}. A reminder goes to whoever chases it 30 days before.`
+          ? `Approved for 12 months${c.pqq_expires_on ? `, until ${ukDate(c.pqq_expires_on)}` : ''}. A reminder goes to the Accounts team 30 days before.`
           : state === 'expired'
             ? 'The 12 months have run out: send a new PQQ.'
             : state === 'sent'
@@ -557,7 +542,7 @@ function PqqPanel({ company: c, people, onChanged, onLogged }: { company: Compan
       {docs === null ? (
         <p className="muted small">Loading…</p>
       ) : docs.length === 0 ? (
-        <p className="muted small">None yet: add their insurances and accreditations (and their completed PQQ) with the date each runs out. A reminder goes to whoever chases it 30 days before.</p>
+        <p className="muted small">None yet: add their insurances and accreditations (and their completed PQQ) with the date each runs out. A reminder goes to the Accounts team 30 days before.</p>
       ) : (
         <table className="table stack pqq-docs">
           <thead>

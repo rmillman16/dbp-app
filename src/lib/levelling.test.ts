@@ -37,11 +37,7 @@ describe('detail lines', () => {
     expect(numberItems([item('h', 'heading'), item('a'), item('d1', 'detail'), item('d2', 'detail'), item('b'), item('d3', 'detail')])).toEqual(['1', '1.1', '(a)', '(b)', '1.2', '(a)'])
   })
   it('only the left-hand lines are items; everything indented under them is a detail', () => {
-    const t = 'S01 Wardrobe
-	WD-01 frame
-		Stone top
-S02 Credenza
-	ST-01 top'
+    const t = 'S01 Wardrobe\n\tWD-01 frame\n\t\tStone top\nS02 Credenza\n\tST-01 top'
     expect(parseScope(t)).toEqual([
       { kind: 'item', description: 'S01 Wardrobe' },
       { kind: 'detail', description: 'WD-01 frame' },
