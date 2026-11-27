@@ -115,7 +115,7 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
             value={paste}
             onChange={(e) => setPaste(e.target.value)}
             onKeyDown={(e) => indentKey(e, setPaste)}
-            placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): three levels are heading / item / detail, two are item / detail. Or start a line with # (or end it with a colon) to make a heading. Add bold, colours and so on afterwards, on each line.'}
+            placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): lines at the left are scope items and indented lines under them are details of that item. Start a line with # (or end it with a colon) to make a heading. Add bold, colours and so on afterwards, on each line.'}
           />
           <div className="button-row">
             <button

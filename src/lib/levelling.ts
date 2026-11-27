@@ -120,7 +120,8 @@ export function parseScope(text: string): { kind: ScopeKind; description: string
     const levels = widths.length
     for (const r of seg) {
       const lv = widths.indexOf(r.width)
-      const kind: ScopeKind = levels >= 3 ? (lv === 0 ? 'heading' : lv === 1 ? 'item' : 'detail') : levels === 2 ? (lv === 0 ? 'item' : 'detail') : 'item'
+      // only the left-hand lines are scope items; anything indented under them is a detail of that item (headings are marked with # or a colon)
+      const kind: ScopeKind = levels > 1 && lv > 0 ? 'detail' : 'item'
       out.push({ kind, description: r.description })
     }
     seg = []

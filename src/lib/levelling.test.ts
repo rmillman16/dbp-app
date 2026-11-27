@@ -36,10 +36,13 @@ describe('detail lines', () => {
   it('number (a), (b) under their item and start again under the next', () => {
     expect(numberItems([item('h', 'heading'), item('a'), item('d1', 'detail'), item('d2', 'detail'), item('b'), item('d3', 'detail')])).toEqual(['1', '1.1', '(a)', '(b)', '1.2', '(a)'])
   })
-  it('are read from the indentation of a list pasted from Word: heading, item, detail', () => {
-    const t = 'ID-400\n\tS01 Wardrobe\n\t\tWD-01 frame\n\t\tStone top\n\tS02 Credenza\n\t\tST-01 top'
+  it('only the left-hand lines are items; everything indented under them is a detail', () => {
+    const t = 'S01 Wardrobe
+	WD-01 frame
+		Stone top
+S02 Credenza
+	ST-01 top'
     expect(parseScope(t)).toEqual([
-      { kind: 'heading', description: 'ID-400' },
       { kind: 'item', description: 'S01 Wardrobe' },
       { kind: 'detail', description: 'WD-01 frame' },
       { kind: 'detail', description: 'Stone top' },
