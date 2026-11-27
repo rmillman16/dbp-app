@@ -145,3 +145,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `102_application_checked_status.sql` | Applications: a Checked step (Draft, Checked, Issued, Certified, Paid) (run after 101) | **Run it** |
 | `103_pqq_to_accounts.sql` | All PQQ reminders go to the Accounts team only (run after 102) | **Run it** |
 | `104_task_mentions.sql` | Tasks: anyone @mentioned in a task can see it (read only) and gets a bell note (run after 103) | **Run it** |
+| `105_enquiry_sharepoint_link.sql` | Enquiries: a SharePoint documents link kept on the job, pre-filling each tender package (run after 104) | **Run it** |
