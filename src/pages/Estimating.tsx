@@ -159,7 +159,9 @@ export default function Estimating() {
 
 // ---------- new / edit ----------
 // the contract details come from script 068
-const needs068 = (e: { message: string }) => (/proposed_start|proposed_duration|cdp_items/i.test(e.message)
+const needs068 = (e: { message: string }) => (/documents_link/i.test(e.message)
+  ? 'Run script 104 in Supabase first (it adds the SharePoint link to an enquiry).'
+  : /proposed_start|proposed_duration|cdp_items/i.test(e.message)
     ? 'Run script 098 in Supabase first (it adds the proposed start, duration and CDP items).'
     : /main_contract|sub_contract|summary|schema cache/i.test(e.message)
       ? 'Run script 068 in Supabase first (it adds the main contract, sub-contract and project summary).'
@@ -200,6 +202,7 @@ export function EnquiryForm() {
       proposed_start: form.proposed_start || null,
       proposed_duration: form.proposed_duration?.trim() || null,
       cdp_items: form.cdp_items?.trim() || null,
+      documents_link: form.documents_link?.trim() || null,
     }
     setBusy(true)
     let id = enquiryId
@@ -289,6 +292,10 @@ export function EnquiryForm() {
         <label>
           Proposed duration
           <input value={form.proposed_duration ?? ''} placeholder="e.g. 26 weeks" onChange={(e) => set('proposed_duration', e.target.value)} />
+        </label>
+        <label className="span-2">
+          SharePoint link (drawings and documents for this job)
+          <input type="url" value={form.documents_link ?? ''} placeholder="https://duboulay.sharepoint.com/..." onChange={(e) => set('documents_link', e.target.value)} />
         </label>
         <label className="span-2">
           Project summary
@@ -418,6 +425,16 @@ Type the enquiry reference (${ref}) to confirm:`)
                 <dt>Proposed start / duration</dt>
                 <dd>
                   {ukDate(e.proposed_start) || '–'} / {e.proposed_duration || '–'}
+                </dd>
+              </>
+            )}
+            {e.documents_link && (
+              <>
+                <dt>SharePoint</dt>
+                <dd>
+                  <a href={e.documents_link} target="_blank" rel="noopener noreferrer">
+                    Open the job's SharePoint folder
+                  </a>
                 </dd>
               </>
             )}

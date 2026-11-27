@@ -416,6 +416,7 @@ export interface Enquiry {
   proposed_start?: string | null // script 098
   proposed_duration?: string | null
   cdp_items?: string | null
+  documents_link?: string | null // script 104: the job's SharePoint (drawings) folder link
 }
 
 // ---------- quotations ----------

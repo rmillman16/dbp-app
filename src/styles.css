@@ -1675,3 +1675,10 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .check-list .info { color: var(--muted); }
 .app-cert .block { display: block; font-size: 17px; }
 .app-progress { border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 12px; background: #fafbfd; }
+.tg-tabs { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end; margin: 8px 0 12px; border-bottom: 1px solid var(--line, #d5d8e4); }
+.tg-tab { display: inline-flex; align-items: center; border: 1px solid var(--line, #d5d8e4); border-bottom: 0; border-radius: 8px 8px 0 0; background: #f3f4f8; }
+.tg-tab.on { background: #fff; font-weight: 700; box-shadow: 0 2px 0 #fff; }
+.tg-tab button, .tg-tab-add { border: 0; background: transparent; padding: 6px 10px; cursor: pointer; font: inherit; color: inherit; }
+.tg-tab > button:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-tab-x { padding: 6px 8px 6px 0 !important; opacity: .5; }
+.tg-tab-add { color: #2563eb; }

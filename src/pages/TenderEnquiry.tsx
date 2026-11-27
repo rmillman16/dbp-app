@@ -51,35 +51,177 @@ const MAX_ATTACH = 20 * 1024 * 1024 // everything attached to one email: most ma
 type Contact = { id: string; name: string; role: string | null; email: string | null }
 type Co = Company & { contacts: Contact[] }
 
+// A half-written enquiry is kept in this browser as you type, so a reload, an app update or going out for the day does not lose it.
+// (Drawings and files to attach are not kept: add them again.) It is cleared once the drafts are made, or with Discard.
+// Several can be open at once, as tabs along the top: the first tab uses the original key, so an earlier draft is still found.
+const draftKey = (enquiryId: string | undefined, tabId: string) => (tabId === '1' ? `tender-draft:${enquiryId}` : `tender-draft:${enquiryId}:${tabId}`)
+type SavedDraft = { step: number; f: { enquiry: string; pkg: string; link: string }; scopeItems: ScopeDraft[]; attachScope: boolean; subject: string; body: string; tradeOnly: boolean; picked: Record<string, string> }
+function readDraft(enquiryId: string | undefined, tabId: string): Partial<SavedDraft> | null {
+  try {
+    const t = localStorage.getItem(draftKey(enquiryId, tabId))
+    return t ? (JSON.parse(t) as Partial<SavedDraft>) : null
+  } catch {
+    return null
+  }
+}
+
+type Tab = { id: string; label: string }
+const tabsKey = (enquiryId: string | undefined) => `tender-tabs:${enquiryId}`
+
+// The generator as tabs: one half-written enquiry per tab, so a drawing pack can be worked through with several packages open at once.
+// A tab keeps its drawings and attachments while you move between tabs (not if you reload the page).
 export default function TenderEnquiry() {
-  const { enquiryId } = useParams() // the generator only ever works from inside an enquiry
+  const { enquiryId } = useParams()
   const navigate = useNavigate()
+  const [tabs, setTabs] = useState<Tab[]>(() => {
+    try {
+      const l = JSON.parse(localStorage.getItem(tabsKey(enquiryId)) ?? '[]') as Tab[]
+      if (Array.isArray(l) && l.length) return l
+    } catch {
+      /* start with one tab */
+    }
+    return [{ id: '1', label: 'New enquiry' }]
+  })
+  const [active, setActive] = useState(tabs[0].id)
+  const [opened, setOpened] = useState<string[]>([tabs[0].id]) // tabs are loaded when first clicked, then kept
+  useEffect(() => {
+    try {
+      localStorage.setItem(tabsKey(enquiryId), JSON.stringify(tabs))
+    } catch {
+      /* storage blocked */
+    }
+  }, [tabs]) // eslint-disable-line react-hooks/exhaustive-deps
+  const show = (id: string) => {
+    setActive(id)
+    setOpened((o) => (o.includes(id) ? o : [...o, id]))
+  }
+  const clear = (id: string) => {
+    try {
+      localStorage.removeItem(draftKey(enquiryId, id))
+    } catch {
+      /* nothing to clear */
+    }
+  }
+  function close(id: string) {
+    const t = tabs.find((x) => x.id === id)
+    if (t && t.label !== 'New enquiry' && !confirm(`Close "${t.label}" and throw its draft away?`)) return
+    clear(id)
+    const rest = tabs.filter((x) => x.id !== id)
+    if (!rest.length) {
+      setTabs([{ id: Date.now().toString(36), label: 'New enquiry' }])
+      return window.location.reload()
+    }
+    setTabs(rest)
+    if (active === id) show(rest[0].id)
+  }
+  function add() {
+    const id = Date.now().toString(36)
+    setTabs([...tabs, { id, label: 'New enquiry' }])
+    show(id)
+  }
+  return (
+    <>
+      {tabs.length > 0 && (
+        <div className="tg-tabs" role="tablist" aria-label="Enquiries being written">
+          {tabs.map((t) => (
+            <span key={t.id} className={'tg-tab' + (t.id === active ? ' on' : '')}>
+              <button type="button" role="tab" aria-selected={t.id === active} onClick={() => show(t.id)}>
+                {t.label}
+              </button>
+              <button type="button" className="tg-tab-x" aria-label={`Close ${t.label}`} onClick={() => close(t.id)}>
+                ✕
+              </button>
+            </span>
+          ))}
+          <button type="button" className="tg-tab-add" onClick={add} title="Start another enquiry alongside these">
+            + New tab
+          </button>
+        </div>
+      )}
+      {tabs.map((t) =>
+        opened.includes(t.id) ? (
+          <div key={t.id} hidden={t.id !== active}>
+            <TenderWizard
+              tabId={t.id}
+              onLabel={(label) => setTabs((l) => (l.some((x) => x.id === t.id && x.label !== label) ? l.map((x) => (x.id === t.id ? { ...x, label } : x)) : l))}
+              onFinished={() => {
+                clear(t.id)
+                const rest = tabs.filter((x) => x.id !== t.id)
+                if (!rest.length) {
+                  try {
+                    localStorage.removeItem(tabsKey(enquiryId))
+                  } catch {
+                    /* nothing to clear */
+                  }
+                  return navigate(`/estimating/e/${enquiryId}`)
+                }
+                setTabs(rest)
+                show(rest[0].id)
+              }}
+            />
+          </div>
+        ) : null,
+      )}
+    </>
+  )
+}
+
+function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: (label: string) => void; onFinished: () => void }) {
+  const { enquiryId } = useParams() // the generator only ever works from inside an enquiry
+  const saved = useRef(readDraft(enquiryId, tabId)).current
+  const [restored, setRestored] = useState(!!saved)
   const { me } = useAccess()
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(saved?.step ?? 1)
   const [enquiries, setEnquiries] = useState<Enquiry[]>([])
   const [companies, setCompanies] = useState<Co[]>([])
   const [pqq, setPqq] = useState<Awaited<ReturnType<typeof loadPqqPack>>>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // only what is particular to this package is typed here: everything else comes from the enquiry and from My details
-  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: '', link: '' })
-  const [scopeItems, setScopeItems] = useState<ScopeDraft[]>([])
+  const [f, setF] = useState({ enquiry: enquiryId ?? '', pkg: saved?.f?.pkg ?? '', link: saved?.f?.link ?? '' })
+  const [scopeItems, setScopeItems] = useState<ScopeDraft[]>(saved?.scopeItems ?? [])
   const scopeStr = scopeText(scopeItems)
   const [trades, setTrades] = useState<string[]>([])
   const [drawings, setDrawings] = useState<File[]>([])
   const [dragDraw, setDragDraw] = useState(false)
   const [scopeBusy, setScopeBusy] = useState(false)
   const [scopeErr, setScopeErr] = useState<string | null>(null)
-  const [attachScope, setAttachScope] = useState(false)
+  const [attachScope, setAttachScope] = useState(saved?.attachScope ?? false)
   const uploaded = useRef(new Map<File, string>()) // drawings already in storage
   const [files, setFiles] = useState<File[]>([])
-  const [subject, setSubject] = useState(DEFAULT_SUBJECT)
-  const [body, setBody] = useState(DEFAULT_BODY)
+  const [subject, setSubject] = useState(saved?.subject ?? DEFAULT_SUBJECT)
+  const [body, setBody] = useState(saved?.body ?? DEFAULT_BODY)
   const [search, setSearch] = useState('')
-  const [tradeOnly, setTradeOnly] = useState(true)
-  const [picked, setPicked] = useState<Record<string, string>>({}) // company id -> chosen contact id ('' = the company's own address)
+  const [tradeOnly, setTradeOnly] = useState(saved?.tradeOnly ?? true)
+  const [picked, setPicked] = useState<Record<string, string>>(saved?.picked ?? {}) // company id -> chosen contact id ('' = the company's own address)
   const [confirmed, setConfirmed] = useState(false)
   const set = <K extends keyof typeof f>(k: K, v: string) => setF((x) => ({ ...x, [k]: v }))
+  const kept = useRef(true) // false once the drafts are made or discarded, so the cleared draft is not written back
+  useEffect(() => {
+    if (!kept.current) return
+    try {
+      if (!f.pkg.trim() && !scopeItems.length && !f.link && !Object.keys(picked).length) localStorage.removeItem(draftKey(enquiryId, tabId))
+      else localStorage.setItem(draftKey(enquiryId, tabId), JSON.stringify({ step, f, scopeItems, attachScope, subject, body, tradeOnly, picked }))
+    } catch {
+      /* storage blocked or full: the page still works, it just cannot keep the draft */
+    }
+  }, [step, f, scopeItems, attachScope, subject, body, tradeOnly, picked]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => onLabel(f.pkg.trim() || 'New enquiry'), [f.pkg]) // eslint-disable-line react-hooks/exhaustive-deps
+  // the job's SharePoint link (set on the enquiry) fills the documents link, unless this draft already has one
+  useEffect(() => {
+    const l = enquiries.find((e) => e.id === f.enquiry)?.documents_link
+    if (l) setF((x) => (x.link ? x : { ...x, link: l }))
+  }, [enquiries]) // eslint-disable-line react-hooks/exhaustive-deps
+  function discardDraft() {
+    if (!confirm('Throw away this draft enquiry and start again?')) return
+    kept.current = false
+    try {
+      localStorage.removeItem(draftKey(enquiryId, tabId))
+    } catch {
+      /* nothing to clear */
+    }
+    window.location.reload()
+  }
 
   useEffect(() => {
     supabase.from('enquiries').select('*').eq('id', enquiryId!).then((r) => {
@@ -199,7 +341,13 @@ export default function TenderEnquiry() {
       )
       await addScopeItems(made.id, scopeItems.filter((x) => x.description.trim()))
       if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Supply Chain.`)
-      navigate(`/estimating/e/${enquiryId}`)
+      kept.current = false
+      try {
+        localStorage.removeItem(draftKey(enquiryId, tabId))
+      } catch {
+        /* nothing to clear */
+      }
+      onFinished()
     } catch (e) {
       setError(saveError(e))
     }
@@ -227,6 +375,17 @@ export default function TenderEnquiry() {
       </ol>
       <p className="muted small">Nothing is sent from here: it makes an Outlook draft for each contractor, for you to check and send.</p>
       <Toast message={error} onClose={() => setError(null)} />
+      {restored && (
+        <p className="muted small">
+          Your draft enquiry from last time is back (it is saved on this computer as you type; drawings and attachments need adding again).{' '}
+          <button type="button" className="link-button small" onClick={discardDraft}>
+            Discard draft
+          </button>{' '}
+          <button type="button" className="link-button small" onClick={() => setRestored(false)}>
+            Hide
+          </button>
+        </p>
+      )}
 
       {step === 1 && (
         <div className="tg-cols">
