@@ -25,7 +25,7 @@ const dueChip = (due: string | null, done = false) => {
 }
 
 // one list (23 Nov): every task for me or set by me (and my open minutes actions), filtered by who and by job
-type Who = 'all' | 'mine' | 'set'
+type Who = 'all' | 'mine' | 'set' | 'fyi'
 interface Row {
   key: string
   kind: 'task' | 'action'
@@ -37,6 +37,7 @@ interface Row {
   doneAt: string | null
   forMe: boolean
   setByMe: boolean
+  fyi: boolean // someone else's task that names me with @ (read only)
   forName: string
   fromName: string | null
   important: boolean
@@ -111,6 +112,7 @@ export default function MyTasks() {
       doneAt: t.done_at,
       forMe: t.assigned_to === uid,
       setByMe: t.created_by === uid,
+      fyi: t.assigned_to !== uid && t.created_by !== uid && !!uid && (t.mentioned ?? []).includes(uid),
       forName: t.assigned_to === uid ? 'Me' : personName(personById.get(t.assigned_to)),
       fromName: t.created_by && t.created_by !== uid ? personName(personById.get(t.created_by)) : null,
       important: !!t.important,
@@ -128,6 +130,7 @@ export default function MyTasks() {
         doneAt: null,
         forMe: true,
         setByMe: false,
+        fyi: false,
         forName: 'Me',
         fromName: null,
         important: !!a.urgent,
@@ -150,7 +153,7 @@ export default function MyTasks() {
   }, [openId, tasks === null])
   const replaceTask = (t: Task) => setTasks((l) => (l ?? []).map((x) => (x.id === t.id ? t : x)))
 
-  const byWho = (r: Row, w: Who) => w === 'all' || (w === 'mine' ? r.forMe : r.setByMe)
+  const byWho = (r: Row, w: Who) => w === 'all' || (w === 'mine' ? r.forMe : w === 'set' ? r.setByMe : r.fyi)
   const byJob = (r: Row) => !jobFilter || (jobFilter === 'none' ? !r.jobId : r.jobId === jobFilter)
   const shown = rows.filter((r) => byWho(r, who) && byJob(r) && (showDone || !r.done))
   const count = (w: Who) => rows.filter((r) => byWho(r, w) && byJob(r) && !r.done).length
@@ -240,6 +243,7 @@ export default function MyTasks() {
                   ['all', 'All mine'],
                   ['mine', 'For me'],
                   ['set', 'Set by me'],
+                  ['fyi', 'Mentioned'],
                 ] as [Who, string][]
               ).map(([w, label]) => (
                 <button key={w} type="button" className={who === w ? 'on' : ''} onClick={() => setWho(w)}>
@@ -303,6 +307,7 @@ export default function MyTasks() {
                       {t?.remind_on && !r.done && <span className="chip">🔔 {ukDate(t.remind_on)}</span>}
                       {t?.repeat && <span className="chip">🔁 {REPEAT_LABELS[t.repeat]}</span>}
                       <span className="chip">{r.forMe ? 'For me' : `For ${r.forName}`}</span>
+                      {r.fyi && <span className="chip">@ You are mentioned</span>}
                       {r.fromName && <span className="chip">From {r.fromName}</span>}
                       {r.action && (
                         <span className="chip">
@@ -316,7 +321,7 @@ export default function MyTasks() {
                     </div>
                   </div>
                   <span className="task-buttons app-controls">
-                    {t && (
+                    {t && !r.fyi && (
                       <button
                         type="button"
                         className={'task-star' + (t.important ? ' on' : '')}

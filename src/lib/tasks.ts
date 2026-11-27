@@ -32,6 +32,7 @@ export interface Task {
   remind_on?: string | null
   repeat?: Repeat | null
   repeated_to?: string | null // the next one, once a repeating task is done
+  mentioned?: string[] // others named with @ in it, who can see it (script 104)
 }
 
 export interface TaskFile {
@@ -66,9 +67,13 @@ export async function loadTasks(): Promise<Task[]> {
   const since = new Date(Date.now() - 14 * 86400000).toISOString()
   // Only mine: given to me or set by me. (The database lets an admin read everyone's tasks; this list is still just the admin's own.)
   const uid = (await supabase.auth.getSession()).data.session?.user.id
-  let q = supabase.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since}`)
-  if (uid) q = q.or(`assigned_to.eq.${uid},created_by.eq.${uid}`)
-  const r = await q.order('due_date', { ascending: true, nullsFirst: false }).order('created_at')
+  const run = (withMentions: boolean) => {
+    let q = supabase.from('tasks').select('*').or(`done.eq.false,done_at.gte.${since}`)
+    if (uid) q = q.or(withMentions ? `assigned_to.eq.${uid},created_by.eq.${uid},mentioned.cs.{${uid}}` : `assigned_to.eq.${uid},created_by.eq.${uid}`)
+    return q.order('due_date', { ascending: true, nullsFirst: false }).order('created_at')
+  }
+  let r = await run(true)
+  if (r.error) r = await run(false) // before script 104 there is no "mentioned" column
   if (r.error) throw new Error(needs052(r.error.message))
   return r.data as Task[]
 }

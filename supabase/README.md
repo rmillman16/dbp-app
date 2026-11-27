@@ -144,3 +144,4 @@ Kept in `functions/`. Not run in the SQL Editor: deployed in Supabase › Edge F
 | `101_variations_notify_delete.sql` | Variations: the job team is told when one is agreed, a variation can be deleted, and a list-only Variations access part for the site team (run after 100) | **Run it** |
 | `102_application_checked_status.sql` | Applications: a Checked step (Draft, Checked, Issued, Certified, Paid) (run after 101) | **Run it** |
 | `103_pqq_to_accounts.sql` | All PQQ reminders go to the Accounts team only (run after 102) | **Run it** |
+| `104_task_mentions.sql` | Tasks: anyone @mentioned in a task can see it (read only) and gets a bell note (run after 103) | **Run it** |
