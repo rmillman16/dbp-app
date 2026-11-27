@@ -195,10 +195,16 @@ const tidy = (t: string) =>
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 export const render = (tpl: string, vals: Record<string, string>) => tidy(fill(tpl, vals))
+// **bold**, *italic* and __underline__ in the email text (from the formatting buttons) become real formatting
+export const marks = (h: string) =>
+  h
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*\n]+?)\*/g, '<i>$1</i>')
+    .replace(/__([^_\n]+?)__/g, '<u>$1</u>')
 export const toHtml = (text: string) =>
   text
     .split(/\n{2,}/)
-    .map((p) => `<p>${escHtml(p).replace(/\n/g, '<br>')}</p>`)
+    .map((p) => `<p>${marks(escHtml(p)).replace(/\n/g, '<br>')}</p>`)
     .join('')
 
 // put this where the scope goes and pass scopeHtml to draftFor, and the formatted list replaces it in the email

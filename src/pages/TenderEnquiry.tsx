@@ -19,6 +19,7 @@ import {
   DEFAULT_SUBJECT,
   INVITE_STATUS,
   SCOPE_MARK,
+  toHtml,
   addInvites,
   createPackage,
   deleteInvite,
@@ -38,6 +39,7 @@ import {
 import Loading from '../components/Loading'
 import SuggestInput from '../components/SuggestInput'
 import MoneyInput from '../components/MoneyInput'
+import MarkBar, { markKey } from '../components/MarkBar'
 import ScopeListEditor, { type ScopeDraft } from '../components/ScopeListEditor'
 import { escapeText, plainOf } from '../lib/scopeRich'
 import { addScopeItems, loadLevelling, loadScope, levelTotals, parseScope, scopeHtml, scopeText, type LevelCell, type LevelExtra, type ScopeItem } from '../lib/levelling'
@@ -191,6 +193,7 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
   const [files, setFiles] = useState<File[]>([])
   const [subject, setSubject] = useState(saved?.subject ?? DEFAULT_SUBJECT)
   const [body, setBody] = useState(saved?.body ?? DEFAULT_BODY)
+  const bodyBox = useRef<HTMLTextAreaElement>(null)
   const [search, setSearch] = useState('')
   const [tradeOnly, setTradeOnly] = useState(saved?.tradeOnly ?? true)
   const [picked, setPicked] = useState<Record<string, string>>(saved?.picked ?? {}) // company id -> chosen contact id ('' = the company's own address)
@@ -304,7 +307,7 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
     try {
       const extra: Attachment[] = files.map((x) => ({ name: x.name, blob: x }))
       if (attachScope && scopeStr.trim()) {
-        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, scope: scopeStr, returnBy: ukDate(ret) }) })
+        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, items: scopeItems, returnBy: ukDate(ret), sender, phone }) })
       }
       // the formatted list goes in the email itself, unless it is being attached as a PDF instead
       const formatted = !attachScope && scopeItems.some((x) => plainOf(x.description))
@@ -559,14 +562,15 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
           </label>
           <label className="span-2">
             Email
-            <textarea rows={16} value={body} onChange={(e) => setBody(e.target.value)} />
+            <MarkBar box={bodyBox} set={setBody} />
+            <textarea ref={bodyBox} rows={16} value={body} onChange={(e) => setBody(e.target.value)} onKeyDown={(e) => markKey(e, setBody)} />
             <small className="muted">
               Placeholders fill in for each contractor: {'{{contact}} {{company}} {{job}} {{jobno}} {{package}} {{return}} {{link}} {{summary}} {{scope}} {{notes}} {{main}} {{sub}} {{start}} {{duration}} {{cdp}} {{address}} {{sender}} {{phone}}'}.
             </small>
           </label>
           <div className="span-2 tg-preview">
             <strong>{render(subject, preview)}</strong>
-            <pre>{render(body, preview)}</pre>
+            <div className="tg-mail" dangerouslySetInnerHTML={{ __html: toHtml(render(body, preview)) }} />
           </div>
         </section>
       )}

@@ -1682,3 +1682,5 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tg-tab > button:first-child { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-tab-x { padding: 6px 8px 6px 0 !important; opacity: .5; }
 .tg-tab-add { color: #2563eb; }
+.tg-mail p { margin: 0 0 10px; }
+.tg-mail { margin-top: 8px; }
