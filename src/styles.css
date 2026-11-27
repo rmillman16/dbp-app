@@ -1684,3 +1684,7 @@ a.quick-action:hover { border-color: var(--navy); box-shadow: 0 2px 8px rgba(43,
 .tg-tab-add { color: #2563eb; }
 .tg-mail p { margin: 0 0 10px; }
 .tg-mail { margin-top: 8px; }
+.scope-details { margin: 2px 0 8px 34px; }
+.rich-box { min-height: 52px; font-size: .92rem; line-height: 1.5; background: #fafbff; }
+.rich-box:empty::before { content: attr(data-placeholder); color: #9aa0b4; pointer-events: none; }
+.scope-group + .scope-group { margin-top: 4px; }

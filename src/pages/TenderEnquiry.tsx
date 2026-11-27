@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { money, todayIso, ukDate } from '../lib/format'
 import { saveError } from '../lib/offline'
@@ -19,6 +19,7 @@ import {
   DEFAULT_SUBJECT,
   INVITE_STATUS,
   SCOPE_MARK,
+  addInviteRows,
   toHtml,
   addInvites,
   createPackage,
@@ -67,7 +68,7 @@ function readDraft(enquiryId: string | undefined, tabId: string): Partial<SavedD
   }
 }
 
-type Tab = { id: string; label: string }
+type Tab = { id: string; label: string; packageId?: string } // packageId: re-sending a package that is already in the tracker
 const tabsKey = (enquiryId: string | undefined) => `tender-tabs:${enquiryId}`
 
 // The generator as tabs: one half-written enquiry per tab, so a drawing pack can be worked through with several packages open at once.
@@ -75,17 +76,22 @@ const tabsKey = (enquiryId: string | undefined) => `tender-tabs:${enquiryId}`
 export default function TenderEnquiry() {
   const { enquiryId } = useParams()
   const navigate = useNavigate()
+  const [search] = useSearchParams()
+  const resend = search.get('package') // Edit & re-send on the tracker opens that package in a tab of its own
   const [tabs, setTabs] = useState<Tab[]>(() => {
+    let l: Tab[] = []
     try {
-      const l = JSON.parse(localStorage.getItem(tabsKey(enquiryId)) ?? '[]') as Tab[]
-      if (Array.isArray(l) && l.length) return l
+      const j = JSON.parse(localStorage.getItem(tabsKey(enquiryId)) ?? '[]') as Tab[]
+      if (Array.isArray(j)) l = j
     } catch {
       /* start with one tab */
     }
-    return [{ id: '1', label: 'New enquiry' }]
+    if (resend && !l.some((x) => x.packageId === resend)) l = [...l, { id: 'p' + resend, label: 'Re-send', packageId: resend }]
+    return l.length ? l : [{ id: '1', label: 'New enquiry' }]
   })
-  const [active, setActive] = useState(tabs[0].id)
-  const [opened, setOpened] = useState<string[]>([tabs[0].id]) // tabs are loaded when first clicked, then kept
+  const firstTab = (resend && tabs.find((x) => x.packageId === resend)?.id) || tabs[0].id
+  const [active, setActive] = useState(firstTab)
+  const [opened, setOpened] = useState<string[]>([firstTab]) // tabs are loaded when first clicked, then kept
   useEffect(() => {
     try {
       localStorage.setItem(tabsKey(enquiryId), JSON.stringify(tabs))
@@ -145,6 +151,7 @@ export default function TenderEnquiry() {
           <div key={t.id} hidden={t.id !== active}>
             <TenderWizard
               tabId={t.id}
+              packageId={t.packageId}
               onLabel={(label) => setTabs((l) => (l.some((x) => x.id === t.id && x.label !== label) ? l.map((x) => (x.id === t.id ? { ...x, label } : x)) : l))}
               onFinished={() => {
                 clear(t.id)
@@ -168,7 +175,7 @@ export default function TenderEnquiry() {
   )
 }
 
-function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: (label: string) => void; onFinished: () => void }) {
+function TenderWizard({ tabId, packageId, onLabel, onFinished }: { tabId: string; packageId?: string; onLabel: (label: string) => void; onFinished: () => void }) {
   const { enquiryId } = useParams() // the generator only ever works from inside an enquiry
   const saved = useRef(readDraft(enquiryId, tabId)).current
   const [restored, setRestored] = useState(!!saved)
@@ -209,7 +216,28 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
       /* storage blocked or full: the page still works, it just cannot keep the draft */
     }
   }, [step, f, scopeItems, attachScope, subject, body, tradeOnly, picked]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => onLabel(f.pkg.trim() || 'New enquiry'), [f.pkg]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [sentBefore, setSentBefore] = useState<string[]>([]) // company ids already on the package being re-sent
+  useEffect(() => onLabel(f.pkg.trim() ? (packageId ? 'Re-send: ' : '') + f.pkg.trim() : 'New enquiry'), [f.pkg]) // eslint-disable-line react-hooks/exhaustive-deps
+  // re-sending: the package, its wording, its scope and who it went to come back from the tracker (the scope always fresh from there)
+  useEffect(() => {
+    if (!packageId) return
+    Promise.all([supabase.from('tender_packages').select('*').eq('id', packageId).single(), supabase.from('tender_invites').select('company_id, contact_id').eq('package_id', packageId), loadScope([packageId])]).then(
+      ([p, inv, items]) => {
+        if (p.error) return setError(saveError(p.error))
+        const pk = p.data as { package: string; documents_link: string | null; email_subject: string | null; email_body: string | null }
+        const rows = (inv.data ?? []) as { company_id: string | null; contact_id: string | null }[]
+        setSentBefore(rows.map((r) => r.company_id).filter((x): x is string => !!x))
+        setScopeItems(items.map((x) => ({ kind: x.kind, description: x.description })))
+        if (!saved) {
+          setF((x) => ({ ...x, pkg: pk.package, link: pk.documents_link ?? x.link }))
+          if (pk.email_subject) setSubject(pk.email_subject)
+          if (pk.email_body) setBody(pk.email_body)
+          setTradeOnly(false)
+          setPicked(Object.fromEntries(rows.filter((r) => r.company_id).map((r) => [r.company_id as string, r.contact_id ?? ''])))
+        }
+      },
+    )
+  }, [packageId]) // eslint-disable-line react-hooks/exhaustive-deps
   // the job's SharePoint link (set on the enquiry) fills the documents link, unless this draft already has one
   useEffect(() => {
     const l = enquiries.find((e) => e.id === f.enquiry)?.documents_link
@@ -338,11 +366,16 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
         await new Promise((r) => setTimeout(r, 350)) // browsers drop downloads that arrive all at once
         invites.push({ company_id: c.id, contact_id: k?.id ?? null, name: c.name, email: emailOf(c), status: 'drafted', sent_on: null, chased_count: 0, last_chased_on: null, quote_amount: null, quote_received_on: null, notes: null })
       }
-      const made = await createPackage(
-        { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: scopeStr || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
-        invites,
-      )
-      await addScopeItems(made.id, scopeItems.filter((x) => x.description.trim()))
+      if (packageId) {
+        await updatePackage(packageId, { documents_link: f.link || null, email_subject: subject, email_body: body, scope: scopeStr || null })
+        await addInviteRows(packageId, invites.filter((x) => !x.company_id || !sentBefore.includes(x.company_id)))
+      } else {
+        const made = await createPackage(
+          { enquiry_id: enquiry.id, package: f.pkg.trim(), return_date: ret, job_address: mail.address || null, main_contract: mail.main || null, sub_contract: mail.sub || null, summary: mail.summary || null, scope: scopeStr || null, notes: mail.notes || null, documents_link: f.link || null, sender_name: sender || null, sender_phone: phone || null, email_subject: subject, email_body: body },
+          invites,
+        )
+        await addScopeItems(made.id, scopeItems.filter((x) => x.description.trim()))
+      }
       if (skipped.length) alert(`${n} drafts made. The PQQ pack was left off for ${skipped.join(', ')} because the PQQ is over 3 MB or the email would be too large: send it to them separately from Supply Chain.`)
       kept.current = false
       try {
@@ -399,8 +432,9 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
             </div>
             <label className="span-2">
               Package * <small className="muted">the trade you are asking them to price</small>
-              <SuggestInput value={f.pkg} onChange={(v) => set('pkg', v)} options={trades} placeholder="Search or type a package" limit={30} onAdd={addPackage} />
+              {packageId ? <input value={f.pkg} readOnly /> : <SuggestInput value={f.pkg} onChange={(v) => set('pkg', v)} options={trades} placeholder="Search or type a package" limit={30} onAdd={addPackage} />}
             </label>
+            {packageId && <p className="span-2 muted small">Re-sending a package that is already in the tracker: it is not added a second time. Contractors you add here join it as new lines; the ones already on it keep their status.</p>}
             <p className="span-2 muted small">Next you add the drawings and the scope of works for this package, then check the email and pick who it goes to.</p>
           </section>
 
@@ -512,7 +546,14 @@ function TenderWizard({ tabId, onLabel, onFinished }: { tabId: string; onLabel: 
               Scope of works <small className="muted">The contractors see this list, and their prices are levelled against it afterwards.</small>
             </label>
             <div className="span-2">
-              <ScopeListEditor items={scopeItems} onChange={setScopeItems} />
+              {packageId ? (
+                <p className="muted small">
+                  The scope is the one on the package ({scopeItems.filter((x) => x.kind === 'item').length} items). To change it, use{' '}
+                  <Link to={`/estimating/e/${enquiryId}/tender/${packageId}/level`}>Scope & levelling</Link>, then come back here: it is read again each time this tab opens.
+                </p>
+              ) : (
+                <ScopeListEditor items={scopeItems} onChange={setScopeItems} />
+              )}
             </div>
             <label className="check span-2">
               <input type="checkbox" checked={attachScope} disabled={!scopeStr.trim()} onChange={(e) => setAttachScope(e.target.checked)} /> Attach the scope of works to each email (as a PDF)
@@ -1099,9 +1140,12 @@ export function TenderTracker({ enquiryId }: { enquiryId?: string }) {
                   + Add contractor
                 </button>
                 <input type="date" className="small-input" title="Tender return date" value={p.return_date} onChange={(ev) => ev.target.value && run(() => updatePackage(p.id, { return_date: ev.target.value }))} />
+                <button className="small-button" title="Open this package again: change the wording or contractors and make the email drafts again" onClick={() => navigate(`/estimating/e/${p.enquiry_id}/tender/new?package=${p.id}`)}>
+                  Edit & re-send
+                </button>
                 {e && (
-                  <button className="small-button" onClick={() => navigate(`/estimating/e/${e.id}`)}>
-                    Open enquiry
+                  <button className="small-button" title="The job's page" onClick={() => navigate(`/estimating/e/${e.id}`)}>
+                    Job page
                   </button>
                 )}
                 <button className="small-button" onClick={() => confirm(`Delete the ${p.package} package and its ${all.length} lines from the tracker?`) && run(() => deletePackage(p.id))}>

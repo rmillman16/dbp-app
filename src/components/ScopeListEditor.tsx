@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { numberItems, parseScope, type ScopeKind } from '../lib/levelling'
+import { numberItems, parseScope, scopeGroups, type ScopeKind } from '../lib/levelling'
 import { escapeText } from '../lib/scopeRich'
 import RichLine, { RichToolbar } from './RichLine'
+import RichBox from './RichBox'
 
 // The scope of a tender package as a list (script 094): type items one at a time (Enter adds the next), add headings to group
 // them, or paste a whole list. Numbered 1, 1.1, 1.2 ... as it goes out in the email, and the same items are what each contractor's
@@ -49,12 +50,18 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
   const [paste, setPaste] = useState('')
   const refs = numberItems(items)
   const set = (i: number, patch: Partial<ScopeDraft>) => onChange(items.map((x, j) => (j === i ? { ...x, ...patch } : x)))
-  const move = (i: number, d: number) => {
-    const j = i + d
-    if (j < 0 || j >= items.length) return
-    const l = [...items]
-    ;[l[i], l[j]] = [l[j], l[i]]
-    onChange(l)
+  const groups = scopeGroups(items)
+  // an item moves, and is removed, together with its detail lines
+  const moveGroup = (g: number, d: number) => {
+    const to = g + d
+    if (to < 0 || to >= groups.length) return
+    const parts = groups.map((x) => items.slice(x.start, x.end))
+    ;[parts[g], parts[to]] = [parts[to], parts[g]]
+    onChange(parts.flat())
+  }
+  const setDetails = (g: number, lines: string[]) => {
+    const { start, end } = groups[g]
+    onChange([...items.slice(0, start + 1), ...lines.map((description) => ({ kind: 'detail' as const, description })), ...items.slice(end)])
   }
   const add = (kind: ScopeKind) => {
     if (!text.trim()) return
@@ -65,24 +72,34 @@ export default function ScopeListEditor({ items, onChange }: { items: ScopeDraft
     <div className="scope-list">
       <RichToolbar />
       {items.length === 0 && <p className="muted small">No items yet. Add them below, one at a time, or paste a list.</p>}
-      {items.map((x, i) => (
-        <div key={i} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
-          <span className="scope-ref">{refs[i]}</span>
-          <RichLine html={x.description} onChange={(h) => set(i, { description: h })} label={`Scope item ${refs[i]}`} />
-          <button type="button" className="small-button" title="Click to change: heading, item (priced and levelled), detail (a point under an item)" onClick={() => set(i, { kind: NEXT_KIND[x.kind] })}>
-            {KIND_LABEL[x.kind]}
-          </button>
-          <button type="button" className="small-button" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
-            ↑
-          </button>
-          <button type="button" className="small-button" aria-label="Move down" disabled={i === items.length - 1} onClick={() => move(i, 1)}>
-            ↓
-          </button>
-          <button type="button" className="small-button" aria-label="Remove" onClick={() => onChange(items.filter((_, j) => j !== i))}>
-            ✕
-          </button>
-        </div>
-      ))}
+      {groups.map((g, gi) => {
+        const i = g.start
+        const x = items[i]
+        const details = items.slice(i + 1, g.end).map((d) => d.description)
+        return (
+          <div key={i} className="scope-group">
+            <div className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
+              <span className="scope-ref">{refs[i]}</span>
+              <RichLine html={x.description} onChange={(h) => set(i, { description: h })} label={`Scope item ${refs[i]}`} />
+              <button type="button" className="small-button" title="Click to switch between an item (priced and levelled) and a heading" onClick={() => set(i, { kind: x.kind === 'heading' ? 'item' : 'heading' })}>
+                {KIND_LABEL[x.kind]}
+              </button>
+              <button type="button" className="small-button" aria-label="Move up" disabled={gi === 0} onClick={() => moveGroup(gi, -1)}>
+                ↑
+              </button>
+              <button type="button" className="small-button" aria-label="Move down" disabled={gi === groups.length - 1} onClick={() => moveGroup(gi, 1)}>
+                ↓
+              </button>
+              <button type="button" className="small-button" aria-label="Remove" onClick={() => onChange([...items.slice(0, g.start), ...items.slice(g.end)])}>
+                ✕
+              </button>
+            </div>
+            <div className="scope-details">
+              <RichBox lines={details} onChange={(l) => setDetails(gi, l)} label={`Detail lines under ${refs[i]}`} placeholder="Detail lines under this item, one per line (they go in the email as (a), (b)...)" />
+            </div>
+          </div>
+        )
+      })}
       <div className="scope-add">
         <input
           value={text}

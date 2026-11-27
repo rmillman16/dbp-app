@@ -16,6 +16,9 @@ import {
   loadScope,
   levelTotals,
   numberItems,
+  moveScopeGroup,
+  replaceDetails,
+  scopeGroups,
   parseScope,
   saveCell,
   syncScopeText,
@@ -29,8 +32,9 @@ import {
 } from '../lib/levelling'
 import MoneyInput from '../components/MoneyInput'
 import Loading from '../components/Loading'
-import { KIND_LABEL, NEXT_KIND, indentKey } from '../components/ScopeListEditor'
+import { KIND_LABEL, indentKey } from '../components/ScopeListEditor'
 import RichLine, { RichToolbar } from '../components/RichLine'
+import RichBox from '../components/RichBox'
 import { escapeText, plainOf, sanitizeRich } from '../lib/scopeRich'
 
 // Scope & levelling for one tender package (script 094). The scope is a list of items; each contractor's price is levelled
@@ -115,15 +119,9 @@ export default function TenderLevelling() {
   const totals = new Map(cols.map((i) => [i.id, levelTotals(items, cells.filter((c) => c.invite_id === i.id), extras.filter((x) => x.invite_id === i.id), i.quote_amount)]))
   const lowest = Math.min(...cols.filter((i) => (totals.get(i.id)?.total ?? 0) > 0).map((i) => totals.get(i.id)!.total))
 
-  async function swap(i: number, d: number) {
-    const a = items[i]
-    const b = items[i + d]
-    if (!a || !b) return
-    await run(async () => {
-      await updateScopeItem(a.id, { sort: b.sort })
-      await updateScopeItem(b.id, { sort: a.sort })
-    }, true)
-  }
+  const groups = useMemo(() => scopeGroups(items), [items])
+  // an item moves with its detail lines
+  const moveGroup = (item: ScopeItem, d: -1 | 1) => run(() => moveScopeGroup(packageId!, item.id, d), true)
 
   if (!loaded) return <Loading />
   if (!pkg) return <section className="card"><p className="muted">That package isn't there any more.</p></section>
@@ -149,32 +147,47 @@ export default function TenderLevelling() {
       <div className="scope-list">
         <RichToolbar />
         {items.length === 0 && <p className="muted small">No scope items yet. Add them below, one at a time or by pasting a list.</p>}
-        {items.map((x, i) => (
-          <div key={x.id} className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
-            <span className="scope-ref">{refs[i]}</span>
-            <RichLine key={x.id} html={x.description} label={`Scope item ${refs[i]}`} onCommit={(h) => run(() => updateScopeItem(x.id, { description: h }), true)} />
-            <button type="button" className="small-button" title="Click to change: heading, item (priced and levelled), detail (a point under an item)" onClick={() => run(() => updateScopeItem(x.id, { kind: NEXT_KIND[x.kind] }), true)}>
-              {KIND_LABEL[x.kind]}
-            </button>
-            <button type="button" className="small-button" aria-label="Move up" disabled={i === 0} onClick={() => swap(i, -1)}>
-              ↑
-            </button>
-            <button type="button" className="small-button" aria-label="Move down" disabled={i === items.length - 1} onClick={() => swap(i, 1)}>
-              ↓
-            </button>
-            <button
-              type="button"
-              className="small-button"
-              aria-label="Remove"
-              onClick={() => {
-                const used = cells.filter((c) => c.item_id === x.id && c.status !== 'tbc').length
-                if (confirm(used ? `Remove "${plainOf(x.description)}"? Its levelling for ${used} contractor${used === 1 ? '' : 's'} goes with it (the log keeps a record).` : `Remove "${plainOf(x.description)}"?`)) run(() => deleteScopeItem(x.id), true)
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+        {groups.map((g, gi) => {
+          const i = g.start
+          const x = items[i]
+          const details = items.slice(i + 1, g.end).map((d) => d.description)
+          return (
+            <div key={x.id} className="scope-group">
+              <div className={'scope-row' + (x.kind === 'heading' ? ' scope-heading' : x.kind === 'detail' ? ' scope-detail' : '')}>
+                <span className="scope-ref">{refs[i]}</span>
+                <RichLine key={x.id} html={x.description} label={`Scope item ${refs[i]}`} onCommit={(h) => run(() => updateScopeItem(x.id, { description: h }), true)} />
+                <button type="button" className="small-button" title="Click to switch between an item (priced and levelled) and a heading" onClick={() => run(() => updateScopeItem(x.id, { kind: x.kind === 'heading' ? 'item' : 'heading' }), true)}>
+                  {KIND_LABEL[x.kind]}
+                </button>
+                <button type="button" className="small-button" aria-label="Move up" disabled={gi === 0} onClick={() => moveGroup(x, -1)}>
+                  ↑
+                </button>
+                <button type="button" className="small-button" aria-label="Move down" disabled={gi === groups.length - 1} onClick={() => moveGroup(x, 1)}>
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  className="small-button"
+                  aria-label="Remove"
+                  onClick={() => {
+                    const used = cells.filter((c) => c.item_id === x.id && c.status !== 'tbc').length
+                    const n = g.end - g.start - 1
+                    const more = n ? ` and its ${n} detail line${n === 1 ? '' : 's'}` : ''
+                    if (confirm(used ? `Remove "${plainOf(x.description)}"${more}? Its levelling for ${used} contractor${used === 1 ? '' : 's'} goes with it (the log keeps a record).` : `Remove "${plainOf(x.description)}"${more}?`))
+                      run(async () => {
+                        for (let k = g.end - 1; k >= g.start; k--) await deleteScopeItem(items[k].id)
+                      }, true)
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="scope-details">
+                <RichBox key={x.id} lines={details} label={`Detail lines under ${refs[i]}`} placeholder="Detail lines under this item, one per line (they go in the email as (a), (b)...)" onCommit={(l) => run(() => replaceDetails(packageId!, x.id, l), true)} />
+              </div>
+            </div>
+          )
+        })}
         <div className="scope-add">
           <input
             value={text}
@@ -220,7 +233,7 @@ export default function TenderLevelling() {
         </div>
         {pasting && (
           <div className="scope-paste">
-            <textarea rows={8} value={paste} onChange={(e) => setPaste(e.target.value)} onKeyDown={(e) => indentKey(e, setPaste)} placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): three levels are heading / item / detail, two are item / detail. Or start a line with # (or end it with a colon) to make a heading.'} />
+            <textarea rows={8} value={paste} onChange={(e) => setPaste(e.target.value)} onKeyDown={(e) => indentKey(e, setPaste)} placeholder={'One line per entry. Press Tab to indent a line (Shift+Tab to take it back): lines at the left are scope items and indented lines under them are details of that item. Start a line with # (or end it with a colon) to make a heading.'} />
             <div className="button-row">
               <button
                 type="button"

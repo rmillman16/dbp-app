@@ -79,6 +79,12 @@ export async function createPackage(pkg: Omit<TenderPackage, 'id' | 'created_at'
   }
   return p.data as TenderPackage
 }
+// contractors added to a package that is already in the tracker, from a re-send (they are marked as drafted)
+export async function addInviteRows(packageId: string, rows: Omit<TenderInvite, 'id' | 'package_id'>[]) {
+  if (!rows.length) return
+  const r = await supabase.from('tender_invites').insert(rows.map((x) => ({ ...x, package_id: packageId })))
+  if (r.error) throw fail(r.error)
+}
 // a contractor added to a package that is already in the tracker (sent outside the app)
 export async function addInvites(packageId: string, who: { company_id: string | null; name: string; email: string | null }[], sentOn: string | null) {
   if (!who.length) return
@@ -99,7 +105,7 @@ export async function deletePackage(id: string) {
   const r = await supabase.from('tender_packages').delete().eq('id', id)
   if (r.error) throw fail(r.error)
 }
-export async function updatePackage(id: string, patch: Partial<Pick<TenderPackage, 'return_date' | 'notes' | 'documents_link'>>) {
+export async function updatePackage(id: string, patch: Partial<Pick<TenderPackage, 'return_date' | 'notes' | 'documents_link' | 'scope' | 'email_subject' | 'email_body' | 'sender_name' | 'sender_phone'>>) {
   const r = await supabase.from('tender_packages').update(patch).eq('id', id)
   if (r.error) throw fail(r.error)
 }

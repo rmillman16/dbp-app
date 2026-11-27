@@ -194,6 +194,51 @@ export async function deleteScopeItem(id: string) {
   const r = await supabase.from('tender_scope_items').delete().eq('id', id)
   if (r.error) throw fail(r.error)
 }
+// ---------- an item and its detail lines move, and are edited, as one ----------
+// [start, end) of each group: an item or heading and the detail lines under it
+export function scopeGroups(items: Pick<ScopeItem, 'kind'>[]): { start: number; end: number }[] {
+  const g: { start: number; end: number }[] = []
+  items.forEach((x, i) => {
+    if (x.kind !== 'detail' || !g.length) g.push({ start: i, end: i + 1 })
+    else g[g.length - 1].end = i + 1
+  })
+  return g
+}
+async function renumber(order: string[], sortOf: Map<string, number>) {
+  await Promise.all(order.map((id, p) => (sortOf.get(id) === p ? null : updateScopeItem(id, { sort: p }))))
+}
+// the detail lines under an item become exactly these lines (only the ones that changed are written)
+export async function replaceDetails(packageId: string, itemId: string, lines: string[]) {
+  const all = await loadScope([packageId])
+  const at = all.findIndex((x) => x.id === itemId)
+  if (at < 0) return
+  let end = at + 1
+  while (end < all.length && all[end].kind === 'detail') end++
+  const old = all.slice(at + 1, end)
+  const keep = Math.min(old.length, lines.length)
+  for (let k = 0; k < keep; k++) if (old[k].description !== lines[k]) await updateScopeItem(old[k].id, { description: lines[k] })
+  for (const x of old.slice(keep)) await deleteScopeItem(x.id)
+  const sortOf = new Map(all.map((x) => [x.id, x.sort]))
+  let made: { id: string }[] = []
+  if (lines.length > keep) {
+    const top = Math.max(...all.map((x) => x.sort)) + 1
+    const r = await supabase.from('tender_scope_items').insert(lines.slice(keep).map((d, i) => ({ package_id: packageId, sort: top + i, kind: 'detail', description: d }))).select('id')
+    if (r.error) throw fail(r.error)
+    made = r.data as { id: string }[]
+    made.forEach((m, i) => sortOf.set(m.id, top + i))
+  }
+  await renumber([...all.slice(0, at + 1 + keep).map((x) => x.id), ...made.map((x) => x.id), ...all.slice(end).map((x) => x.id)], sortOf)
+}
+export async function moveScopeGroup(packageId: string, itemId: string, dir: -1 | 1) {
+  const all = await loadScope([packageId])
+  const g = scopeGroups(all)
+  const gi = g.findIndex((x) => all[x.start].id === itemId)
+  const to = gi + dir
+  if (gi < 0 || to < 0 || to >= g.length) return
+  const ids = g.map((x) => all.slice(x.start, x.end).map((y) => y.id))
+  ;[ids[gi], ids[to]] = [ids[to], ids[gi]]
+  await renumber(ids.flat(), new Map(all.map((x) => [x.id, x.sort])))
+}
 // keeps tender_packages.scope (the text that goes in the email) in step with the list
 export async function syncScopeText(packageId: string) {
   const items = await loadScope([packageId])
