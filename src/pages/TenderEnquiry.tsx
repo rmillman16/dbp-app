@@ -334,9 +334,6 @@ function TenderWizard({ tabId, packageId, onLabel, onFinished }: { tabId: string
     setError(null)
     try {
       const extra: Attachment[] = files.map((x) => ({ name: x.name, blob: x }))
-      if (attachScope && scopeStr.trim()) {
-        extra.unshift({ name: `Scope of works - ${f.pkg}.pdf`, blob: await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, items: scopeItems, returnBy: ukDate(ret), sender, phone }) })
-      }
       // the formatted list goes in the email itself, unless it is being attached as a PDF instead
       const formatted = !attachScope && scopeItems.some((x) => plainOf(x.description))
       const skipped: string[] = []
@@ -348,12 +345,17 @@ function TenderWizard({ tabId, packageId, onLabel, onFinished }: { tabId: string
         const vals = valuesFor(mail, c.name, k?.name.split(' ')[0] ?? '')
         if (formatted) vals.scope = SCOPE_MARK + '\n\n'
         let attachments = [...extra]
+        // the scope as a fillable PDF with this contractor's name on it
+        if (attachScope && scopeStr.trim()) {
+          const blob = await scopePdf({ enquiry: `${enquiryRef(enquiry)} · ${enquiry.name}`, address: mail.address, pkg: f.pkg, items: scopeItems, returnBy: ukDate(ret), contractor: c.name, sender, phone, email: me?.email ?? '' })
+          attachments.unshift({ name: `Scope of works - ${f.pkg} - ${c.name}.pdf`, blob })
+        }
         const needs = needsPqq(c) && pqq.length > 0
         if (needs) {
           const docs = packFor(c, pqq)
           const blobs = await Promise.all(docs.map(async (d) => ({ name: d.file_name, blob: await fileBlob(d.path) })))
           const pqqSize = blobs.reduce((s, a) => s + a.blob.size, 0)
-          const size = [...extra, ...blobs].reduce((s, a) => s + a.blob.size, 0)
+          const size = [...attachments, ...blobs].reduce((s, a) => s + a.blob.size, 0)
           if (pqqSize <= MAX_PQQ && size <= MAX_ATTACH) {
             attachments = [...attachments, ...blobs]
             pqqSent.push(c.name)
